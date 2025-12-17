@@ -1,4 +1,4 @@
-import { Player, Card } from '@/types/poker';
+import { Player, Card, Game } from '@/types/poker';
 import PlayerSeat from './PlayerSeat';
 import PlayingCard from './PlayingCard';
 import { cn } from '@/lib/utils';
@@ -8,15 +8,26 @@ interface PokerTableProps {
   communityCards: Card[];
   pot: number;
   currentUserId?: string;
-  showdown?: boolean;
+  gameStatus?: Game['status'];
 }
+
+// Get how many community cards to show based on game status
+const getVisibleCards = (status: Game['status'] | undefined): number => {
+  switch (status) {
+    case 'flop': return 3;
+    case 'turn': return 4;
+    case 'river': return 5;
+    case 'showdown': return 5;
+    default: return 0;
+  }
+};
 
 export default function PokerTableComponent({ 
   players, 
   communityCards, 
   pot, 
   currentUserId,
-  showdown = false 
+  gameStatus
 }: PokerTableProps) {
   // Create a full 9-seat array
   const seats: (Player | undefined)[] = Array(9).fill(undefined);
@@ -25,6 +36,9 @@ export default function PokerTableComponent({
       seats[player.position] = player;
     }
   });
+
+  const visibleCardCount = getVisibleCards(gameStatus);
+  const isShowdown = gameStatus === 'showdown';
 
   return (
     <div className="relative w-full max-w-4xl mx-auto aspect-[16/10]">
@@ -36,7 +50,7 @@ export default function PokerTableComponent({
         {/* Center area - pot and community cards */}
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
           {/* Pot display */}
-          <div className="bg-black/30 px-6 py-2 rounded-full backdrop-blur">
+          <div className="bg-black/40 px-6 py-2 rounded-full backdrop-blur-sm border border-yellow-500/30">
             <span className="text-yellow-400 font-bold text-xl">
               Pot: {pot.toLocaleString()}
             </span>
@@ -47,9 +61,9 @@ export default function PokerTableComponent({
             {[0, 1, 2, 3, 4].map((i) => (
               <div key={i} className={cn(
                 'transition-all duration-500',
-                communityCards[i] ? 'opacity-100 scale-100' : 'opacity-30 scale-95'
+                i < visibleCardCount && communityCards[i] ? 'opacity-100 scale-100' : 'opacity-30 scale-95'
               )}>
-                {communityCards[i] ? (
+                {i < visibleCardCount && communityCards[i] ? (
                   <PlayingCard 
                     card={communityCards[i]} 
                     size="md"
@@ -61,6 +75,13 @@ export default function PokerTableComponent({
               </div>
             ))}
           </div>
+
+          {/* Game status indicator */}
+          {gameStatus && gameStatus !== 'waiting' && gameStatus !== 'complete' && (
+            <div className="bg-emerald-900/70 px-4 py-1 rounded-full text-emerald-300 text-sm font-medium uppercase tracking-wider">
+              {gameStatus}
+            </div>
+          )}
         </div>
       </div>
 
@@ -71,7 +92,7 @@ export default function PokerTableComponent({
           player={player}
           position={position}
           isCurrentUser={player?.userId === currentUserId}
-          showCards={showdown}
+          showCards={isShowdown}
         />
       ))}
     </div>

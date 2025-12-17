@@ -34,22 +34,25 @@ export default function PlayerSeat({ player, position, isCurrentUser = false, sh
     );
   }
 
+  const hasCards = player.holeCards && player.holeCards.length > 0;
+  const shouldShowCards = showCards || isCurrentUser;
+
   return (
     <div className={cn('absolute', positionStyles[position])}>
       <div 
         className={cn(
-          'flex flex-col items-center gap-2',
-          player.isCurrentPlayer && 'animate-pulse'
+          'flex flex-col items-center gap-2 transition-all duration-300',
+          player.isCurrentPlayer && !player.isFolded && 'scale-105'
         )}
       >
         {/* Hole Cards */}
-        {player.holeCards.length > 0 && (
+        {hasCards && !player.isFolded && (
           <div className="flex gap-1 mb-1">
             {player.holeCards.map((card, i) => (
               <PlayingCard 
                 key={i} 
-                card={showCards || isCurrentUser ? card : undefined}
-                faceDown={!showCards && !isCurrentUser}
+                card={shouldShowCards ? card : undefined}
+                faceDown={!shouldShowCards}
                 size="sm"
                 animationDelay={i * 100}
               />
@@ -61,36 +64,46 @@ export default function PlayerSeat({ player, position, isCurrentUser = false, sh
         <div 
           className={cn(
             'w-20 h-20 rounded-full flex flex-col items-center justify-center shadow-lg border-2 transition-all duration-300',
-            player.isFolded ? 'bg-muted/50 border-muted text-muted-foreground opacity-50' :
-            player.isCurrentPlayer ? 'bg-emerald-900 border-emerald-400 ring-4 ring-emerald-400/50' :
-            isCurrentUser ? 'bg-blue-900 border-blue-400' :
-            'bg-slate-800 border-slate-600'
+            player.isFolded 
+              ? 'bg-muted/50 border-muted text-muted-foreground opacity-50' 
+              : player.isCurrentPlayer 
+                ? 'bg-emerald-900 border-emerald-400 ring-4 ring-emerald-400/50 animate-pulse' 
+                : isCurrentUser 
+                  ? 'bg-blue-900 border-blue-400' 
+                  : 'bg-slate-800 border-slate-600'
           )}
         >
-          <span className="font-bold text-sm truncate max-w-[70px]">{player.username}</span>
-          <span className="text-xs text-yellow-400 font-mono">{player.stack.toLocaleString()}</span>
+          <span className="font-bold text-sm truncate max-w-[70px] text-foreground">
+            {player.username}
+          </span>
+          <span className="text-xs text-yellow-400 font-mono">
+            {player.stack.toLocaleString()}
+          </span>
         </div>
 
         {/* Position badges */}
-        <div className="flex gap-1">
+        <div className="flex gap-1 flex-wrap justify-center">
           {player.isDealer && (
-            <Badge className="bg-white text-black text-xs px-1.5">D</Badge>
+            <Badge className="bg-white text-black text-xs px-1.5 py-0">D</Badge>
           )}
           {player.isSmallBlind && (
-            <Badge className="bg-blue-500 text-white text-xs px-1.5">SB</Badge>
+            <Badge className="bg-blue-500 text-white text-xs px-1.5 py-0">SB</Badge>
           )}
           {player.isBigBlind && (
-            <Badge className="bg-orange-500 text-white text-xs px-1.5">BB</Badge>
+            <Badge className="bg-orange-500 text-white text-xs px-1.5 py-0">BB</Badge>
           )}
           {player.isAllIn && (
-            <Badge className="bg-red-500 text-white text-xs">ALL IN</Badge>
+            <Badge className="bg-red-500 text-white text-xs py-0">ALL IN</Badge>
+          )}
+          {player.isFolded && (
+            <Badge className="bg-gray-600 text-white text-xs py-0">FOLDED</Badge>
           )}
         </div>
 
         {/* Current bet */}
         {player.currentBet > 0 && !player.isFolded && (
-          <div className="absolute -bottom-6 left-1/2 -translate-x-1/2">
-            <div className="bg-yellow-500/90 text-black px-2 py-0.5 rounded text-xs font-bold">
+          <div className="absolute -bottom-8 left-1/2 -translate-x-1/2">
+            <div className="bg-yellow-500/90 text-black px-3 py-1 rounded-full text-xs font-bold shadow-lg">
               {player.currentBet}
             </div>
           </div>
