@@ -11,6 +11,7 @@ interface PlayerSeatProps {
   showCards?: boolean;
   myCards?: Card[];
   communityCards?: Card[];
+  gameStatus?: string;
 }
 
 // Position configurations for 9 players around an oval table
@@ -32,7 +33,8 @@ export default function PlayerSeat({
   isCurrentUser = false, 
   showCards = false,
   myCards = [],
-  communityCards = []
+  communityCards = [],
+  gameStatus = 'preflop'
 }: PlayerSeatProps) {
   if (!player) {
     return (
@@ -49,9 +51,22 @@ export default function PlayerSeat({
   const hasCards = isCurrentUser ? myCards.length > 0 : (player.hasHiddenCards || player.holeCards.length > 0);
   const shouldShowFaceDown = !isCurrentUser && hasCards && !showCards;
 
-  // Calculate hand rank for current user only
+  // Calculate hand rank for current user only - based on visible community cards
+  const getVisibleCommunityCards = () => {
+    if (!communityCards) return [];
+    switch (gameStatus) {
+      case 'preflop': return [];
+      case 'flop': return communityCards.slice(0, 3);
+      case 'turn': return communityCards.slice(0, 4);
+      case 'river':
+      case 'showdown': return communityCards;
+      default: return [];
+    }
+  };
+
+  const visibleCommunity = getVisibleCommunityCards();
   const handRank = isCurrentUser && myCards.length > 0 
-    ? evaluateHand(myCards, communityCards) 
+    ? evaluateHand(myCards, visibleCommunity) 
     : null;
 
   return (

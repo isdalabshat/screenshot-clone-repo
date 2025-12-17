@@ -548,26 +548,23 @@ serve(async (req) => {
         });
       }
 
-      // Check if betting round is complete
-      // A round ends when all active non-all-in players have:
-      // 1. Equal bets to the current bet
-      // 2. AND everyone has had at least one action since the last raise
-      const activeNonAllIn = activePlayers.filter(p => !p.is_all_in);
-      const allBetsEqual = activeNonAllIn.every(p => {
-        const bet = p.id === currentPlayer.id ? newBet : p.current_bet;
-        return bet === newCurrentBet;
-      });
-
       const dealerIdx = sortedPlayers.findIndex(p => p.position === game.dealer_position);
-      const numActivePlayers = sortedPlayers.filter(p => !p.is_folded).length;
-
-      // Find next player in clockwise order who needs to act
       const currentPlayerIdx = sortedPlayers.findIndex(p => p.position === currentPlayer.position);
+
+      // Get actions for this round to see who has acted
+      const { data: roundActions } = await supabase
+        .from('game_actions')
+        .select('user_id')
+        .eq('game_id', game.id)
+        .eq('round', game.status);
+
+      const actedUserIds = new Set((roundActions || []).map(a => a.user_id));
+      // Add current player since they just acted
+      actedUserIds.add(user.id);
+
+      // Find next player clockwise who needs to act
       let nextPosition: number | null = null;
       
-      // Look for next player who either:
-      // 1. Has a bet less than current bet (must call/raise/fold)
-      // 2. Is the big blind who hasn't acted yet in preflop (option to raise)
       for (let i = 1; i <= sortedPlayers.length; i++) {
         const idx = (currentPlayerIdx + i) % sortedPlayers.length;
         const p = sortedPlayers[idx];
@@ -575,14 +572,28 @@ serve(async (req) => {
         const playerFolded = p.id === currentPlayer.id ? isFolded : p.is_folded;
         const playerAllIn = p.id === currentPlayer.id ? isAllIn : p.is_all_in;
         
-        if (!playerFolded && !playerAllIn && playerBet < newCurrentBet) {
+        if (playerFolded || playerAllIn) continue;
+        
+        // Player needs to act if:
+        // 1. They haven't acted yet this round, OR
+        // 2. Their bet is less than the current bet (must call/raise/fold)
+        const hasActed = actedUserIds.has(p.user_id);
+        const needsToMatch = playerBet < newCurrentBet;
+        
+        if (!hasActed || needsToMatch) {
           nextPosition = p.position;
           break;
         }
       }
 
-      // If all bets are equal and we found no one who needs to act, round is over
-      const shouldAdvanceRound = nextPosition === null && allBetsEqual && activeNonAllIn.length > 0;
+      // Check if betting round is complete
+      const activeNonAllIn = activePlayers.filter(p => !p.is_all_in);
+      const allBetsEqual = activeNonAllIn.every(p => {
+        const bet = p.id === currentPlayer.id ? newBet : p.current_bet;
+        return bet === newCurrentBet;
+      });
+
+      const shouldAdvanceRound = nextPosition === null && allBetsEqual;
 
       if (shouldAdvanceRound) {
         // Move to next round
@@ -666,7 +677,7 @@ serve(async (req) => {
           // Post-flop: first active player left of dealer acts first
           let firstToAct: number | null = null;
           
-          if (numActivePlayers === 2) {
+          if (numPlayers === 2) {
             // Heads-up post-flop: BB (non-dealer) acts first
             const nonDealerIdx = (dealerIdx + 1) % sortedPlayers.length;
             const bbPlayer = sortedPlayers[nonDealerIdx];
@@ -707,24 +718,6 @@ serve(async (req) => {
           }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           });
-        }
-      }
-
-      // Continue in current round - find next player clockwise
-      if (nextPosition === null) {
-        // Edge case: all bets equal but need to continue (e.g., everyone checked)
-        // This shouldn't happen if shouldAdvanceRound logic is correct
-        // but as a fallback, advance to next round
-        for (let i = 1; i <= sortedPlayers.length; i++) {
-          const idx = (currentPlayerIdx + i) % sortedPlayers.length;
-          const p = sortedPlayers[idx];
-          const playerFolded = p.id === currentPlayer.id ? isFolded : p.is_folded;
-          const playerAllIn = p.id === currentPlayer.id ? isAllIn : p.is_all_in;
-          
-          if (!playerFolded && !playerAllIn) {
-            nextPosition = p.position;
-            break;
-          }
         }
       }
 
