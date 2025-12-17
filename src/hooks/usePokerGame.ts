@@ -67,38 +67,56 @@ export function usePokerGame(tableId: string) {
     }
   }, [tableId]);
 
-  // Fetch players at table
+  // Fetch players at table - fetch separately without join
   const fetchPlayers = useCallback(async () => {
-    const { data } = await supabase
+    // First get table players
+    const { data: playersData, error: playersError } = await supabase
       .from('table_players')
-      .select(`
-        *,
-        profiles:user_id (username)
-      `)
+      .select('*')
       .eq('table_id', tableId)
       .eq('is_active', true);
 
-    if (data) {
-      const playerList: Player[] = data.map((p: any) => ({
-        id: p.id,
-        userId: p.user_id,
-        username: p.profiles?.username || 'Unknown',
-        position: p.position,
-        stack: p.stack,
-        holeCards: (p.hole_cards || []).map((c: string) => stringToCard(c)),
-        currentBet: p.current_bet,
-        isFolded: p.is_folded,
-        isAllIn: p.is_all_in,
-        isActive: p.is_active,
-        isDealer: game?.dealerPosition === p.position,
-        isSmallBlind: game && ((game.dealerPosition + 1) % data.length) === p.position,
-        isBigBlind: game && ((game.dealerPosition + 2) % data.length) === p.position,
-        isCurrentPlayer: game?.currentPlayerPosition === p.position
-      }));
-      
-      setPlayers(playerList);
-      setIsJoined(playerList.some(p => p.userId === user?.id));
+    if (playersError || !playersData) {
+      console.error('Error fetching players:', playersError);
+      return;
     }
+
+    if (playersData.length === 0) {
+      setPlayers([]);
+      setIsJoined(false);
+      return;
+    }
+
+    // Then get profiles for those players
+    const userIds = playersData.map(p => p.user_id);
+    const { data: profilesData } = await supabase
+      .from('profiles')
+      .select('user_id, username')
+      .in('user_id', userIds);
+
+    const profilesMap = new Map(
+      (profilesData || []).map(p => [p.user_id, p.username])
+    );
+
+    const playerList: Player[] = playersData.map((p) => ({
+      id: p.id,
+      userId: p.user_id,
+      username: profilesMap.get(p.user_id) || 'Unknown',
+      position: p.position,
+      stack: p.stack,
+      holeCards: (p.hole_cards || []).map((c: string) => stringToCard(c)),
+      currentBet: p.current_bet,
+      isFolded: p.is_folded,
+      isAllIn: p.is_all_in,
+      isActive: p.is_active,
+      isDealer: game?.dealerPosition === p.position,
+      isSmallBlind: game && playersData.length > 1 && ((game.dealerPosition + 1) % playersData.length) === p.position,
+      isBigBlind: game && playersData.length > 1 && ((game.dealerPosition + 2) % playersData.length) === p.position,
+      isCurrentPlayer: game?.currentPlayerPosition === p.position
+    }));
+    
+    setPlayers(playerList);
+    setIsJoined(playerList.some(p => p.userId === user?.id));
   }, [tableId, game, user?.id]);
 
   // Join table
@@ -114,8 +132,26 @@ export function usePokerGame(tableId: string) {
       return;
     }
 
+    // Fetch current players directly from DB to get accurate positions
+    const { data: currentPlayers } = await supabase
+      .from('table_players')
+      .select('position, user_id')
+      .eq('table_id', tableId)
+      .eq('is_active', true);
+
+    // Check if user is already at the table
+    if (currentPlayers?.some(p => p.user_id === user.id)) {
+      toast({
+        title: 'Already joined',
+        description: 'You are already at this table.',
+        variant: 'destructive'
+      });
+      await fetchPlayers();
+      return;
+    }
+
     // Find first available position
-    const takenPositions = players.map(p => p.position);
+    const takenPositions = (currentPlayers || []).map(p => p.position);
     const availablePosition = Array.from({ length: 9 }, (_, i) => i)
       .find(pos => !takenPositions.includes(pos));
 
@@ -128,13 +164,7 @@ export function usePokerGame(tableId: string) {
       return;
     }
 
-    // Deduct chips from profile
-    await supabase
-      .from('profiles')
-      .update({ chips: profile.chips - buyIn })
-      .eq('user_id', user.id);
-
-    // Add player to table
+    // Add player to table first
     const { error } = await supabase
       .from('table_players')
       .insert({
@@ -145,6 +175,16 @@ export function usePokerGame(tableId: string) {
       });
 
     if (error) {
+      // If duplicate key error, try to find another position
+      if (error.code === '23505') {
+        toast({
+          title: 'Position taken',
+          description: 'Someone else took that seat. Please try again.',
+          variant: 'destructive'
+        });
+        await fetchPlayers();
+        return;
+      }
       toast({
         title: 'Failed to join',
         description: error.message,
@@ -153,7 +193,14 @@ export function usePokerGame(tableId: string) {
       return;
     }
 
+    // Deduct chips from profile only after successful join
+    await supabase
+      .from('profiles')
+      .update({ chips: profile.chips - buyIn })
+      .eq('user_id', user.id);
+
     await refreshProfile();
+    await fetchPlayers();
     toast({
       title: 'Joined table!',
       description: `You've joined with ${buyIn} chips.`
@@ -178,6 +225,7 @@ export function usePokerGame(tableId: string) {
       .eq('id', currentPlayer.id);
 
     await refreshProfile();
+    await fetchPlayers();
     toast({
       title: 'Left table',
       description: `${currentPlayer.stack} chips returned to your balance.`
@@ -186,7 +234,14 @@ export function usePokerGame(tableId: string) {
 
   // Start new hand
   const startHand = async () => {
-    if (players.length < 2) {
+    // Fetch fresh player list
+    const { data: freshPlayers } = await supabase
+      .from('table_players')
+      .select('*')
+      .eq('table_id', tableId)
+      .eq('is_active', true);
+
+    if (!freshPlayers || freshPlayers.length < 2) {
       toast({
         title: 'Not enough players',
         description: 'Need at least 2 players to start.',
@@ -195,8 +250,17 @@ export function usePokerGame(tableId: string) {
       return;
     }
 
+    // Sort by position for consistent ordering
+    const sortedPlayers = freshPlayers.sort((a, b) => a.position - b.position);
+
     // Create new game
-    const newDealerPosition = game ? (game.dealerPosition + 1) % players.length : 0;
+    const newDealerPosition = game 
+      ? sortedPlayers[(sortedPlayers.findIndex(p => p.position === game.dealerPosition) + 1) % sortedPlayers.length].position
+      : sortedPlayers[0].position;
+    
+    const dealerIdx = sortedPlayers.findIndex(p => p.position === newDealerPosition);
+    const firstToActIdx = (dealerIdx + 3) % sortedPlayers.length;
+    const firstToActPosition = sortedPlayers[firstToActIdx].position;
     
     const { data: newGame, error } = await supabase
       .from('games')
@@ -204,7 +268,7 @@ export function usePokerGame(tableId: string) {
         table_id: tableId,
         status: 'preflop',
         dealer_position: newDealerPosition,
-        current_player_position: (newDealerPosition + 3) % players.length
+        current_player_position: firstToActPosition
       })
       .select()
       .single();
@@ -222,7 +286,7 @@ export function usePokerGame(tableId: string) {
     const deck = shuffleDeck(createDeck());
     let deckIndex = 0;
 
-    for (const player of players) {
+    for (const player of sortedPlayers) {
       const holeCards = [
         cardToString(deck[deckIndex++]),
         cardToString(deck[deckIndex++])
@@ -240,10 +304,10 @@ export function usePokerGame(tableId: string) {
     }
 
     // Post blinds
-    const sbPosition = (newDealerPosition + 1) % players.length;
-    const bbPosition = (newDealerPosition + 2) % players.length;
-    const sbPlayer = players.find(p => p.position === sbPosition);
-    const bbPlayer = players.find(p => p.position === bbPosition);
+    const sbIdx = (dealerIdx + 1) % sortedPlayers.length;
+    const bbIdx = (dealerIdx + 2) % sortedPlayers.length;
+    const sbPlayer = sortedPlayers[sbIdx];
+    const bbPlayer = sortedPlayers[bbIdx];
 
     if (sbPlayer && table) {
       const sbAmount = Math.min(table.smallBlind, sbPlayer.stack);
@@ -275,6 +339,8 @@ export function usePokerGame(tableId: string) {
         .eq('id', newGame.id);
     }
 
+    await fetchGame();
+    await fetchPlayers();
     toast({
       title: 'New hand started!',
       description: 'Cards have been dealt.'
@@ -358,6 +424,8 @@ export function usePokerGame(tableId: string) {
         .update({ stack: newStack + newPot })
         .eq('id', currentPlayer.id);
 
+      await fetchGame();
+      await fetchPlayers();
       toast({
         title: 'You won!',
         description: `Everyone else folded. You won ${newPot} chips!`
@@ -365,20 +433,22 @@ export function usePokerGame(tableId: string) {
       return;
     }
 
-    // Move to next player
-    let nextPosition = (currentPlayer.position + 1) % 9;
-    while (!players.find(p => p.position === nextPosition && !p.isFolded && p.isActive)) {
-      nextPosition = (nextPosition + 1) % 9;
-    }
+    // Move to next active player
+    const sortedActivePlayers = [...activePlayers].sort((a, b) => a.position - b.position);
+    const currentIdx = sortedActivePlayers.findIndex(p => p.position > currentPlayer.position);
+    const nextPlayer = currentIdx !== -1 ? sortedActivePlayers[currentIdx] : sortedActivePlayers[0];
 
     await supabase
       .from('games')
       .update({
         pot: newPot,
         current_bet: Math.max(game.currentBet, newBet),
-        current_player_position: nextPosition
+        current_player_position: nextPlayer.position
       })
       .eq('id', game.id);
+
+    await fetchGame();
+    await fetchPlayers();
   };
 
   // Initial fetch
