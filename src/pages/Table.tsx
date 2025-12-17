@@ -101,7 +101,7 @@ export default function Table() {
           communityCards={game?.communityCards || []}
           pot={game?.pot || 0}
           currentUserId={user?.id}
-          showdown={game?.status === 'showdown'}
+          gameStatus={game?.status}
         />
 
         {/* Game Status */}
