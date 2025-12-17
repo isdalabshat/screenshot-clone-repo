@@ -49,23 +49,24 @@ export default function PlayingCard({ card, faceDown = false, size = 'md', class
   return (
     <div 
       className={cn(
-        'rounded-lg bg-white border border-gray-300 shadow-lg flex flex-col justify-between p-1',
+        'rounded-lg bg-white border border-gray-200 shadow-lg flex flex-col p-1 relative',
         sizeClasses[size],
         'animate-scale-in',
         className
       )}
       style={{ animationDelay: `${animationDelay}ms` }}
     >
-      <div className={cn('font-bold', suitColors[card.suit])}>
-        <div>{card.rank}</div>
-        <div className="text-lg">{suitSymbols[card.suit]}</div>
+      {/* Top-left corner */}
+      <div className={cn('font-bold leading-tight', suitColors[card.suit])}>
+        <div className="text-center">{card.rank}</div>
+        <div className="text-center text-xs">{suitSymbols[card.suit]}</div>
       </div>
-      <div className={cn('text-2xl self-center', suitColors[card.suit])}>
-        {suitSymbols[card.suit]}
-      </div>
-      <div className={cn('font-bold rotate-180', suitColors[card.suit])}>
-        <div>{card.rank}</div>
-        <div className="text-lg">{suitSymbols[card.suit]}</div>
+      
+      {/* Center suit */}
+      <div className={cn('flex-1 flex items-center justify-center', suitColors[card.suit])}>
+        <span className={size === 'sm' ? 'text-lg' : size === 'md' ? 'text-2xl' : 'text-4xl'}>
+          {suitSymbols[card.suit]}
+        </span>
       </div>
     </div>
   );

@@ -51,21 +51,19 @@ export default function PlayerSeat({
     <div className={cn('absolute', positionStyles[position])}>
       <div 
         className={cn(
-          'flex flex-col items-center gap-2 transition-all duration-300',
+          'flex flex-col items-center gap-1 transition-all duration-300',
           player.isCurrentPlayer && !player.isFolded && 'scale-105'
         )}
       >
-        {/* Hole Cards */}
+        {/* Hole Cards - above avatar */}
         {hasCards && !player.isFolded && (
-          <div className="flex gap-1 mb-1">
+          <div className="flex gap-1">
             {shouldShowFaceDown ? (
-              // Show face-down cards for opponents
               <>
                 <PlayingCard faceDown size="sm" animationDelay={0} />
                 <PlayingCard faceDown size="sm" animationDelay={100} />
               </>
             ) : (
-              // Show actual cards for current user or at showdown
               cardsToShow.map((card, i) => (
                 <PlayingCard 
                   key={i} 
@@ -79,52 +77,58 @@ export default function PlayerSeat({
           </div>
         )}
 
-        {/* Player Avatar */}
-        <div 
-          className={cn(
-            'w-20 h-20 rounded-full flex flex-col items-center justify-center shadow-lg border-2 transition-all duration-300',
-            player.isFolded 
-              ? 'bg-muted/50 border-muted text-muted-foreground opacity-50' 
-              : player.isCurrentPlayer 
-                ? 'bg-emerald-900 border-emerald-400 ring-4 ring-emerald-400/50 animate-pulse' 
-                : isCurrentUser 
-                  ? 'bg-blue-900 border-blue-400' 
-                  : 'bg-slate-800 border-slate-600'
-          )}
-        >
-          <span className="font-bold text-sm truncate max-w-[70px] text-foreground">
-            {player.username}
-          </span>
-          <span className="text-xs text-yellow-400 font-mono">
-            {player.stack.toLocaleString()}
-          </span>
+        {/* Player Info Container - separate from avatar */}
+        <div className="flex flex-col items-center">
+          {/* Avatar Circle */}
+          <div 
+            className={cn(
+              'w-16 h-16 rounded-full flex items-center justify-center shadow-lg border-2 transition-all duration-300',
+              player.isFolded 
+                ? 'bg-muted/50 border-muted opacity-50' 
+                : player.isCurrentPlayer 
+                  ? 'bg-emerald-900 border-emerald-400 ring-2 ring-emerald-400/50' 
+                  : isCurrentUser 
+                    ? 'bg-blue-900 border-blue-400' 
+                    : 'bg-slate-800 border-slate-600'
+            )}
+          >
+            <span className="text-2xl">👤</span>
+          </div>
+          
+          {/* Name & Stack - below avatar, never overlapping */}
+          <div className="mt-1 text-center bg-black/60 rounded px-2 py-0.5">
+            <div className="font-semibold text-xs text-white truncate max-w-[80px]">
+              {player.username}
+            </div>
+            <div className="text-xs text-yellow-400 font-mono">
+              {player.stack.toLocaleString()}
+            </div>
+          </div>
         </div>
 
-        {/* Position badges */}
-        <div className="flex gap-1 flex-wrap justify-center">
+        {/* Position badges - horizontal row */}
+        <div className="flex gap-0.5 flex-wrap justify-center max-w-[100px]">
           {player.isDealer && (
-            <Badge className="bg-white text-black text-xs px-1.5 py-0">D</Badge>
+            <Badge className="bg-white text-black text-[10px] px-1 py-0 h-4">D</Badge>
           )}
           {player.isSmallBlind && (
-            <Badge className="bg-blue-500 text-white text-xs px-1.5 py-0">SB</Badge>
+            <Badge className="bg-blue-500 text-white text-[10px] px-1 py-0 h-4">SB</Badge>
           )}
           {player.isBigBlind && (
-            <Badge className="bg-orange-500 text-white text-xs px-1.5 py-0">BB</Badge>
+            <Badge className="bg-orange-500 text-white text-[10px] px-1 py-0 h-4">BB</Badge>
           )}
           {player.isAllIn && (
-            <Badge className="bg-red-500 text-white text-xs py-0">ALL IN</Badge>
+            <Badge className="bg-red-500 text-white text-[10px] px-1 py-0 h-4">ALL IN</Badge>
           )}
           {player.isFolded && (
-            <Badge className="bg-gray-600 text-white text-xs py-0">FOLDED</Badge>
+            <Badge className="bg-gray-600 text-white text-[10px] px-1 py-0 h-4">FOLD</Badge>
           )}
         </div>
 
-        {/* Current bet */}
+        {/* Current bet chip */}
         {player.currentBet > 0 && !player.isFolded && (
-          <div className="absolute -bottom-8 left-1/2 -translate-x-1/2">
-            <div className="bg-yellow-500/90 text-black px-3 py-1 rounded-full text-xs font-bold shadow-lg">
-              {player.currentBet}
-            </div>
+          <div className="bg-yellow-500 text-black px-2 py-0.5 rounded-full text-[10px] font-bold shadow">
+            {player.currentBet}
           </div>
         )}
       </div>
