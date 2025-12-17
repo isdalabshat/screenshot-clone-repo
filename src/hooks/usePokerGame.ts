@@ -152,23 +152,68 @@ export function usePokerGame(tableId: string) {
       return;
     }
 
-    // Fetch current players directly from DB to get accurate positions
-    const { data: currentPlayers } = await supabase
+    // Check if user has an existing record at this table (active or inactive)
+    const { data: existingRecord } = await supabase
       .from('table_players')
-      .select('position, user_id')
+      .select('*')
       .eq('table_id', tableId)
-      .eq('is_active', true);
+      .eq('user_id', user.id)
+      .maybeSingle();
 
-    // Check if user is already at the table
-    if (currentPlayers?.some(p => p.user_id === user.id)) {
-      toast({
-        title: 'Already joined',
-        description: 'You are already at this table.',
-        variant: 'destructive'
-      });
+    if (existingRecord) {
+      if (existingRecord.is_active) {
+        toast({
+          title: 'Already joined',
+          description: 'You are already at this table.',
+          variant: 'destructive'
+        });
+        await fetchPlayers();
+        return;
+      }
+
+      // Reactivate existing record with new buy-in
+      const { error } = await supabase
+        .from('table_players')
+        .update({
+          is_active: true,
+          stack: buyIn,
+          current_bet: 0,
+          is_folded: false,
+          is_all_in: false,
+          hole_cards: []
+        })
+        .eq('id', existingRecord.id);
+
+      if (error) {
+        toast({
+          title: 'Failed to join',
+          description: error.message,
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      // Deduct chips from profile
+      await supabase
+        .from('profiles')
+        .update({ chips: profile.chips - buyIn })
+        .eq('user_id', user.id);
+
+      await refreshProfile();
       await fetchPlayers();
+      toast({
+        title: 'Joined table!',
+        description: `You've rejoined with ${buyIn} chips.`
+      });
       return;
     }
+
+    // Fetch current active players for position assignment
+    const { data: currentPlayers } = await supabase
+      .from('table_players')
+      .select('position')
+      .eq('table_id', tableId)
+      .eq('is_active', true);
 
     // Find first available position
     const takenPositions = (currentPlayers || []).map(p => p.position);
@@ -184,7 +229,7 @@ export function usePokerGame(tableId: string) {
       return;
     }
 
-    // Add player to table first
+    // Add new player to table
     const { error } = await supabase
       .from('table_players')
       .insert({
@@ -195,16 +240,6 @@ export function usePokerGame(tableId: string) {
       });
 
     if (error) {
-      // If duplicate key error, try to find another position
-      if (error.code === '23505') {
-        toast({
-          title: 'Position taken',
-          description: 'Someone else took that seat. Please try again.',
-          variant: 'destructive'
-        });
-        await fetchPlayers();
-        return;
-      }
       toast({
         title: 'Failed to join',
         description: error.message,
@@ -213,7 +248,7 @@ export function usePokerGame(tableId: string) {
       return;
     }
 
-    // Deduct chips from profile only after successful join
+    // Deduct chips from profile
     await supabase
       .from('profiles')
       .update({ chips: profile.chips - buyIn })
