@@ -17,10 +17,12 @@ export default function Table() {
     table, 
     game, 
     players, 
+    myCards,
     currentPlayer,
     isLoading, 
     isJoined,
     isCurrentPlayerTurn,
+    turnTimeLeft,
     joinTable, 
     leaveTable, 
     startHand,
@@ -50,7 +52,7 @@ export default function Table() {
     );
   }
 
-  const canStartHand = isJoined && players.length >= 2 && (!game || game.status === 'complete');
+  const canStartHand = isJoined && players.length >= 2 && (!game || game.status === 'complete' || game.status === 'showdown');
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-emerald-950 to-slate-900 flex flex-col">
@@ -102,18 +104,14 @@ export default function Table() {
           pot={game?.pot || 0}
           currentUserId={user?.id}
           gameStatus={game?.status}
+          myCards={myCards}
+          turnTimeLeft={turnTimeLeft}
         />
 
         {/* Game Status */}
         <div className="mt-8 text-center">
-          {game && game.status !== 'waiting' && game.status !== 'complete' && (
-            <div className="mb-4 px-6 py-2 bg-emerald-900/50 rounded-full text-emerald-400 font-medium">
-              {game.status.toUpperCase()}
-            </div>
-          )}
-
           {/* Action Buttons */}
-          {isJoined && game && game.status !== 'waiting' && game.status !== 'complete' && currentPlayer && (
+          {isJoined && game && game.status !== 'waiting' && game.status !== 'complete' && game.status !== 'showdown' && currentPlayer && (
             <ActionButtons
               currentBet={game.currentBet}
               playerBet={currentPlayer.currentBet}
@@ -145,6 +143,21 @@ export default function Table() {
           {/* Not joined message */}
           {!isJoined && (
             <p className="text-muted-foreground">Join the table to play!</p>
+          )}
+
+          {/* Showdown message */}
+          {game?.status === 'showdown' && (
+            <div className="space-y-4">
+              <p className="text-emerald-400 font-bold text-lg">Showdown!</p>
+              <Button 
+                size="lg" 
+                className="bg-emerald-600 hover:bg-emerald-700 text-lg px-8"
+                onClick={startHand}
+              >
+                <Play className="h-5 w-5 mr-2" />
+                Deal Next Hand
+              </Button>
+            </div>
           )}
         </div>
       </main>

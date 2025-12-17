@@ -13,6 +13,7 @@ export interface Player {
   position: number;
   stack: number;
   holeCards: Card[];
+  hasHiddenCards?: boolean; // True if player has cards but they're hidden from viewer
   currentBet: number;
   isFolded: boolean;
   isAllIn: boolean;
@@ -44,6 +45,7 @@ export interface Game {
   currentBet: number;
   dealerPosition: number;
   currentPlayerPosition: number | null;
+  turnExpiresAt?: string | null;
 }
 
 export type ActionType = 'fold' | 'check' | 'call' | 'bet' | 'raise' | 'all_in';

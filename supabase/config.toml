@@ -1,1 +1,4 @@
 project_id = "icevjqyjfjvcbvnzsdqq"
+
+[functions.poker-game]
+verify_jwt = true
