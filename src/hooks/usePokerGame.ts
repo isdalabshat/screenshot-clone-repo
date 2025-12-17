@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { Player, Game, Card, ActionType, PokerTable } from '@/types/poker';
@@ -14,6 +14,19 @@ export function usePokerGame(tableId: string) {
   const [players, setPlayers] = useState<Player[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isJoined, setIsJoined] = useState(false);
+
+  // Use refs to avoid stale closures in realtime callbacks
+  const gameRef = useRef<Game | null>(null);
+  const userIdRef = useRef<string | undefined>(undefined);
+
+  // Keep refs in sync
+  useEffect(() => {
+    gameRef.current = game;
+  }, [game]);
+
+  useEffect(() => {
+    userIdRef.current = user?.id;
+  }, [user?.id]);
 
   const currentPlayer = players.find(p => p.userId === user?.id);
   const isCurrentPlayerTurn = game?.currentPlayerPosition === currentPlayer?.position;
@@ -52,7 +65,7 @@ export function usePokerGame(tableId: string) {
       .maybeSingle();
 
     if (data) {
-      setGame({
+      const newGame: Game = {
         id: data.id,
         tableId: data.table_id,
         status: data.status as Game['status'],
@@ -61,13 +74,16 @@ export function usePokerGame(tableId: string) {
         currentBet: data.current_bet,
         dealerPosition: data.dealer_position,
         currentPlayerPosition: data.current_player_position
-      });
+      };
+      setGame(newGame);
+      gameRef.current = newGame;
     } else {
       setGame(null);
+      gameRef.current = null;
     }
   }, [tableId]);
 
-  // Fetch players at table - fetch separately without join
+  // Fetch players at table - uses ref to avoid dependency on game state
   const fetchPlayers = useCallback(async () => {
     // First get table players
     const { data: playersData, error: playersError } = await supabase
@@ -98,6 +114,10 @@ export function usePokerGame(tableId: string) {
       (profilesData || []).map(p => [p.user_id, p.username])
     );
 
+    // Use ref for game state to avoid stale closures
+    const currentGame = gameRef.current;
+    const currentUserId = userIdRef.current;
+
     const playerList: Player[] = playersData.map((p) => ({
       id: p.id,
       userId: p.user_id,
@@ -109,15 +129,15 @@ export function usePokerGame(tableId: string) {
       isFolded: p.is_folded,
       isAllIn: p.is_all_in,
       isActive: p.is_active,
-      isDealer: game?.dealerPosition === p.position,
-      isSmallBlind: game && playersData.length > 1 && ((game.dealerPosition + 1) % playersData.length) === p.position,
-      isBigBlind: game && playersData.length > 1 && ((game.dealerPosition + 2) % playersData.length) === p.position,
-      isCurrentPlayer: game?.currentPlayerPosition === p.position
+      isDealer: currentGame?.dealerPosition === p.position,
+      isSmallBlind: currentGame && playersData.length > 1 && ((currentGame.dealerPosition + 1) % playersData.length) === p.position,
+      isBigBlind: currentGame && playersData.length > 1 && ((currentGame.dealerPosition + 2) % playersData.length) === p.position,
+      isCurrentPlayer: currentGame?.currentPlayerPosition === p.position
     }));
     
     setPlayers(playerList);
-    setIsJoined(playerList.some(p => p.userId === user?.id));
-  }, [tableId, game, user?.id]);
+    setIsJoined(playerList.some(p => p.userId === currentUserId));
+  }, [tableId]); // Removed game dependency - uses ref instead
 
   // Join table
   const joinTable = async (buyIn: number) => {
@@ -252,10 +272,11 @@ export function usePokerGame(tableId: string) {
 
     // Sort by position for consistent ordering
     const sortedPlayers = freshPlayers.sort((a, b) => a.position - b.position);
+    const currentGame = gameRef.current;
 
     // Create new game
-    const newDealerPosition = game 
-      ? sortedPlayers[(sortedPlayers.findIndex(p => p.position === game.dealerPosition) + 1) % sortedPlayers.length].position
+    const newDealerPosition = currentGame 
+      ? sortedPlayers[(sortedPlayers.findIndex(p => p.position === currentGame.dealerPosition) + 1) % sortedPlayers.length].position
       : sortedPlayers[0].position;
     
     const dealerIdx = sortedPlayers.findIndex(p => p.position === newDealerPosition);
@@ -339,8 +360,6 @@ export function usePokerGame(tableId: string) {
         .eq('id', newGame.id);
     }
 
-    await fetchGame();
-    await fetchPlayers();
     toast({
       title: 'New hand started!',
       description: 'Cards have been dealt.'
@@ -349,11 +368,12 @@ export function usePokerGame(tableId: string) {
 
   // Perform action
   const performAction = async (action: ActionType, amount?: number) => {
-    if (!game || !currentPlayer || !isCurrentPlayerTurn) return;
+    const currentGame = gameRef.current;
+    if (!currentGame || !currentPlayer || !isCurrentPlayerTurn) return;
 
     let newStack = currentPlayer.stack;
     let newBet = currentPlayer.currentBet;
-    let newPot = game.pot;
+    let newPot = currentGame.pot;
     let isFolded = false;
     let isAllIn = false;
 
@@ -365,7 +385,7 @@ export function usePokerGame(tableId: string) {
         // No changes needed
         break;
       case 'call':
-        const callAmount = Math.min(game.currentBet - currentPlayer.currentBet, currentPlayer.stack);
+        const callAmount = Math.min(currentGame.currentBet - currentPlayer.currentBet, currentPlayer.stack);
         newStack -= callAmount;
         newBet += callAmount;
         newPot += callAmount;
@@ -373,7 +393,7 @@ export function usePokerGame(tableId: string) {
         break;
       case 'bet':
       case 'raise':
-        const betAmount = amount || game.currentBet * 2;
+        const betAmount = amount || currentGame.currentBet * 2;
         const totalBet = betAmount - currentPlayer.currentBet;
         newStack -= totalBet;
         newBet = betAmount;
@@ -403,11 +423,11 @@ export function usePokerGame(tableId: string) {
     await supabase
       .from('game_actions')
       .insert({
-        game_id: game.id,
+        game_id: currentGame.id,
         user_id: user?.id,
         action_type: action,
         amount: amount || 0,
-        round: game.status
+        round: currentGame.status
       });
 
     // Find next player
@@ -417,15 +437,13 @@ export function usePokerGame(tableId: string) {
       await supabase
         .from('games')
         .update({ status: 'complete' })
-        .eq('id', game.id);
+        .eq('id', currentGame.id);
       
       await supabase
         .from('table_players')
         .update({ stack: newStack + newPot })
         .eq('id', currentPlayer.id);
 
-      await fetchGame();
-      await fetchPlayers();
       toast({
         title: 'You won!',
         description: `Everyone else folded. You won ${newPot} chips!`
@@ -442,13 +460,10 @@ export function usePokerGame(tableId: string) {
       .from('games')
       .update({
         pot: newPot,
-        current_bet: Math.max(game.currentBet, newBet),
+        current_bet: Math.max(currentGame.currentBet, newBet),
         current_player_position: nextPlayer.position
       })
-      .eq('id', game.id);
-
-    await fetchGame();
-    await fetchPlayers();
+      .eq('id', currentGame.id);
   };
 
   // Initial fetch
@@ -463,16 +478,36 @@ export function usePokerGame(tableId: string) {
     init();
   }, [fetchTable, fetchGame, fetchPlayers]);
 
-  // Realtime subscriptions
+  // Realtime subscriptions - use stable callbacks
   useEffect(() => {
+    // Debounce to prevent rapid updates
+    let gameTimeout: NodeJS.Timeout | null = null;
+    let playersTimeout: NodeJS.Timeout | null = null;
+
+    const debouncedFetchGame = () => {
+      if (gameTimeout) clearTimeout(gameTimeout);
+      gameTimeout = setTimeout(() => {
+        fetchGame();
+      }, 100);
+    };
+
+    const debouncedFetchPlayers = () => {
+      if (playersTimeout) clearTimeout(playersTimeout);
+      playersTimeout = setTimeout(() => {
+        fetchPlayers();
+      }, 100);
+    };
+
     const channel = supabase
       .channel(`table-${tableId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter: `table_id=eq.${tableId}` }, fetchGame)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'table_players', filter: `table_id=eq.${tableId}` }, fetchPlayers)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter: `table_id=eq.${tableId}` }, debouncedFetchGame)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'table_players', filter: `table_id=eq.${tableId}` }, debouncedFetchPlayers)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'poker_tables', filter: `id=eq.${tableId}` }, fetchTable)
       .subscribe();
 
     return () => {
+      if (gameTimeout) clearTimeout(gameTimeout);
+      if (playersTimeout) clearTimeout(playersTimeout);
       supabase.removeChannel(channel);
     };
   }, [tableId, fetchGame, fetchPlayers, fetchTable]);
