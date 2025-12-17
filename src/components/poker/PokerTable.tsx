@@ -44,36 +44,49 @@ export default function PokerTableComponent({
   const visibleCardCount = getVisibleCards(gameStatus);
   const isShowdown = gameStatus === 'showdown';
 
-  // Find current player for timer display
+  // Find current turn player for display
   const currentTurnPlayer = players.find(p => p.isCurrentPlayer);
 
   return (
-    <div className="relative w-full max-w-4xl mx-auto aspect-[16/10]">
-      {/* Table Surface */}
-      <div className="absolute inset-8 rounded-[50%] bg-gradient-to-br from-emerald-800 via-emerald-700 to-emerald-900 border-[12px] border-amber-900 shadow-2xl">
+    <div className="relative w-full max-w-sm mx-auto aspect-[3/4]">
+      {/* Table Surface - Portrait oval */}
+      <div className="absolute inset-4 rounded-[45%/35%] bg-gradient-to-br from-emerald-800 via-emerald-700 to-emerald-900 border-[8px] border-amber-900 shadow-2xl">
         {/* Table felt pattern */}
-        <div className="absolute inset-0 rounded-[50%] opacity-10 bg-[radial-gradient(circle_at_50%_50%,transparent_0%,rgba(0,0,0,0.3)_100%)]" />
+        <div className="absolute inset-0 rounded-[45%/35%] opacity-10 bg-[radial-gradient(circle_at_50%_50%,transparent_0%,rgba(0,0,0,0.3)_100%)]" />
         
         {/* Center area - pot and community cards */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4">
+          {/* Current turn indicator */}
+          {currentTurnPlayer && gameStatus && gameStatus !== 'waiting' && gameStatus !== 'complete' && (
+            <div className={cn(
+              'px-3 py-1 rounded-full text-xs font-bold animate-pulse',
+              turnTimeLeft !== null && turnTimeLeft <= 10 
+                ? 'bg-red-600 text-white' 
+                : 'bg-emerald-500 text-white'
+            )}>
+              {currentTurnPlayer.username}'s Turn
+              {turnTimeLeft !== null && ` (${turnTimeLeft}s)`}
+            </div>
+          )}
+
           {/* Pot display */}
-          <div className="bg-black/40 px-6 py-2 rounded-full backdrop-blur-sm border border-yellow-500/30">
-            <span className="text-yellow-400 font-bold text-xl">
+          <div className="bg-black/50 px-4 py-1.5 rounded-full backdrop-blur-sm border border-yellow-500/30">
+            <span className="text-yellow-400 font-bold text-sm">
               Pot: {pot.toLocaleString()}
             </span>
           </div>
 
           {/* Community Cards */}
-          <div className="flex gap-2">
+          <div className="flex gap-1 flex-wrap justify-center max-w-[200px]">
             {[0, 1, 2, 3, 4].map((i) => (
               <div key={i} className={cn(
-                'transition-all duration-500',
+                'transition-all duration-300',
                 i < visibleCardCount && communityCards[i] ? 'opacity-100 scale-100' : 'opacity-30 scale-95'
               )}>
                 {i < visibleCardCount && communityCards[i] ? (
-                  <PlayingCard card={communityCards[i]} size="md" />
+                  <PlayingCard card={communityCards[i]} size="sm" />
                 ) : (
-                  <div className="w-14 h-20 rounded-lg border-2 border-dashed border-emerald-500/30" />
+                  <div className="w-8 h-12 rounded border border-dashed border-emerald-500/30" />
                 )}
               </div>
             ))}
@@ -81,26 +94,14 @@ export default function PokerTableComponent({
 
           {/* Game status indicator */}
           {gameStatus && gameStatus !== 'waiting' && gameStatus !== 'complete' && (
-            <div className="bg-emerald-900/70 px-4 py-1 rounded-full text-emerald-300 text-sm font-medium uppercase tracking-wider">
+            <div className="bg-emerald-900/70 px-3 py-0.5 rounded-full text-emerald-300 text-xs font-medium uppercase tracking-wider">
               {gameStatus}
-            </div>
-          )}
-
-          {/* Turn Timer */}
-          {turnTimeLeft !== null && turnTimeLeft !== undefined && currentTurnPlayer && (
-            <div className={cn(
-              'px-4 py-2 rounded-full text-sm font-bold',
-              turnTimeLeft <= 10 ? 'bg-red-600/80 text-white animate-pulse' :
-              turnTimeLeft <= 20 ? 'bg-yellow-600/80 text-white' :
-              'bg-slate-700/80 text-white'
-            )}>
-              {currentTurnPlayer.username}'s turn: {turnTimeLeft}s
             </div>
           )}
         </div>
       </div>
 
-      {/* Player Seats */}
+      {/* Player Seats - Portrait layout */}
       {seats.map((player, position) => (
         <PlayerSeat
           key={position}

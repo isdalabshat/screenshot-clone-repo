@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 interface PlayingCardProps {
   card?: CardType;
   faceDown?: boolean;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg';
   className?: string;
 }
 
@@ -23,18 +23,21 @@ const suitColors: Record<string, string> = {
 };
 
 const sizeClasses = {
+  xs: 'w-6 h-8',
   sm: 'w-8 h-11',
   md: 'w-12 h-16',
   lg: 'w-16 h-22'
 };
 
 const fontSizes = {
+  xs: 'text-[8px]',
   sm: 'text-[10px]',
   md: 'text-xs',
   lg: 'text-sm'
 };
 
 const suitSizes = {
+  xs: 'text-xs',
   sm: 'text-sm',
   md: 'text-lg',
   lg: 'text-2xl'
