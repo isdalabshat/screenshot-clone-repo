@@ -71,11 +71,7 @@ export default function PokerTableComponent({
                 i < visibleCardCount && communityCards[i] ? 'opacity-100 scale-100' : 'opacity-30 scale-95'
               )}>
                 {i < visibleCardCount && communityCards[i] ? (
-                  <PlayingCard 
-                    card={communityCards[i]} 
-                    size="md"
-                    animationDelay={i * 150}
-                  />
+                  <PlayingCard card={communityCards[i]} size="md" />
                 ) : (
                   <div className="w-14 h-20 rounded-lg border-2 border-dashed border-emerald-500/30" />
                 )}

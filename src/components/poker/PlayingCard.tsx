@@ -6,68 +6,71 @@ interface PlayingCardProps {
   faceDown?: boolean;
   size?: 'sm' | 'md' | 'lg';
   className?: string;
-  animationDelay?: number;
 }
 
-const suitSymbols = {
+const suitSymbols: Record<string, string> = {
   hearts: '♥',
   diamonds: '♦',
   clubs: '♣',
   spades: '♠'
 };
 
-const suitColors = {
-  hearts: 'text-red-500',
-  diamonds: 'text-red-500',
-  clubs: 'text-foreground',
-  spades: 'text-foreground'
+const suitColors: Record<string, string> = {
+  hearts: 'text-red-600',
+  diamonds: 'text-red-600',
+  clubs: 'text-gray-900',
+  spades: 'text-gray-900'
 };
 
 const sizeClasses = {
-  sm: 'w-10 h-14 text-xs',
-  md: 'w-14 h-20 text-sm',
-  lg: 'w-20 h-28 text-lg'
+  sm: 'w-8 h-11',
+  md: 'w-12 h-16',
+  lg: 'w-16 h-22'
 };
 
-export default function PlayingCard({ card, faceDown = false, size = 'md', className, animationDelay = 0 }: PlayingCardProps) {
+const fontSizes = {
+  sm: 'text-[10px]',
+  md: 'text-xs',
+  lg: 'text-sm'
+};
+
+const suitSizes = {
+  sm: 'text-sm',
+  md: 'text-lg',
+  lg: 'text-2xl'
+};
+
+export default function PlayingCard({ card, faceDown = false, size = 'md', className }: PlayingCardProps) {
+  // Face down card
   if (faceDown || !card) {
     return (
       <div 
         className={cn(
-          'rounded-lg bg-gradient-to-br from-blue-800 to-blue-950 border-2 border-blue-600 shadow-lg flex items-center justify-center',
+          'rounded-md bg-blue-900 border border-blue-700 flex items-center justify-center',
           sizeClasses[size],
-          'animate-fade-in',
           className
         )}
-        style={{ animationDelay: `${animationDelay}ms` }}
       >
-        <div className="text-blue-400 text-2xl">🃏</div>
+        <div className="w-[80%] h-[85%] rounded-sm bg-blue-800 border border-blue-600" />
       </div>
     );
   }
 
+  // Face up card - simple clean design
   return (
     <div 
       className={cn(
-        'rounded-lg bg-white border border-gray-200 shadow-lg flex flex-col p-1 relative',
+        'rounded-md bg-white border border-gray-300 flex flex-col items-center justify-center',
         sizeClasses[size],
-        'animate-scale-in',
         className
       )}
-      style={{ animationDelay: `${animationDelay}ms` }}
     >
-      {/* Top-left corner */}
-      <div className={cn('font-bold leading-tight', suitColors[card.suit])}>
-        <div className="text-center">{card.rank}</div>
-        <div className="text-center text-xs">{suitSymbols[card.suit]}</div>
-      </div>
-      
-      {/* Center suit */}
-      <div className={cn('flex-1 flex items-center justify-center', suitColors[card.suit])}>
-        <span className={size === 'sm' ? 'text-lg' : size === 'md' ? 'text-2xl' : 'text-4xl'}>
-          {suitSymbols[card.suit]}
-        </span>
-      </div>
+      <span className={cn('font-bold', fontSizes[size], suitColors[card.suit])}>
+        {card.rank}
+      </span>
+      <span className={cn(suitSizes[size], suitColors[card.suit])}>
+        {suitSymbols[card.suit]}
+      </span>
     </div>
   );
 }
