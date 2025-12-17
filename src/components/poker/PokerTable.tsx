@@ -109,6 +109,7 @@ export default function PokerTableComponent({
           isCurrentUser={player?.userId === currentUserId}
           showCards={isShowdown}
           myCards={player?.userId === currentUserId ? myCards : undefined}
+          communityCards={communityCards}
         />
       ))}
     </div>

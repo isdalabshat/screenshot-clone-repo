@@ -97,7 +97,7 @@ export default function Table() {
       </header>
 
       {/* Game Area */}
-      <main className="flex-1 flex flex-col items-center justify-center p-4">
+      <main className="flex-1 flex flex-col items-center justify-center p-4 gap-6">
         <PokerTableComponent
           players={players}
           communityCards={game?.communityCards || []}
@@ -108,8 +108,8 @@ export default function Table() {
           turnTimeLeft={turnTimeLeft}
         />
 
-        {/* Game Status */}
-        <div className="mt-8 text-center">
+        {/* Action Area - separated from table */}
+        <div className="flex flex-col items-center gap-4 min-h-[100px]">
           {/* Action Buttons */}
           {isJoined && game && game.status !== 'waiting' && game.status !== 'complete' && game.status !== 'showdown' && currentPlayer && (
             <ActionButtons
@@ -131,7 +131,7 @@ export default function Table() {
               onClick={startHand}
             >
               <Play className="h-5 w-5 mr-2" />
-              Start Hand
+              {game?.status === 'showdown' || game?.status === 'complete' ? 'Deal Next Hand' : 'Start Hand'}
             </Button>
           )}
 
@@ -147,17 +147,7 @@ export default function Table() {
 
           {/* Showdown message */}
           {game?.status === 'showdown' && (
-            <div className="space-y-4">
-              <p className="text-emerald-400 font-bold text-lg">Showdown!</p>
-              <Button 
-                size="lg" 
-                className="bg-emerald-600 hover:bg-emerald-700 text-lg px-8"
-                onClick={startHand}
-              >
-                <Play className="h-5 w-5 mr-2" />
-                Deal Next Hand
-              </Button>
-            </div>
+            <p className="text-emerald-400 font-bold text-lg">Showdown!</p>
           )}
         </div>
       </main>
