@@ -60,18 +60,12 @@ export default function PlayerSeat({
           <div className="flex gap-1">
             {shouldShowFaceDown ? (
               <>
-                <PlayingCard faceDown size="sm" animationDelay={0} />
-                <PlayingCard faceDown size="sm" animationDelay={100} />
+                <PlayingCard faceDown size="sm" />
+                <PlayingCard faceDown size="sm" />
               </>
             ) : (
               cardsToShow.map((card, i) => (
-                <PlayingCard 
-                  key={i} 
-                  card={card}
-                  faceDown={false}
-                  size="sm"
-                  animationDelay={i * 100}
-                />
+                <PlayingCard key={i} card={card} size="sm" />
               ))
             )}
           </div>
