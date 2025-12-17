@@ -9,6 +9,8 @@ interface PokerTableProps {
   pot: number;
   currentUserId?: string;
   gameStatus?: Game['status'];
+  myCards?: Card[];
+  turnTimeLeft?: number | null;
 }
 
 // Get how many community cards to show based on game status
@@ -27,7 +29,9 @@ export default function PokerTableComponent({
   communityCards, 
   pot, 
   currentUserId,
-  gameStatus
+  gameStatus,
+  myCards = [],
+  turnTimeLeft
 }: PokerTableProps) {
   // Create a full 9-seat array
   const seats: (Player | undefined)[] = Array(9).fill(undefined);
@@ -39,6 +43,9 @@ export default function PokerTableComponent({
 
   const visibleCardCount = getVisibleCards(gameStatus);
   const isShowdown = gameStatus === 'showdown';
+
+  // Find current player for timer display
+  const currentTurnPlayer = players.find(p => p.isCurrentPlayer);
 
   return (
     <div className="relative w-full max-w-4xl mx-auto aspect-[16/10]">
@@ -82,6 +89,18 @@ export default function PokerTableComponent({
               {gameStatus}
             </div>
           )}
+
+          {/* Turn Timer */}
+          {turnTimeLeft !== null && turnTimeLeft !== undefined && currentTurnPlayer && (
+            <div className={cn(
+              'px-4 py-2 rounded-full text-sm font-bold',
+              turnTimeLeft <= 10 ? 'bg-red-600/80 text-white animate-pulse' :
+              turnTimeLeft <= 20 ? 'bg-yellow-600/80 text-white' :
+              'bg-slate-700/80 text-white'
+            )}>
+              {currentTurnPlayer.username}'s turn: {turnTimeLeft}s
+            </div>
+          )}
         </div>
       </div>
 
@@ -93,6 +112,7 @@ export default function PokerTableComponent({
           position={position}
           isCurrentUser={player?.userId === currentUserId}
           showCards={isShowdown}
+          myCards={player?.userId === currentUserId ? myCards : undefined}
         />
       ))}
     </div>

@@ -1,4 +1,4 @@
-import { Player } from '@/types/poker';
+import { Player, Card } from '@/types/poker';
 import { cn } from '@/lib/utils';
 import PlayingCard from './PlayingCard';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +8,7 @@ interface PlayerSeatProps {
   position: number;
   isCurrentUser?: boolean;
   showCards?: boolean;
+  myCards?: Card[]; // Current user's cards passed separately for security
 }
 
 // Position configurations for 9 players around an oval table
@@ -23,7 +24,13 @@ const positionStyles: Record<number, string> = {
   8: 'bottom-[15%] right-[5%]',
 };
 
-export default function PlayerSeat({ player, position, isCurrentUser = false, showCards = false }: PlayerSeatProps) {
+export default function PlayerSeat({ 
+  player, 
+  position, 
+  isCurrentUser = false, 
+  showCards = false,
+  myCards = []
+}: PlayerSeatProps) {
   if (!player) {
     return (
       <div className={cn('absolute', positionStyles[position])}>
@@ -34,8 +41,11 @@ export default function PlayerSeat({ player, position, isCurrentUser = false, sh
     );
   }
 
-  const hasCards = player.holeCards && player.holeCards.length > 0;
-  const shouldShowCards = showCards || isCurrentUser;
+  // For current user, use myCards passed from parent (secure)
+  // For other players, only show cards at showdown
+  const cardsToShow = isCurrentUser ? myCards : (showCards ? player.holeCards : []);
+  const hasCards = isCurrentUser ? myCards.length > 0 : (player.hasHiddenCards || player.holeCards.length > 0);
+  const shouldShowFaceDown = !isCurrentUser && hasCards && !showCards;
 
   return (
     <div className={cn('absolute', positionStyles[position])}>
@@ -48,15 +58,24 @@ export default function PlayerSeat({ player, position, isCurrentUser = false, sh
         {/* Hole Cards */}
         {hasCards && !player.isFolded && (
           <div className="flex gap-1 mb-1">
-            {player.holeCards.map((card, i) => (
-              <PlayingCard 
-                key={i} 
-                card={shouldShowCards ? card : undefined}
-                faceDown={!shouldShowCards}
-                size="sm"
-                animationDelay={i * 100}
-              />
-            ))}
+            {shouldShowFaceDown ? (
+              // Show face-down cards for opponents
+              <>
+                <PlayingCard faceDown size="sm" animationDelay={0} />
+                <PlayingCard faceDown size="sm" animationDelay={100} />
+              </>
+            ) : (
+              // Show actual cards for current user or at showdown
+              cardsToShow.map((card, i) => (
+                <PlayingCard 
+                  key={i} 
+                  card={card}
+                  faceDown={false}
+                  size="sm"
+                  animationDelay={i * 100}
+                />
+              ))
+            )}
           </div>
         )}
 
