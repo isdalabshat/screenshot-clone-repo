@@ -40,7 +40,7 @@ export default function Table() {
 
   useEffect(() => {
     if (table) {
-      setBuyInAmount(table.bigBlind * 50); // Default buy-in is 50 big blinds
+      setBuyInAmount(table.bigBlind * 50);
     }
   }, [table]);
 
@@ -56,39 +56,40 @@ export default function Table() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-emerald-950 to-slate-900 flex flex-col">
-      {/* Header */}
-      <header className="border-b border-emerald-700/30 bg-card/30 backdrop-blur">
-        <div className="container mx-auto px-4 py-3 flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate('/lobby')}>
-              <ArrowLeft className="h-5 w-5" />
+      {/* Header - Mobile optimized */}
+      <header className="border-b border-emerald-700/30 bg-card/30 backdrop-blur shrink-0">
+        <div className="px-2 py-2 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate('/lobby')}>
+              <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
-              <h1 className="text-xl font-bold text-emerald-400">{table.name}</h1>
-              <p className="text-sm text-muted-foreground">
-                Blinds: {table.smallBlind}/{table.bigBlind} • Hand {table.handsPlayed}/{table.maxHands}
+              <h1 className="text-sm font-bold text-emerald-400">{table.name}</h1>
+              <p className="text-[10px] text-muted-foreground">
+                {table.smallBlind}/{table.bigBlind} • Hand {table.handsPlayed}/{table.maxHands}
               </p>
             </div>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {isJoined && currentPlayer && (
-              <div className="flex items-center gap-2 bg-emerald-900/50 px-4 py-2 rounded-lg">
-                <Coins className="h-4 w-4 text-yellow-400" />
-                <span className="font-bold text-yellow-400">{currentPlayer.stack.toLocaleString()}</span>
+              <div className="flex items-center gap-1 bg-emerald-900/50 px-2 py-1 rounded-lg">
+                <Coins className="h-3 w-3 text-yellow-400" />
+                <span className="font-bold text-yellow-400 text-xs">{currentPlayer.stack.toLocaleString()}</span>
               </div>
             )}
             
             {!isJoined ? (
               <Button 
-                className="bg-emerald-600 hover:bg-emerald-700"
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700 h-8 text-xs"
                 onClick={() => setShowJoinDialog(true)}
               >
-                Join Table
+                Join
               </Button>
             ) : (
-              <Button variant="outline" onClick={leaveTable}>
-                <LogOut className="h-4 w-4 mr-2" />
+              <Button variant="outline" size="sm" className="h-8 text-xs" onClick={leaveTable}>
+                <LogOut className="h-3 w-3 mr-1" />
                 Leave
               </Button>
             )}
@@ -96,8 +97,8 @@ export default function Table() {
         </div>
       </header>
 
-      {/* Game Area */}
-      <main className="flex-1 flex flex-col items-center justify-center p-4 gap-6">
+      {/* Game Area - Flex grow to fill space */}
+      <main className="flex-1 flex flex-col items-center justify-start p-2 overflow-auto">
         <PokerTableComponent
           players={players}
           communityCards={game?.communityCards || []}
@@ -107,9 +108,11 @@ export default function Table() {
           myCards={myCards}
           turnTimeLeft={turnTimeLeft}
         />
+      </main>
 
-        {/* Action Area - separated from table */}
-        <div className="flex flex-col items-center gap-4 min-h-[100px]">
+      {/* Bottom Action Area - Fixed at bottom, no overlap */}
+      <div className="shrink-0 border-t border-emerald-700/30 bg-slate-900/90 backdrop-blur p-3">
+        <div className="flex flex-col items-center gap-2 max-w-sm mx-auto">
           {/* Action Buttons */}
           {isJoined && game && game.status !== 'waiting' && game.status !== 'complete' && game.status !== 'showdown' && currentPlayer && (
             <ActionButtons
@@ -126,39 +129,37 @@ export default function Table() {
           {/* Start Hand Button */}
           {canStartHand && (
             <Button 
-              size="lg" 
-              className="bg-emerald-600 hover:bg-emerald-700 text-lg px-8"
+              size="sm" 
+              className="bg-emerald-600 hover:bg-emerald-700 w-full"
               onClick={startHand}
             >
-              <Play className="h-5 w-5 mr-2" />
+              <Play className="h-4 w-4 mr-2" />
               {game?.status === 'showdown' || game?.status === 'complete' ? 'Deal Next Hand' : 'Start Hand'}
             </Button>
           )}
 
-          {/* Waiting for players */}
+          {/* Status messages */}
           {isJoined && players.length < 2 && (
-            <p className="text-muted-foreground">Waiting for more players to join...</p>
+            <p className="text-muted-foreground text-xs text-center">Waiting for more players...</p>
           )}
 
-          {/* Not joined message */}
           {!isJoined && (
-            <p className="text-muted-foreground">Join the table to play!</p>
+            <p className="text-muted-foreground text-xs text-center">Join the table to play!</p>
           )}
 
-          {/* Showdown message */}
           {game?.status === 'showdown' && (
-            <p className="text-emerald-400 font-bold text-lg">Showdown!</p>
+            <p className="text-emerald-400 font-bold text-sm">Showdown!</p>
           )}
         </div>
-      </main>
+      </div>
 
       {/* Join Dialog */}
       <Dialog open={showJoinDialog} onOpenChange={setShowJoinDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-[90vw] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Join {table.name}</DialogTitle>
             <DialogDescription>
-              Choose your buy-in amount. Minimum: {table.bigBlind * 20}, Maximum: {table.bigBlind * 100}
+              Choose your buy-in. Min: {table.bigBlind * 20}, Max: {table.bigBlind * 100}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -170,7 +171,7 @@ export default function Table() {
                 min={table.bigBlind * 20}
                 max={Math.min(table.bigBlind * 100, profile?.chips || 0)}
               />
-              <span className="text-muted-foreground">chips</span>
+              <span className="text-muted-foreground text-sm">chips</span>
             </div>
             <p className="text-sm text-muted-foreground">
               Your balance: {profile?.chips.toLocaleString()} chips
@@ -180,14 +181,14 @@ export default function Table() {
                 Cancel
               </Button>
               <Button 
-                className="bg-emerald-600 hover:bg-emerald-700"
+                className="bg-emerald-600 hover:bg-emerald-700 flex-1"
                 onClick={() => {
                   joinTable(buyInAmount);
                   setShowJoinDialog(false);
                 }}
                 disabled={buyInAmount < table.bigBlind * 20 || buyInAmount > (profile?.chips || 0)}
               >
-                Join with {buyInAmount} chips
+                Join with {buyInAmount}
               </Button>
             </div>
           </div>

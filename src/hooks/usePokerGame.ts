@@ -513,7 +513,7 @@ export function usePokerGame(tableId: string) {
       if (gameTimeout) clearTimeout(gameTimeout);
       gameTimeout = setTimeout(() => {
         fetchGame();
-      }, 150);
+      }, 50);
     };
 
     const debouncedFetchPlayers = () => {
@@ -521,7 +521,7 @@ export function usePokerGame(tableId: string) {
       playersTimeout = setTimeout(() => {
         fetchPlayers();
         fetchMyCards();
-      }, 150);
+      }, 50);
     };
 
     const channel = supabase
