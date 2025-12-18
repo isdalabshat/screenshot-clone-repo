@@ -379,9 +379,30 @@ export function usePokerGame(tableId: string) {
     });
   };
 
-  // Leave table
+  // Leave table - auto-fold first if in active game
   const leaveTable = async () => {
     if (!currentPlayer) return;
+
+    // If in an active game and not folded, fold first to prevent bugs
+    const currentGame = gameRef.current;
+    if (currentGame && 
+        currentGame.status !== 'complete' && 
+        currentGame.status !== 'showdown' && 
+        currentGame.status !== 'waiting' &&
+        !currentPlayer.isFolded) {
+      try {
+        await supabase.functions.invoke('poker-game', {
+          body: {
+            action: 'perform_action',
+            tableId,
+            gameId: currentGame.id,
+            actionType: 'fold'
+          }
+        });
+      } catch (error) {
+        console.error('Auto-fold on leave failed:', error);
+      }
+    }
 
     if (profile) {
       await supabase
@@ -457,7 +478,7 @@ export function usePokerGame(tableId: string) {
     }
   };
 
-  // Perform action via edge function (server-side validation)
+  // Perform action via edge function (server-side validation) - no delays
   const performAction = async (action: ActionType, amount?: number) => {
     const currentGame = gameRef.current;
     if (!currentGame || !currentPlayer || !isCurrentPlayerTurn) return;
@@ -483,25 +504,9 @@ export function usePokerGame(tableId: string) {
         return;
       }
 
-      if (data?.status === 'complete') {
-        toast({
-          title: 'Hand complete!',
-          description: `Winner takes the pot!`
-        });
-      } else if (data?.status === 'showdown') {
-        toast({
-          title: 'Showdown!',
-          description: 'The hand is complete.'
-        });
-      } else if (data?.status) {
-        const statusMsg = data.status.charAt(0).toUpperCase() + data.status.slice(1);
-        toast({
-          title: `${statusMsg}!`,
-          description: data.status === 'flop' ? 'The flop is dealt.' :
-                      data.status === 'turn' ? 'The turn is dealt.' :
-                      'The river is dealt.'
-        });
-      }
+      // Immediately fetch updated state for faster sync
+      fetchGame();
+      fetchPlayers();
     } catch (err) {
       console.error('Action exception:', err);
       toast({
