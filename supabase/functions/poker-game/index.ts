@@ -204,26 +204,35 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Missing authorization header' }), {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ error: 'Please log in to continue', code: 'AUTH_REQUIRED' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
     
-    const token = authHeader.replace('Bearer ', '');
-    if (!token) {
-      return new Response(JSON.stringify({ error: 'Invalid authorization token' }), {
+    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+    if (!token || token.length < 10) {
+      return new Response(JSON.stringify({ error: 'Session expired. Please refresh the page.', code: 'INVALID_TOKEN' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
     
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    
-    if (userError || !user) {
-      console.error('Auth error:', userError);
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+    let user;
+    try {
+      const { data, error: userError } = await supabase.auth.getUser(token);
+      if (userError || !data?.user) {
+        console.log('Auth validation failed:', userError?.message || 'No user');
+        return new Response(JSON.stringify({ error: 'Session expired. Please refresh the page.', code: 'SESSION_EXPIRED' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+      user = data.user;
+    } catch (authErr) {
+      console.log('Auth error caught:', authErr);
+      return new Response(JSON.stringify({ error: 'Authentication failed. Please refresh the page.', code: 'AUTH_ERROR' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
