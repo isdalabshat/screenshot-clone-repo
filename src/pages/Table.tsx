@@ -6,12 +6,13 @@ import { useSoundEffects } from '@/hooks/useSoundEffects';
 import PokerTableComponent from '@/components/poker/PokerTable';
 import ActionButtons from '@/components/poker/ActionButtons';
 import TableChat from '@/components/poker/TableChat';
+import WinnerAnimation from '@/components/poker/WinnerAnimation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ArrowLeft, Play, LogOut, Coins, Volume2, VolumeX } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 export default function Table() {
   const { tableId } = useParams<{ tableId: string }>();
@@ -38,10 +39,13 @@ export default function Table() {
   const [showJoinDialog, setShowJoinDialog] = useState(false);
   const [buyInAmount, setBuyInAmount] = useState(100);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [showWinner, setShowWinner] = useState(false);
+  const [winnerInfo, setWinnerInfo] = useState<{ name: string; amount: number; id: string } | null>(null);
   
   const prevGameStatus = useRef<string | null>(null);
-  const prevCurrentPlayer = useRef<string | null>(null);
+  const prevCurrentPlayerId = useRef<string | null>(null);
   const prevMyCardsLength = useRef<number>(0);
+  const prevPot = useRef<number>(0);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -57,38 +61,59 @@ export default function Table() {
 
   // Sound effects based on game state changes
   useEffect(() => {
-    if (!soundEnabled || !game) return;
+    if (!game) return;
 
     // Card deal sound when cards are dealt
-    if (myCards.length > 0 && prevMyCardsLength.current === 0) {
+    if (soundEnabled && myCards.length > 0 && prevMyCardsLength.current === 0) {
       playDealSequence(2, 200);
     }
     prevMyCardsLength.current = myCards.length;
 
-    // New round sound
+    // New round sound and winner detection
     if (prevGameStatus.current !== game.status) {
-      if (['flop', 'turn', 'river'].includes(game.status)) {
+      if (soundEnabled && ['flop', 'turn', 'river'].includes(game.status)) {
         playSound('cardFlip');
         if (game.status === 'flop') {
           playDealSequence(3, 150);
         } else {
           playSound('deal');
         }
-      } else if (game.status === 'showdown') {
-        playSound('win');
+      } else if (game.status === 'showdown' || game.status === 'complete') {
+        // Find winner - player with highest stack increase
+        if (prevPot.current > 0) {
+          const winner = players.find(p => !p.isFolded && p.stack > 0);
+          if (winner) {
+            setWinnerInfo({ name: winner.username, amount: prevPot.current, id: winner.userId });
+            setShowWinner(true);
+            if (soundEnabled) playSound('win');
+            setTimeout(() => {
+              setShowWinner(false);
+              setWinnerInfo(null);
+            }, 3000);
+          }
+        }
       }
       prevGameStatus.current = game.status;
     }
 
-    // Turn change sound
+    // Track pot for winner calculation
+    if (game.pot > 0) {
+      prevPot.current = game.pot;
+    }
+
+    // Turn change sound - only play when turn actually changes
     const currentTurnPlayer = players.find(p => p.isCurrentPlayer);
-    if (currentTurnPlayer && prevCurrentPlayer.current !== currentTurnPlayer.userId) {
-      if (currentTurnPlayer.userId === user?.id) {
+    const newTurnPlayerId = currentTurnPlayer?.userId || null;
+    
+    if (newTurnPlayerId && prevCurrentPlayerId.current !== newTurnPlayerId) {
+      if (soundEnabled && newTurnPlayerId === user?.id) {
         playSound('turn');
       }
-      prevCurrentPlayer.current = currentTurnPlayer.userId;
+      prevCurrentPlayerId.current = newTurnPlayerId;
+    } else if (!newTurnPlayerId) {
+      prevCurrentPlayerId.current = null;
     }
-  }, [game?.status, players, soundEnabled, playSound, playDealSequence, user?.id, myCards.length]);
+  }, [game?.status, game?.pot, players, soundEnabled, playSound, playDealSequence, user?.id, myCards.length]);
 
   // Auto leave when balance is 0
   const hasLeftForZeroChips = useRef(false);
@@ -221,9 +246,17 @@ export default function Table() {
             handsPlayed={table.handsPlayed}
             maxHands={table.maxHands}
             myCards={myCards}
+            winnerId={winnerInfo?.id}
           />
         )}
       </main>
+
+      {/* Winner Animation */}
+      <WinnerAnimation
+        winnerName={winnerInfo?.name}
+        amount={winnerInfo?.amount}
+        isVisible={showWinner}
+      />
 
       {/* Table Chat */}
       {isJoined && (

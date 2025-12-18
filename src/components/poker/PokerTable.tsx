@@ -14,6 +14,7 @@ interface PokerTableProps {
   handsPlayed?: number;
   maxHands?: number;
   myCards?: Card[];
+  winnerId?: string;
 }
 
 const getVisibleCards = (status: Game['status'] | undefined): number => {
@@ -40,7 +41,8 @@ export default function PokerTableComponent({
   turnTimeLeft,
   handsPlayed = 0,
   maxHands = 50,
-  myCards = []
+  myCards = [],
+  winnerId
 }: PokerTableProps) {
   const currentUserPlayer = players.find(p => p.userId === currentUserId);
   const userPosition = currentUserPlayer?.position ?? 0;
@@ -173,6 +175,7 @@ export default function PokerTableComponent({
           communityCards={communityCards}
           gameStatus={gameStatus}
           myCards={player?.userId === currentUserId ? myCards : undefined}
+          isWinner={winnerId ? player?.userId === winnerId : false}
         />
       ))}
     </div>

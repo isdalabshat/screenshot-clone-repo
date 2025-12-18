@@ -548,28 +548,28 @@ export function usePokerGame(tableId: string) {
     init();
   }, [fetchTable, fetchGame, fetchPlayers, fetchMyCards]);
 
-  // Realtime subscriptions - debounced to prevent cascading updates but ensure latest state
+  // Realtime subscriptions - fetch game first, then players to ensure correct turn indicator
   useEffect(() => {
-    let gameDebounce: ReturnType<typeof setTimeout> | null = null;
-    let playerDebounce: ReturnType<typeof setTimeout> | null = null;
+    let updateDebounce: ReturnType<typeof setTimeout> | null = null;
     let tableDebounce: ReturnType<typeof setTimeout> | null = null;
-    const DEBOUNCE_MS = 150;
+    const DEBOUNCE_MS = 100;
+    
+    // Unified update function to ensure game state is fetched before players
+    const handleGameOrPlayerUpdate = async () => {
+      await fetchGame();
+      await fetchPlayers();
+      await fetchMyCards();
+    };
     
     const channel = supabase
       .channel(`table-${tableId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter: `table_id=eq.${tableId}` }, () => {
-        if (gameDebounce) clearTimeout(gameDebounce);
-        gameDebounce = setTimeout(() => {
-          fetchGame();
-          fetchMyCards();
-        }, DEBOUNCE_MS);
+        if (updateDebounce) clearTimeout(updateDebounce);
+        updateDebounce = setTimeout(handleGameOrPlayerUpdate, DEBOUNCE_MS);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'table_players', filter: `table_id=eq.${tableId}` }, () => {
-        if (playerDebounce) clearTimeout(playerDebounce);
-        playerDebounce = setTimeout(() => {
-          fetchPlayers();
-          fetchMyCards();
-        }, DEBOUNCE_MS);
+        if (updateDebounce) clearTimeout(updateDebounce);
+        updateDebounce = setTimeout(handleGameOrPlayerUpdate, DEBOUNCE_MS);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'poker_tables', filter: `id=eq.${tableId}` }, () => {
         if (tableDebounce) clearTimeout(tableDebounce);
@@ -578,8 +578,7 @@ export function usePokerGame(tableId: string) {
       .subscribe();
 
     return () => {
-      if (gameDebounce) clearTimeout(gameDebounce);
-      if (playerDebounce) clearTimeout(playerDebounce);
+      if (updateDebounce) clearTimeout(updateDebounce);
       if (tableDebounce) clearTimeout(tableDebounce);
       supabase.removeChannel(channel);
     };
