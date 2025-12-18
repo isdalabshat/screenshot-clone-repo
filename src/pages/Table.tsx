@@ -252,21 +252,21 @@ export default function Table() {
       autoStartTriggered.current = true;
       // Small delay to let winner animation show first
       const delayTimer = setTimeout(() => {
-        if (!isStartingHand.current) {
+        if (!isStartingHand.current && players.length >= 2) {
           startAutoStartCountdown();
         }
-      }, 500);
+      }, 800);
       
       prevPlayerCount.current = activePlayerCount;
       return () => clearTimeout(delayTimer);
     }
     
-    // Reset trigger when game is actively in progress (not waiting/complete/showdown)
-    if (game && game.status !== 'complete' && game.status !== 'showdown' && game.status !== 'waiting') {
+    // Reset trigger when a new hand starts (preflop)
+    if (game && game.status === 'preflop') {
       autoStartTriggered.current = false;
     }
     
-    // If conditions no longer met but we have an active countdown, keep it unless players dropped
+    // If players dropped below 2, clear timers
     if (activePlayerCount < 2 && autoStartCountdown !== null) {
       clearAutoStartTimers();
     }
@@ -282,7 +282,8 @@ export default function Table() {
     autoStartCountdown,
     clearAutoStartTimers,
     startAutoStartCountdown,
-    toast
+    toast,
+    players
   ]);
 
   // Clean up timers on unmount
