@@ -31,6 +31,7 @@ export default function Table() {
     isCurrentPlayerTurn,
     turnTimeLeft,
     isActionPending,
+    sidePots,
     joinTable, 
     leaveTable, 
     startHand,
@@ -248,6 +249,7 @@ export default function Table() {
             maxHands={table.maxHands}
             myCards={myCards}
             winnerId={winnerInfo?.id}
+            sidePots={sidePots}
           />
         )}
       </main>

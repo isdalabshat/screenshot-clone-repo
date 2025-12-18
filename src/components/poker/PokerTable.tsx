@@ -1,6 +1,7 @@
 import { Player, Card, Game } from '@/types/poker';
 import PlayerSeat from './PlayerSeat';
 import PlayingCard from './PlayingCard';
+import SidePotDisplay, { SidePot } from './SidePotDisplay';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -15,6 +16,7 @@ interface PokerTableProps {
   maxHands?: number;
   myCards?: Card[];
   winnerId?: string;
+  sidePots?: SidePot[];
 }
 
 const getVisibleCards = (status: Game['status'] | undefined): number => {
@@ -42,7 +44,8 @@ export default function PokerTableComponent({
   handsPlayed = 0,
   maxHands = 50,
   myCards = [],
-  winnerId
+  winnerId,
+  sidePots = []
 }: PokerTableProps) {
   const currentUserPlayer = players.find(p => p.userId === currentUserId);
   const userPosition = currentUserPlayer?.position ?? 0;
@@ -128,6 +131,9 @@ export default function PokerTableComponent({
             </span>
           </motion.div>
 
+          {/* Side pots display */}
+          <SidePotDisplay sidePots={sidePots} />
+
           {/* Community Cards */}
           <div className="flex gap-1.5 flex-wrap justify-center max-w-[220px] min-h-[56px]">
             {[0, 1, 2, 3, 4].map((i) => (
@@ -176,6 +182,7 @@ export default function PokerTableComponent({
           gameStatus={gameStatus}
           myCards={player?.userId === currentUserId ? myCards : undefined}
           isWinner={winnerId ? player?.userId === winnerId : false}
+          turnTimeLeft={player?.isCurrentPlayer ? turnTimeLeft : null}
         />
       ))}
     </div>

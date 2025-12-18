@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import PlayingCard from './PlayingCard';
 import { Badge } from '@/components/ui/badge';
 import { evaluateHand } from '@/lib/poker/handEvaluator';
+import CountdownTimer from './CountdownTimer';
 
 interface PlayerSeatProps {
   player?: Player;
@@ -14,6 +15,7 @@ interface PlayerSeatProps {
   gameStatus?: Game['status'];
   myCards?: Card[];
   isWinner?: boolean;
+  turnTimeLeft?: number | null;
 }
 
 // Optimized positions for better visual balance - current user always at bottom center
@@ -50,7 +52,8 @@ export default function PlayerSeat({
   communityCards = [],
   gameStatus,
   myCards = [],
-  isWinner = false
+  isWinner = false,
+  turnTimeLeft = null
 }: PlayerSeatProps) {
   if (!player) {
     return (
@@ -113,33 +116,39 @@ export default function PlayerSeat({
 
   const AvatarSection = () => (
     <div className="flex flex-col items-center gap-0.5">
-      {/* Avatar with enhanced turn indicator */}
-      <div 
-        className={cn(
-          'w-10 h-10 rounded-full flex items-center justify-center shadow-lg border-3 transition-all relative',
-          player.isFolded 
-            ? 'bg-slate-700/50 border-slate-600 opacity-40' 
-            : isWinner
-              ? 'bg-gradient-to-br from-yellow-400 to-amber-500 border-yellow-300 ring-4 ring-yellow-400/50 winner-highlight'
-              : player.isCurrentPlayer 
-                ? 'bg-gradient-to-br from-green-500 to-green-600 border-green-400 ring-4 ring-green-400/50 animate-pulse' 
-                : isCurrentUser 
-                  ? 'bg-gradient-to-br from-secondary to-secondary/80 border-secondary' 
-                  : 'bg-slate-700 border-slate-500'
-        )}
-      >
-        <span className="text-sm">{isWinner ? '🏆' : isCurrentUser ? '👤' : '🎭'}</span>
-        {/* Turn indicator badge */}
-        {player.isCurrentPlayer && !player.isFolded && !isWinner && (
-          <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center border-2 border-white">
-            <span className="text-[8px]">▶</span>
-          </div>
-        )}
-        {/* Winner badge */}
-        {isWinner && (
-          <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center border-2 border-white">
-            <span className="text-[8px]">★</span>
-          </div>
+      {/* Avatar with enhanced turn indicator and countdown */}
+      <div className="relative">
+        <div 
+          className={cn(
+            'w-10 h-10 rounded-full flex items-center justify-center shadow-lg border-3 transition-all relative',
+            player.isFolded 
+              ? 'bg-slate-700/50 border-slate-600 opacity-40' 
+              : isWinner
+                ? 'bg-gradient-to-br from-yellow-400 to-amber-500 border-yellow-300 ring-4 ring-yellow-400/50 winner-highlight'
+                : player.isCurrentPlayer 
+                  ? 'bg-gradient-to-br from-green-500 to-green-600 border-green-400' 
+                  : isCurrentUser 
+                    ? 'bg-gradient-to-br from-secondary to-secondary/80 border-secondary' 
+                    : 'bg-slate-700 border-slate-500'
+          )}
+        >
+          <span className="text-sm">{isWinner ? '🏆' : isCurrentUser ? '👤' : '🎭'}</span>
+          {/* Turn indicator badge */}
+          {player.isCurrentPlayer && !player.isFolded && !isWinner && (
+            <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center border-2 border-white animate-pulse">
+              <span className="text-[8px]">▶</span>
+            </div>
+          )}
+          {/* Winner badge */}
+          {isWinner && (
+            <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center border-2 border-white">
+              <span className="text-[8px]">★</span>
+            </div>
+          )}
+        </div>
+        {/* Countdown timer around avatar */}
+        {player.isCurrentPlayer && !player.isFolded && turnTimeLeft !== null && turnTimeLeft > 0 && (
+          <CountdownTimer timeLeft={turnTimeLeft} maxTime={30} size={48} />
         )}
       </div>
       

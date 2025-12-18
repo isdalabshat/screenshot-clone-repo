@@ -4,6 +4,63 @@ import { useAuth } from './useAuth';
 import { Player, Game, ActionType, PokerTable, Card } from '@/types/poker';
 import { stringToCard } from '@/lib/poker/deck';
 import { useToast } from './use-toast';
+import { SidePot } from '@/components/poker/SidePotDisplay';
+
+// Calculate side pots based on player bets
+function calculateSidePots(players: Player[]): SidePot[] {
+  const activePlayers = players.filter(p => !p.isFolded);
+  if (activePlayers.length === 0) return [];
+
+  const allInPlayers = activePlayers.filter(p => p.isAllIn);
+  if (allInPlayers.length === 0) {
+    // No side pots needed - single main pot
+    const totalBets = activePlayers.reduce((sum, p) => sum + p.currentBet, 0);
+    if (totalBets > 0) {
+      return [{ amount: totalBets, eligibleCount: activePlayers.length, label: 'Main' }];
+    }
+    return [];
+  }
+
+  // Get unique all-in amounts
+  const allInAmounts = [...new Set(allInPlayers.map(p => p.currentBet))].sort((a, b) => a - b);
+  
+  const sidePots: SidePot[] = [];
+  let previousLevel = 0;
+
+  for (let i = 0; i < allInAmounts.length; i++) {
+    const allInAmount = allInAmounts[i];
+    const eligiblePlayers = activePlayers.filter(p => p.currentBet >= allInAmount);
+    const contributionLevel = allInAmount - previousLevel;
+    const potAmount = activePlayers
+      .filter(p => p.currentBet > previousLevel)
+      .reduce((sum, p) => sum + Math.min(contributionLevel, p.currentBet - previousLevel), 0);
+
+    if (potAmount > 0) {
+      sidePots.push({
+        amount: potAmount,
+        eligibleCount: eligiblePlayers.length,
+        label: i === 0 ? 'Main' : `Side ${i}`
+      });
+    }
+    previousLevel = allInAmount;
+  }
+
+  // Remaining amounts above highest all-in
+  const maxAllIn = Math.max(...allInAmounts);
+  const remainingPlayers = activePlayers.filter(p => p.currentBet > maxAllIn);
+  if (remainingPlayers.length > 0) {
+    const remainingAmount = remainingPlayers.reduce((sum, p) => sum + (p.currentBet - maxAllIn), 0);
+    if (remainingAmount > 0) {
+      sidePots.push({
+        amount: remainingAmount,
+        eligibleCount: remainingPlayers.length,
+        label: `Side ${sidePots.length}`
+      });
+    }
+  }
+
+  return sidePots;
+}
 
 export function usePokerGame(tableId: string) {
   const { user, profile, refreshProfile } = useAuth();
@@ -17,12 +74,14 @@ export function usePokerGame(tableId: string) {
   const [isJoined, setIsJoined] = useState(false);
   const [turnTimeLeft, setTurnTimeLeft] = useState<number | null>(null);
   const [isActionPending, setIsActionPending] = useState(false);
+  const [sidePots, setSidePots] = useState<SidePot[]>([]);
 
   // Use refs to avoid stale closures in realtime callbacks
   const gameRef = useRef<Game | null>(null);
   const playersRef = useRef<Player[]>([]);
   const tableRef = useRef<PokerTable | null>(null);
   const userIdRef = useRef<string | undefined>(undefined);
+  const lastSyncRef = useRef<number>(0);
 
   // Keep refs in sync
   useEffect(() => {
@@ -31,6 +90,8 @@ export function usePokerGame(tableId: string) {
 
   useEffect(() => {
     playersRef.current = players;
+    // Calculate side pots whenever players change
+    setSidePots(calculateSidePots(players));
   }, [players]);
 
   useEffect(() => {
@@ -639,26 +700,29 @@ export function usePokerGame(tableId: string) {
     const init = async () => {
       setIsLoading(true);
       await fetchTable();
-      await fetchGame();
-      await fetchPlayers();
-      await fetchMyCards();
+      await Promise.all([fetchGame(), fetchPlayers(), fetchMyCards()]);
       setIsLoading(false);
     };
     init();
   }, [fetchTable, fetchGame, fetchPlayers, fetchMyCards]);
 
-  // Realtime subscriptions
+  // Realtime subscriptions with improved sync
   useEffect(() => {
     let updateDebounce: ReturnType<typeof setTimeout> | null = null;
     let tableDebounce: ReturnType<typeof setTimeout> | null = null;
-    const DEBOUNCE_MS = 50; // Reduced for faster sync
+    const DEBOUNCE_MS = 30; // Faster sync
     
     const handleGameOrPlayerUpdate = async () => {
       // Don't refetch if action is pending (optimistic update in progress)
       if (isActionPending) return;
-      await fetchGame();
-      await fetchPlayers();
-      await fetchMyCards();
+      
+      // Prevent multiple rapid syncs
+      const now = Date.now();
+      if (now - lastSyncRef.current < 50) return;
+      lastSyncRef.current = now;
+      
+      // Fetch all data in parallel for faster sync
+      await Promise.all([fetchGame(), fetchPlayers(), fetchMyCards()]);
     };
     
     const channel = supabase
@@ -695,6 +759,7 @@ export function usePokerGame(tableId: string) {
     isCurrentPlayerTurn,
     turnTimeLeft,
     isActionPending,
+    sidePots,
     joinTable,
     leaveTable,
     startHand,
