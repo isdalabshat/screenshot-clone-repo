@@ -17,15 +17,15 @@ interface PlayerSeatProps {
 }
 
 const positionStyles: Record<number, string> = {
-  0: 'bottom-[5%] left-1/2 -translate-x-1/2',
-  1: 'bottom-[12%] left-[5%]',
-  2: 'left-0 top-[40%] -translate-x-[10%]',
-  3: 'top-[15%] left-[5%]',
-  4: 'top-0 left-[30%] -translate-y-[20%]',
-  5: 'top-0 right-[30%] -translate-y-[20%]',
-  6: 'top-[15%] right-[5%]',
-  7: 'right-0 top-[40%] translate-x-[10%]',
-  8: 'bottom-[12%] right-[5%]',
+  0: 'bottom-[2%] left-1/2 -translate-x-1/2', // Bottom center - current user
+  1: 'bottom-[15%] left-[8%]',
+  2: 'left-[2%] top-[40%]',
+  3: 'top-[12%] left-[8%]',
+  4: 'top-[2%] left-[30%]',
+  5: 'top-[2%] right-[30%]',
+  6: 'top-[12%] right-[8%]',
+  7: 'right-[2%] top-[40%]',
+  8: 'bottom-[15%] right-[8%]',
 };
 
 const getVisibleCommunityCards = (status: string | undefined, communityCards: Card[]): Card[] => {
@@ -77,12 +77,12 @@ export default function PlayerSeat({
       transition={{ delay: position * 0.05, type: 'spring', stiffness: 200 }}
       className={cn('absolute z-10', positionStyles[position])}
     >
-      {/* Main container - horizontal layout for cards + player info */}
-      <div className="flex items-center gap-1">
+      {/* Main container - horizontal layout: cards on left, avatar/info in center */}
+      <div className="flex items-center gap-2">
         {/* Current User's Cards - shown to the LEFT of their avatar */}
         {showMyCards && (
           <div className="flex flex-col items-center gap-0.5">
-            <div className="flex gap-0.5 bg-black/70 backdrop-blur-sm rounded-lg p-1 border border-emerald-500/30">
+            <div className="flex gap-0.5 bg-black/80 backdrop-blur-sm rounded-lg p-1.5 border border-emerald-500/40 shadow-lg">
               {myCards.map((card, i) => (
                 <motion.div
                   key={i}
@@ -90,7 +90,7 @@ export default function PlayerSeat({
                   animate={{ rotateY: 0, scale: 1 }}
                   transition={{ duration: 0.4, delay: i * 0.15 }}
                 >
-                  <PlayingCard card={card} size="xs" />
+                  <PlayingCard card={card} size="sm" />
                 </motion.div>
               ))}
             </div>
@@ -98,7 +98,7 @@ export default function PlayerSeat({
               <motion.div
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-1 py-0.5 rounded text-[7px] font-bold whitespace-nowrap"
+                className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-1.5 py-0.5 rounded text-[8px] font-bold whitespace-nowrap shadow-md"
               >
                 {handRank.name}
               </motion.div>
@@ -106,7 +106,7 @@ export default function PlayerSeat({
           </div>
         )}
 
-        {/* Player info column */}
+        {/* Player info column - avatar, name, stack */}
         <div className="flex flex-col items-center gap-0.5">
 
         {/* Opponent's Cards */}

@@ -596,20 +596,24 @@ serve(async (req) => {
       }
 
       // Check if betting round is complete
-      const activeNonAllIn = activePlayers.filter(p => !p.is_all_in);
+      const activeNonAllIn = activePlayers.filter(p => {
+        const isAllInNow = p.id === currentPlayer.id ? isAllIn : p.is_all_in;
+        return !isAllInNow;
+      });
       const allBetsEqual = activeNonAllIn.every(p => {
         const bet = p.id === currentPlayer.id ? newBet : p.current_bet;
         return bet === newCurrentBet;
       });
 
-      const shouldAdvanceRound = nextPosition === null && allBetsEqual;
+      // Check if everyone is all-in or only one player can act
+      const allPlayersAllIn = activeNonAllIn.length === 0;
+      const onlyOneCanAct = activeNonAllIn.length === 1;
+      
+      // If everyone is all-in, skip to showdown immediately
+      const shouldSkipToShowdown = allPlayersAllIn || (onlyOneCanAct && allBetsEqual);
+      const shouldAdvanceRound = (nextPosition === null && allBetsEqual) || shouldSkipToShowdown;
 
       if (shouldAdvanceRound) {
-        // Move to next round
-        const roundOrder = ['preflop', 'flop', 'turn', 'river', 'showdown'];
-        const currentIdx = roundOrder.indexOf(game.status);
-        const nextRound = roundOrder[currentIdx + 1] || 'showdown';
-
         // Reset bets for new round
         for (const p of playersWithUpdated) {
           if (!p.is_folded) {
@@ -619,6 +623,78 @@ serve(async (req) => {
               .eq('id', p.id);
           }
         }
+
+        // If everyone is all-in, run out all cards to showdown
+        if (shouldSkipToShowdown) {
+          console.log('All players all-in, skipping to showdown');
+          
+          // SHOWDOWN - Evaluate hands and determine winner
+          const activeAtShowdown = playersWithUpdated.filter(p => !p.is_folded);
+          const communityCards = (game.community_cards || []) as string[];
+          
+          const playerHands = activeAtShowdown.map(p => ({
+            player: p,
+            hand: evaluateHand(p.hole_cards || [], communityCards)
+          }));
+
+          playerHands.sort((a, b) => {
+            if (a.hand.rank !== b.hand.rank) return b.hand.rank - a.hand.rank;
+            return compareKickers(b.hand.kickers, a.hand.kickers);
+          });
+
+          const bestHand = playerHands[0].hand;
+          const winners = playerHands.filter(ph => 
+            ph.hand.rank === bestHand.rank && 
+            compareKickers(ph.hand.kickers, bestHand.kickers) === 0
+          );
+
+          const winAmount = Math.floor(newPot / winners.length);
+          const winnerIds: string[] = [];
+          const winnerHands: { userId: string; hand: string }[] = [];
+
+          for (const { player, hand } of winners) {
+            const playerStack = player.id === currentPlayer.id ? newStack : player.stack;
+            await supabase
+              .from('table_players')
+              .update({ stack: playerStack + winAmount })
+              .eq('id', player.id);
+            
+            winnerIds.push(player.user_id);
+            winnerHands.push({ userId: player.user_id, hand: hand.name });
+          }
+
+          await supabase
+            .from('games')
+            .update({
+              status: 'showdown',
+              pot: 0,
+              current_bet: 0,
+              current_player_position: null,
+              turn_expires_at: null
+            })
+            .eq('id', game.id);
+
+          return new Response(JSON.stringify({
+            success: true,
+            status: 'showdown',
+            pot: newPot,
+            winners: winnerIds,
+            winningHand: winnerHands[0]?.hand,
+            allIn: true,
+            hands: playerHands.map(ph => ({
+              userId: ph.player.user_id,
+              hand: ph.hand.name,
+              cards: ph.player.hole_cards
+            }))
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Move to next round normally
+        const roundOrder = ['preflop', 'flop', 'turn', 'river', 'showdown'];
+        const currentIdx = roundOrder.indexOf(game.status);
+        const nextRound = roundOrder[currentIdx + 1] || 'showdown';
 
         if (nextRound === 'showdown') {
           // SHOWDOWN - Evaluate hands and determine winner
