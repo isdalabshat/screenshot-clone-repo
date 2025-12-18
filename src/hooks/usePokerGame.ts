@@ -81,7 +81,6 @@ export function usePokerGame(tableId: string) {
   const playersRef = useRef<Player[]>([]);
   const tableRef = useRef<PokerTable | null>(null);
   const userIdRef = useRef<string | undefined>(undefined);
-  const lastSyncRef = useRef<number>(0);
 
   // Keep refs in sync
   useEffect(() => {
@@ -706,44 +705,50 @@ export function usePokerGame(tableId: string) {
     init();
   }, [fetchTable, fetchGame, fetchPlayers, fetchMyCards]);
 
-  // Realtime subscriptions with improved sync
+  // Realtime subscriptions - INSTANT sync for all users
   useEffect(() => {
-    let updateDebounce: ReturnType<typeof setTimeout> | null = null;
-    let tableDebounce: ReturnType<typeof setTimeout> | null = null;
-    const DEBOUNCE_MS = 30; // Faster sync
+    // Track if we're the one who triggered the update
+    const myUserIdRef = userIdRef.current;
     
-    const handleGameOrPlayerUpdate = async () => {
-      // Don't refetch if action is pending (optimistic update in progress)
-      if (isActionPending) return;
+    // Instant update handler - no debounce for real-time poker
+    const handleInstantUpdate = async (payload: any) => {
+      // Don't refetch if this user's action is pending (optimistic update handles it)
+      // But ALWAYS update for OTHER users' actions
+      const isMyAction = payload?.new?.user_id === myUserIdRef;
+      if (isActionPending && isMyAction) return;
       
-      // Prevent multiple rapid syncs
-      const now = Date.now();
-      if (now - lastSyncRef.current < 50) return;
-      lastSyncRef.current = now;
-      
-      // Fetch all data in parallel for faster sync
+      // Immediate parallel fetch for instant sync
+      await Promise.all([fetchGame(), fetchPlayers(), fetchMyCards()]);
+    };
+
+    const handleGameUpdate = async (payload: any) => {
+      // Game updates (pot, community cards, current player) - always instant
       await Promise.all([fetchGame(), fetchPlayers(), fetchMyCards()]);
     };
     
     const channel = supabase
-      .channel(`table-${tableId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter: `table_id=eq.${tableId}` }, () => {
-        if (updateDebounce) clearTimeout(updateDebounce);
-        updateDebounce = setTimeout(handleGameOrPlayerUpdate, DEBOUNCE_MS);
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'table_players', filter: `table_id=eq.${tableId}` }, () => {
-        if (updateDebounce) clearTimeout(updateDebounce);
-        updateDebounce = setTimeout(handleGameOrPlayerUpdate, DEBOUNCE_MS);
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'poker_tables', filter: `id=eq.${tableId}` }, () => {
-        if (tableDebounce) clearTimeout(tableDebounce);
-        tableDebounce = setTimeout(fetchTable, DEBOUNCE_MS);
-      })
+      .channel(`table-realtime-${tableId}`)
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'games', 
+        filter: `table_id=eq.${tableId}` 
+      }, handleGameUpdate)
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'table_players', 
+        filter: `table_id=eq.${tableId}` 
+      }, handleInstantUpdate)
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'poker_tables', 
+        filter: `id=eq.${tableId}` 
+      }, fetchTable)
       .subscribe();
 
     return () => {
-      if (updateDebounce) clearTimeout(updateDebounce);
-      if (tableDebounce) clearTimeout(tableDebounce);
       supabase.removeChannel(channel);
     };
   }, [tableId, fetchGame, fetchPlayers, fetchTable, fetchMyCards, isActionPending]);
