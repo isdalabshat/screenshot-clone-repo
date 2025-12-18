@@ -11,6 +11,12 @@ interface Card {
   rank: '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K' | 'A';
 }
 
+interface SidePot {
+  amount: number;
+  eligiblePlayers: string[]; // user_ids
+  allInAmount: number;
+}
+
 const SUITS: Card['suit'][] = ['hearts', 'diamonds', 'clubs', 'spades'];
 const RANKS: Card['rank'][] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 const RANK_VALUES: Record<string, number> = {
@@ -18,7 +24,6 @@ const RANK_VALUES: Record<string, number> = {
   'J': 11, 'Q': 12, 'K': 13, 'A': 14
 };
 
-// Hand ranking constants
 const HAND_RANKS = {
   HIGH_CARD: 1,
   PAIR: 2,
@@ -62,11 +67,8 @@ function stringToCard(str: string): Card {
   return { rank, suit: suitMap[suitChar] };
 }
 
-// Hand evaluation functions
 function evaluateHand(holeCards: string[], communityCards: string[]): { rank: number; name: string; kickers: number[] } {
   const allCards = [...holeCards, ...communityCards].map(stringToCard);
-  
-  // Generate all 5-card combinations from 7 cards
   const combinations = getCombinations(allCards, 5);
   let bestHand = { rank: 0, name: 'High Card', kickers: [0] };
   
@@ -103,53 +105,44 @@ function evaluateFiveCards(cards: Card[]): { rank: number; name: string; kickers
   const isStraight = checkStraight(values);
   const isLowStraight = values.includes(14) && values.includes(5) && values.includes(4) && values.includes(3) && values.includes(2);
   
-  // Count occurrences
   const counts: Record<number, number> = {};
   for (const v of values) {
     counts[v] = (counts[v] || 0) + 1;
   }
   const countValues = Object.entries(counts).sort((a, b) => b[1] - a[1] || Number(b[0]) - Number(a[0]));
   
-  // Royal Flush
   if (isFlush && isStraight && values[0] === 14) {
     return { rank: HAND_RANKS.ROYAL_FLUSH, name: 'Royal Flush', kickers: values };
   }
   
-  // Straight Flush
   if (isFlush && (isStraight || isLowStraight)) {
     return { rank: HAND_RANKS.STRAIGHT_FLUSH, name: 'Straight Flush', kickers: isLowStraight ? [5, 4, 3, 2, 1] : values };
   }
   
-  // Four of a Kind
   if (countValues[0][1] === 4) {
     const quad = Number(countValues[0][0]);
     const kicker = Number(countValues[1][0]);
     return { rank: HAND_RANKS.FOUR_OF_A_KIND, name: 'Four of a Kind', kickers: [quad, kicker] };
   }
   
-  // Full House
   if (countValues[0][1] === 3 && countValues[1][1] === 2) {
     return { rank: HAND_RANKS.FULL_HOUSE, name: 'Full House', kickers: [Number(countValues[0][0]), Number(countValues[1][0])] };
   }
   
-  // Flush
   if (isFlush) {
     return { rank: HAND_RANKS.FLUSH, name: 'Flush', kickers: values };
   }
   
-  // Straight
   if (isStraight || isLowStraight) {
     return { rank: HAND_RANKS.STRAIGHT, name: 'Straight', kickers: isLowStraight ? [5, 4, 3, 2, 1] : values };
   }
   
-  // Three of a Kind
   if (countValues[0][1] === 3) {
     const trip = Number(countValues[0][0]);
     const kickers = values.filter(v => v !== trip).slice(0, 2);
     return { rank: HAND_RANKS.THREE_OF_A_KIND, name: 'Three of a Kind', kickers: [trip, ...kickers] };
   }
   
-  // Two Pair
   if (countValues[0][1] === 2 && countValues[1][1] === 2) {
     const high = Math.max(Number(countValues[0][0]), Number(countValues[1][0]));
     const low = Math.min(Number(countValues[0][0]), Number(countValues[1][0]));
@@ -157,14 +150,12 @@ function evaluateFiveCards(cards: Card[]): { rank: number; name: string; kickers
     return { rank: HAND_RANKS.TWO_PAIR, name: 'Two Pair', kickers: [high, low, kicker] };
   }
   
-  // Pair
   if (countValues[0][1] === 2) {
     const pair = Number(countValues[0][0]);
     const kickers = values.filter(v => v !== pair).slice(0, 3);
     return { rank: HAND_RANKS.PAIR, name: 'Pair', kickers: [pair, ...kickers] };
   }
   
-  // High Card
   return { rank: HAND_RANKS.HIGH_CARD, name: 'High Card', kickers: values };
 }
 
@@ -183,14 +174,153 @@ function compareKickers(a: number[], b: number[]): number {
   return 0;
 }
 
-// Fee calculation helper - 10% rake, min pot of 5 big blinds
 function calculateFee(pot: number, bigBlind: number, gameStatus: string): number {
-  // No fee if hand ended pre-flop (only blinds collected)
   if (gameStatus === 'preflop') return 0;
-  // No fee if pot is less than 5 big blinds
   if (pot < bigBlind * 5) return 0;
-  // 10% rake
   return Math.floor(pot * 0.10);
+}
+
+// Calculate side pots when players are all-in with different amounts
+function calculateSidePots(players: any[]): SidePot[] {
+  const activePlayers = players.filter(p => !p.is_folded);
+  if (activePlayers.length === 0) return [];
+  
+  // Get all unique contribution levels (total bet amounts)
+  const contributions = activePlayers.map(p => ({
+    userId: p.user_id,
+    totalContribution: p.current_bet,
+    isAllIn: p.is_all_in
+  })).sort((a, b) => a.totalContribution - b.totalContribution);
+  
+  // Get unique all-in amounts
+  const allInAmounts = [...new Set(
+    contributions
+      .filter(c => c.isAllIn)
+      .map(c => c.totalContribution)
+  )].sort((a, b) => a - b);
+  
+  if (allInAmounts.length === 0) {
+    // No all-ins, single main pot
+    const totalPot = contributions.reduce((sum, c) => sum + c.totalContribution, 0);
+    return [{
+      amount: totalPot,
+      eligiblePlayers: activePlayers.map(p => p.user_id),
+      allInAmount: 0
+    }];
+  }
+  
+  const sidePots: SidePot[] = [];
+  let previousLevel = 0;
+  
+  for (const allInAmount of allInAmounts) {
+    const contributionForThisPot = allInAmount - previousLevel;
+    const eligiblePlayers = activePlayers
+      .filter(p => p.current_bet >= allInAmount)
+      .map(p => p.user_id);
+    
+    // Each eligible player contributes (allInAmount - previousLevel) to this pot
+    const potAmount = contributionForThisPot * activePlayers.filter(p => p.current_bet >= allInAmount || p.current_bet > previousLevel).length;
+    
+    if (potAmount > 0 && eligiblePlayers.length > 0) {
+      sidePots.push({
+        amount: potAmount,
+        eligiblePlayers,
+        allInAmount
+      });
+    }
+    
+    previousLevel = allInAmount;
+  }
+  
+  // Main pot for remaining amounts above highest all-in
+  const maxAllIn = Math.max(...allInAmounts);
+  const remainingPlayers = activePlayers.filter(p => p.current_bet > maxAllIn && !p.is_all_in);
+  if (remainingPlayers.length > 0) {
+    const remainingContributions = activePlayers
+      .filter(p => p.current_bet > maxAllIn)
+      .reduce((sum, p) => sum + (p.current_bet - maxAllIn), 0);
+    
+    if (remainingContributions > 0) {
+      sidePots.push({
+        amount: remainingContributions,
+        eligiblePlayers: remainingPlayers.map(p => p.user_id),
+        allInAmount: 0
+      });
+    }
+  }
+  
+  return sidePots;
+}
+
+// Distribute pot with side pots consideration
+function distributePotWithSidePots(
+  players: any[],
+  communityCards: string[],
+  totalPot: number,
+  bigBlind: number,
+  gameStatus: string
+): { distributions: { playerId: string; amount: number }[]; fee: number } {
+  const activePlayers = players.filter(p => !p.is_folded);
+  
+  if (activePlayers.length === 1) {
+    const fee = calculateFee(totalPot, bigBlind, gameStatus);
+    return {
+      distributions: [{ playerId: activePlayers[0].id, amount: totalPot - fee }],
+      fee
+    };
+  }
+  
+  // Evaluate all hands
+  const playerHands = activePlayers.map(p => ({
+    player: p,
+    hand: evaluateHand(p.hole_cards || [], communityCards)
+  }));
+  
+  // Calculate side pots
+  const sidePots = calculateSidePots(activePlayers);
+  
+  // Calculate total fee on the total pot
+  const fee = calculateFee(totalPot, bigBlind, gameStatus);
+  const feePerPot = sidePots.length > 0 ? fee / sidePots.length : 0;
+  
+  const distributions: Map<string, number> = new Map();
+  
+  for (const sidePot of sidePots) {
+    // Find winners for this pot (only eligible players)
+    const eligibleHands = playerHands.filter(ph => 
+      sidePot.eligiblePlayers.includes(ph.player.user_id)
+    );
+    
+    if (eligibleHands.length === 0) continue;
+    
+    eligibleHands.sort((a, b) => {
+      if (a.hand.rank !== b.hand.rank) return b.hand.rank - a.hand.rank;
+      return compareKickers(b.hand.kickers, a.hand.kickers);
+    });
+    
+    const bestHand = eligibleHands[0].hand;
+    const winners = eligibleHands.filter(ph => 
+      ph.hand.rank === bestHand.rank && 
+      compareKickers(ph.hand.kickers, bestHand.kickers) === 0
+    );
+    
+    // Distribute this side pot among winners, minus proportional fee
+    const potAfterFee = sidePot.amount - Math.floor(feePerPot);
+    const winAmount = Math.floor(potAfterFee / winners.length);
+    
+    for (const winner of winners) {
+      const current = distributions.get(winner.player.id) || 0;
+      distributions.set(winner.player.id, current + winAmount);
+    }
+  }
+  
+  return {
+    distributions: Array.from(distributions.entries()).map(([playerId, amount]) => ({
+      playerId,
+      amount
+    })),
+    fee
+  };
 }
 
 serve(async (req) => {
@@ -211,7 +341,7 @@ serve(async (req) => {
       });
     }
     
-    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+    const token = authHeader.substring(7);
     if (!token || token.length < 10) {
       return new Response(JSON.stringify({ error: 'Session expired. Please refresh the page.', code: 'INVALID_TOKEN' }), {
         status: 401,
@@ -279,7 +409,6 @@ serve(async (req) => {
       const sortedPlayers = [...playersData].sort((a, b) => a.position - b.position);
       const numPlayers = sortedPlayers.length;
 
-      // Determine new dealer position
       let newDealerPosition: number;
       if (currentGame) {
         const prevDealerIdx = sortedPlayers.findIndex(p => p.position === currentGame.dealer_position);
@@ -291,18 +420,13 @@ serve(async (req) => {
 
       const dealerIdx = sortedPlayers.findIndex(p => p.position === newDealerPosition);
       
-      // Position assignment based on player count
       let sbIdx: number, bbIdx: number, firstToActIdx: number;
       
       if (numPlayers === 2) {
-        // HEADS-UP: Dealer = SB, other player = BB
-        // Pre-flop: SB (dealer) acts first
         sbIdx = dealerIdx;
         bbIdx = (dealerIdx + 1) % numPlayers;
         firstToActIdx = sbIdx;
       } else {
-        // Standard: SB left of dealer, BB left of SB
-        // Pre-flop: UTG (left of BB) acts first
         sbIdx = (dealerIdx + 1) % numPlayers;
         bbIdx = (dealerIdx + 2) % numPlayers;
         firstToActIdx = (bbIdx + 1) % numPlayers;
@@ -310,11 +434,9 @@ serve(async (req) => {
 
       const firstToActPosition = sortedPlayers[firstToActIdx].position;
 
-      // Create and shuffle deck (Fisher-Yates)
       const deck = shuffleDeck(createDeck());
       let deckIndex = 0;
 
-      // Deal hole cards
       const playerCards: Record<string, string[]> = {};
       for (const player of sortedPlayers) {
         const holeCards = [
@@ -334,13 +456,11 @@ serve(async (req) => {
           .eq('id', player.id);
       }
 
-      // Deal community cards
       const communityCards = [];
       for (let i = 0; i < 5; i++) {
         communityCards.push(cardToString(deck[deckIndex++]));
       }
 
-      // Post blinds
       const sbPlayer = sortedPlayers[sbIdx];
       const bbPlayer = sortedPlayers[bbIdx];
       let potTotal = 0;
@@ -392,7 +512,6 @@ serve(async (req) => {
         });
       }
 
-      // Increment hands_played counter
       await supabase
         .from('poker_tables')
         .update({ hands_played: tableData.hands_played + 1 })
@@ -404,7 +523,9 @@ serve(async (req) => {
         success: true,
         gameId: newGame.id,
         yourCards: playerCards[user.id] || [],
-        handsPlayed: tableData.hands_played + 1
+        handsPlayed: tableData.hands_played + 1,
+        currentPlayerPosition: firstToActPosition,
+        dealerPosition: newDealerPosition
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
@@ -449,7 +570,7 @@ serve(async (req) => {
         .maybeSingle();
 
       if (!currentPlayer || currentPlayer.position !== game.current_player_position) {
-        return new Response(JSON.stringify({ error: 'Not your turn' }), {
+        return new Response(JSON.stringify({ error: 'Not your turn', yourPosition: currentPlayer?.position, currentPosition: game.current_player_position }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
@@ -557,7 +678,6 @@ serve(async (req) => {
         });
       }
 
-      // Refresh current player data
       const updatedCurrentPlayer = { ...currentPlayer, stack: newStack, current_bet: newBet, is_folded: isFolded, is_all_in: isAllIn };
       const playersWithUpdated = allPlayers.map(p => p.id === currentPlayer.id ? updatedCurrentPlayer : p);
       
@@ -565,17 +685,15 @@ serve(async (req) => {
       const sortedPlayers = [...playersWithUpdated].sort((a, b) => a.position - b.position);
       const numPlayers = sortedPlayers.filter(p => !p.is_folded).length;
 
-      // Check if only one player left (everyone else folded)
+      // Check if only one player left
       if (activePlayers.length === 1) {
         const winner = activePlayers[0];
         const winnerStack = winner.id === currentPlayer.id ? newStack : winner.stack;
         
-        // Calculate fee (only if post-flop and pot >= 5 big blinds)
         const bigBlind = tableData.big_blind;
         const fee = calculateFee(newPot, bigBlind, game.status);
         const winnings = newPot - fee;
         
-        // Record fee if applicable
         if (fee > 0) {
           await supabase.from('collected_fees').insert({
             game_id: game.id,
@@ -588,7 +706,7 @@ serve(async (req) => {
         
         await supabase
           .from('games')
-          .update({ status: 'complete', pot: 0, turn_expires_at: null })
+          .update({ status: 'complete', pot: 0, turn_expires_at: null, current_player_position: null })
           .eq('id', game.id);
 
         await supabase
@@ -601,7 +719,8 @@ serve(async (req) => {
           status: 'complete',
           winner: winner.user_id,
           pot: newPot,
-          fee: fee
+          fee: fee,
+          nextPlayerPosition: null
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
@@ -610,7 +729,6 @@ serve(async (req) => {
       const dealerIdx = sortedPlayers.findIndex(p => p.position === game.dealer_position);
       const currentPlayerIdx = sortedPlayers.findIndex(p => p.position === currentPlayer.position);
 
-      // Get actions for this round to see who has acted
       const { data: roundActions } = await supabase
         .from('game_actions')
         .select('user_id')
@@ -618,10 +736,9 @@ serve(async (req) => {
         .eq('round', game.status);
 
       const actedUserIds = new Set((roundActions || []).map(a => a.user_id));
-      // Add current player since they just acted
       actedUserIds.add(user.id);
 
-      // Find next player clockwise who needs to act
+      // Find next player
       let nextPosition: number | null = null;
       
       for (let i = 1; i <= sortedPlayers.length; i++) {
@@ -633,9 +750,6 @@ serve(async (req) => {
         
         if (playerFolded || playerAllIn) continue;
         
-        // Player needs to act if:
-        // 1. They haven't acted yet this round, OR
-        // 2. Their bet is less than the current bet (must call/raise/fold)
         const hasActed = actedUserIds.has(p.user_id);
         const needsToMatch = playerBet < newCurrentBet;
         
@@ -645,7 +759,6 @@ serve(async (req) => {
         }
       }
 
-      // Check if betting round is complete
       const activeNonAllIn = activePlayers.filter(p => {
         const isAllInNow = p.id === currentPlayer.id ? isAllIn : p.is_all_in;
         return !isAllInNow;
@@ -655,11 +768,9 @@ serve(async (req) => {
         return bet === newCurrentBet;
       });
 
-      // Check if everyone is all-in or only one player can act
       const allPlayersAllIn = activeNonAllIn.length === 0;
       const onlyOneCanAct = activeNonAllIn.length === 1;
       
-      // If everyone is all-in, skip to showdown immediately
       const shouldSkipToShowdown = allPlayersAllIn || (onlyOneCanAct && allBetsEqual);
       const shouldAdvanceRound = (nextPosition === null && allBetsEqual) || shouldSkipToShowdown;
 
@@ -674,44 +785,20 @@ serve(async (req) => {
           }
         }
 
-        // If everyone is all-in, run out all cards to showdown
         if (shouldSkipToShowdown) {
           console.log('All players all-in, skipping to showdown');
           
-          // SHOWDOWN - Evaluate hands and determine winner
-          const activeAtShowdown = playersWithUpdated.filter(p => !p.is_folded);
           const communityCards = (game.community_cards || []) as string[];
           
-          const playerHands = activeAtShowdown.map(p => ({
-            player: p,
-            hand: evaluateHand(p.hole_cards || [], communityCards)
-          })).filter(ph => ph.hand); // Filter out any undefined hands
-
-          if (playerHands.length === 0) {
-            console.error('No valid hands to evaluate');
-            return new Response(JSON.stringify({ error: 'No valid hands to evaluate' }), {
-              status: 500,
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-            });
-          }
-
-          playerHands.sort((a, b) => {
-            if (a.hand.rank !== b.hand.rank) return b.hand.rank - a.hand.rank;
-            return compareKickers(b.hand.kickers, a.hand.kickers);
-          });
-
-          const bestHand = playerHands[0].hand;
-          const winners = playerHands.filter(ph => 
-            ph.hand.rank === bestHand.rank && 
-            compareKickers(ph.hand.kickers, bestHand.kickers) === 0
+          // Use side pot distribution
+          const { distributions, fee } = distributePotWithSidePots(
+            playersWithUpdated,
+            communityCards,
+            newPot,
+            tableData.big_blind,
+            game.status
           );
-
-          // Calculate fee
-          const fee = calculateFee(newPot, tableData.big_blind, game.status);
-          const potAfterFee = newPot - fee;
-          const winAmount = Math.floor(potAfterFee / winners.length);
           
-          // Record fee if applicable
           if (fee > 0) {
             await supabase.from('collected_fees').insert({
               game_id: game.id,
@@ -723,18 +810,23 @@ serve(async (req) => {
           }
           
           const winnerIds: string[] = [];
-          const winnerHands: { userId: string; hand: string }[] = [];
-
-          for (const { player, hand } of winners) {
-            const playerStack = player.id === currentPlayer.id ? newStack : player.stack;
-            await supabase
-              .from('table_players')
-              .update({ stack: playerStack + winAmount })
-              .eq('id', player.id);
-            
-            winnerIds.push(player.user_id);
-            winnerHands.push({ userId: player.user_id, hand: hand.name });
+          for (const dist of distributions) {
+            const player = playersWithUpdated.find(p => p.id === dist.playerId);
+            if (player) {
+              const playerStack = player.id === currentPlayer.id ? newStack : player.stack;
+              await supabase
+                .from('table_players')
+                .update({ stack: playerStack + dist.amount })
+                .eq('id', dist.playerId);
+              winnerIds.push(player.user_id);
+            }
           }
+
+          const playerHands = activePlayers.map(p => ({
+            userId: p.user_id,
+            hand: evaluateHand(p.hole_cards || [], communityCards),
+            cards: p.hole_cards
+          }));
 
           await supabase
             .from('games')
@@ -752,14 +844,15 @@ serve(async (req) => {
             status: 'showdown',
             pot: newPot,
             fee: fee,
-            winners: winnerIds,
-            winningHand: winnerHands[0]?.hand,
+            winners: [...new Set(winnerIds)],
+            winningHand: playerHands[0]?.hand?.name,
             allIn: true,
             hands: playerHands.map(ph => ({
-              userId: ph.player.user_id,
+              userId: ph.userId,
               hand: ph.hand?.name || 'Unknown',
-              cards: ph.player.hole_cards
-            }))
+              cards: ph.cards
+            })),
+            nextPlayerPosition: null
           }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           });
@@ -771,40 +864,17 @@ serve(async (req) => {
         const nextRound = roundOrder[currentIdx + 1] || 'showdown';
 
         if (nextRound === 'showdown') {
-          // SHOWDOWN - Evaluate hands and determine winner
-          const activeAtShowdown = playersWithUpdated.filter(p => !p.is_folded);
           const communityCards = (game.community_cards || []) as string[];
           
-          const playerHands = activeAtShowdown.map(p => ({
-            player: p,
-            hand: evaluateHand(p.hole_cards || [], communityCards)
-          })).filter(ph => ph.hand); // Filter out any undefined hands
-
-          if (playerHands.length === 0) {
-            console.error('No valid hands to evaluate');
-            return new Response(JSON.stringify({ error: 'No valid hands to evaluate' }), {
-              status: 500,
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-            });
-          }
-
-          playerHands.sort((a, b) => {
-            if (a.hand.rank !== b.hand.rank) return b.hand.rank - a.hand.rank;
-            return compareKickers(b.hand.kickers, a.hand.kickers);
-          });
-
-          const bestHand = playerHands[0].hand;
-          const winners = playerHands.filter(ph => 
-            ph.hand.rank === bestHand.rank && 
-            compareKickers(ph.hand.kickers, bestHand.kickers) === 0
+          // Use side pot distribution
+          const { distributions, fee } = distributePotWithSidePots(
+            playersWithUpdated,
+            communityCards,
+            newPot,
+            tableData.big_blind,
+            'river'
           );
-
-          // Calculate fee
-          const fee = calculateFee(newPot, tableData.big_blind, 'river');
-          const potAfterFee = newPot - fee;
-          const winAmount = Math.floor(potAfterFee / winners.length);
           
-          // Record fee if applicable
           if (fee > 0) {
             await supabase.from('collected_fees').insert({
               game_id: game.id,
@@ -818,16 +888,26 @@ serve(async (req) => {
           const winnerIds: string[] = [];
           const winnerHands: { userId: string; hand: string }[] = [];
 
-          for (const { player, hand } of winners) {
-            const playerStack = player.id === currentPlayer.id ? newStack : player.stack;
-            await supabase
-              .from('table_players')
-              .update({ stack: playerStack + winAmount })
-              .eq('id', player.id);
-            
-            winnerIds.push(player.user_id);
-            winnerHands.push({ userId: player.user_id, hand: hand.name });
+          for (const dist of distributions) {
+            const player = playersWithUpdated.find(p => p.id === dist.playerId);
+            if (player) {
+              const playerStack = player.id === currentPlayer.id ? newStack : player.stack;
+              await supabase
+                .from('table_players')
+                .update({ stack: playerStack + dist.amount })
+                .eq('id', dist.playerId);
+              
+              const hand = evaluateHand(player.hole_cards || [], communityCards);
+              winnerIds.push(player.user_id);
+              winnerHands.push({ userId: player.user_id, hand: hand.name });
+            }
           }
+
+          const playerHands = activePlayers.map(p => ({
+            userId: p.user_id,
+            hand: evaluateHand(p.hole_cards || [], communityCards),
+            cards: p.hole_cards
+          }));
 
           await supabase
             .from('games')
@@ -844,23 +924,22 @@ serve(async (req) => {
             success: true,
             status: 'showdown',
             pot: newPot,
-            winners: winnerIds,
+            winners: [...new Set(winnerIds)],
             winningHand: winnerHands[0]?.hand,
             hands: playerHands.map(ph => ({
-              userId: ph.player.user_id,
-              hand: ph.hand.name,
-              cards: ph.player.hole_cards
-            }))
+              userId: ph.userId,
+              hand: ph.hand?.name || 'Unknown',
+              cards: ph.cards
+            })),
+            nextPlayerPosition: null
           }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           });
         } else {
-          // Find first player for new betting round (post-flop)
-          // Post-flop: first active player left of dealer acts first
+          // Find first player for new betting round
           let firstToAct: number | null = null;
           
           if (numPlayers === 2) {
-            // Heads-up post-flop: BB (non-dealer) acts first
             const nonDealerIdx = (dealerIdx + 1) % sortedPlayers.length;
             const bbPlayer = sortedPlayers[nonDealerIdx];
             if (!bbPlayer.is_folded && !bbPlayer.is_all_in) {
@@ -869,7 +948,6 @@ serve(async (req) => {
           }
           
           if (firstToAct === null) {
-            // Find first active non-all-in player left of dealer
             for (let i = 1; i <= sortedPlayers.length; i++) {
               const idx = (dealerIdx + i) % sortedPlayers.length;
               const p = sortedPlayers[idx];
@@ -896,7 +974,7 @@ serve(async (req) => {
           return new Response(JSON.stringify({
             success: true,
             status: nextRound,
-            nextPlayer: firstToAct
+            nextPlayerPosition: firstToAct
           }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           });
@@ -917,7 +995,7 @@ serve(async (req) => {
 
       return new Response(JSON.stringify({
         success: true,
-        nextPlayer: nextPosition
+        nextPlayerPosition: nextPosition
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
@@ -993,7 +1071,7 @@ serve(async (req) => {
         const winner = activePlayers[0];
         await supabase
           .from('games')
-          .update({ status: 'complete', pot: 0, turn_expires_at: null })
+          .update({ status: 'complete', pot: 0, turn_expires_at: null, current_player_position: null })
           .eq('id', game.id);
 
         await supabase
@@ -1005,7 +1083,8 @@ serve(async (req) => {
           success: true,
           status: 'complete',
           autoFolded: timedOutPlayer.user_id,
-          winner: winner.user_id
+          winner: winner.user_id,
+          nextPlayerPosition: null
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
@@ -1037,7 +1116,7 @@ serve(async (req) => {
       return new Response(JSON.stringify({
         success: true,
         autoFolded: timedOutPlayer.user_id,
-        nextPlayer: nextPosition
+        nextPlayerPosition: nextPosition
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });

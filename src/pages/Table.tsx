@@ -30,6 +30,7 @@ export default function Table() {
     isJoined,
     isCurrentPlayerTurn,
     turnTimeLeft,
+    isActionPending,
     joinTable, 
     leaveTable, 
     startHand,
@@ -283,6 +284,7 @@ export default function Table() {
               bigBlind={table.bigBlind}
               canCheck={game.currentBet === currentPlayer.currentBet}
               isCurrentPlayer={isCurrentPlayerTurn}
+              isActionPending={isActionPending}
               onAction={handleAction}
             />
           )}
