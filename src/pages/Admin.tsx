@@ -86,21 +86,31 @@ export default function Admin() {
   const updateTable = async () => { if (!editingTable) return; await supabase.from('poker_tables').update({ name: editingTable.name, small_blind: editingTable.smallBlind, big_blind: editingTable.bigBlind, max_hands: editingTable.maxHands, is_active: editingTable.isActive }).eq('id', editingTable.id); toast({ title: 'Success', description: 'Table updated!' }); setEditingTable(null); fetchTables(); };
   const deleteTable = async (tableId: string) => {
     try {
-      // First delete related records to avoid FK constraint errors
-      await supabase.from('game_actions').delete().in('game_id', 
-        (await supabase.from('games').select('id').eq('table_id', tableId)).data?.map(g => g.id) || []
-      );
+      // First get all game IDs for this table
+      const { data: games } = await supabase.from('games').select('id').eq('table_id', tableId);
+      const gameIds = games?.map(g => g.id) || [];
+      
+      // Delete game_actions for all games at this table
+      if (gameIds.length > 0) {
+        for (const gameId of gameIds) {
+          await supabase.from('game_actions').delete().eq('game_id', gameId);
+        }
+      }
+      
+      // Delete other related records in correct order
       await supabase.from('collected_fees').delete().eq('table_id', tableId);
       await supabase.from('games').delete().eq('table_id', tableId);
       await supabase.from('chat_messages').delete().eq('table_id', tableId);
       await supabase.from('table_players').delete().eq('table_id', tableId);
       
+      // Finally delete the table
       const { error } = await supabase.from('poker_tables').delete().eq('id', tableId);
       if (error) throw error;
       
       toast({ title: 'Success', description: 'Table deleted!' });
       fetchTables();
     } catch (error: any) {
+      console.error('Delete table error:', error);
       toast({ title: 'Error', description: error.message || 'Failed to delete table', variant: 'destructive' });
     }
   };

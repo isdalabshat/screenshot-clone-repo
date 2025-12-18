@@ -252,20 +252,22 @@ export default function Table() {
       autoStartTriggered.current = true;
       // Small delay to let winner animation show first
       const delayTimer = setTimeout(() => {
-        startAutoStartCountdown();
+        if (!isStartingHand.current) {
+          startAutoStartCountdown();
+        }
       }, 500);
       
       prevPlayerCount.current = activePlayerCount;
       return () => clearTimeout(delayTimer);
     }
     
-    // Reset trigger when game starts
-    if (game && game.status !== 'complete' && game.status !== 'showdown') {
+    // Reset trigger when game is actively in progress (not waiting/complete/showdown)
+    if (game && game.status !== 'complete' && game.status !== 'showdown' && game.status !== 'waiting') {
       autoStartTriggered.current = false;
     }
     
-    // If conditions no longer met, clear timers
-    if (!canAutoStart && autoStartCountdown !== null && !isStartingHand.current) {
+    // If conditions no longer met but we have an active countdown, keep it unless players dropped
+    if (activePlayerCount < 2 && autoStartCountdown !== null) {
       clearAutoStartTimers();
     }
     
