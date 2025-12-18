@@ -77,25 +77,15 @@ export default function PlayerSeat({
       <div className="flex flex-col items-center gap-0.5">
         <div className="flex gap-0.5 bg-black/80 backdrop-blur-sm rounded-lg p-1 border border-primary/40 shadow-lg shadow-primary/20">
           {myCards.map((card, i) => (
-            <motion.div
-              key={i}
-              initial={{ rotateY: 180, scale: 0.5, y: -50 }}
-              animate={{ rotateY: 0, scale: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: i * 0.15, type: 'spring' }}
-              className="card-deal"
-            >
+            <div key={`${card.suit}-${card.rank}`} className="card-deal">
               <PlayingCard card={card} size="sm" />
-            </motion.div>
+            </div>
           ))}
         </div>
         {handRank && handRank.name && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="gold-shimmer text-black px-2 py-0.5 rounded text-[8px] font-bold whitespace-nowrap shadow-md"
-          >
+          <div className="gold-shimmer text-black px-2 py-0.5 rounded text-[8px] font-bold whitespace-nowrap shadow-md">
             {handRank.name}
-          </motion.div>
+          </div>
         )}
       </div>
     ) : null
@@ -106,31 +96,14 @@ export default function PlayerSeat({
       <div className="flex gap-0.5 justify-center mb-1">
         {showFaceUpCards ? (
           player.holeCards.map((card, i) => (
-            <motion.div
-              key={i}
-              initial={{ rotateY: 180, y: -30 }}
-              animate={{ rotateY: 0, y: 0 }}
-              transition={{ duration: 0.3, delay: i * 0.1 }}
-            >
+            <div key={`${card.suit}-${card.rank}`}>
               <PlayingCard card={card} size="xs" />
-            </motion.div>
+            </div>
           ))
         ) : (
           <>
-            <motion.div
-              initial={{ y: -30, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ duration: 0.3 }}
-            >
-              <PlayingCard faceDown size="xs" />
-            </motion.div>
-            <motion.div
-              initial={{ y: -30, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ duration: 0.3, delay: 0.1 }}
-            >
-              <PlayingCard faceDown size="xs" />
-            </motion.div>
+            <PlayingCard faceDown size="xs" />
+            <PlayingCard faceDown size="xs" />
           </>
         )}
       </div>
