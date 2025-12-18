@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -8,6 +8,7 @@ import PokerTableComponent from '@/components/poker/PokerTable';
 import ActionButtons from '@/components/poker/ActionButtons';
 import TableChat from '@/components/poker/TableChat';
 import WinnerAnimation from '@/components/poker/WinnerAnimation';
+import AutoStartCountdown from '@/components/poker/AutoStartCountdown';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -45,10 +46,17 @@ export default function Table() {
   const [showWinner, setShowWinner] = useState(false);
   const [winnerInfo, setWinnerInfo] = useState<{ name: string; amount: number; id: string } | null>(null);
   
+  // Auto-start countdown state
+  const [autoStartCountdown, setAutoStartCountdown] = useState<number | null>(null);
+  const [isWaitingForPlayers, setIsWaitingForPlayers] = useState(false);
+  const autoStartTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
   const prevGameStatus = useRef<string | null>(null);
   const prevCurrentPlayerId = useRef<string | null>(null);
   const prevMyCardsLength = useRef<number>(0);
   const prevPot = useRef<number>(0);
+  const prevPlayerStacks = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -61,6 +69,43 @@ export default function Table() {
       setBuyInAmount(table.bigBlind * 50);
     }
   }, [table]);
+
+  // Clear all auto-start timers
+  const clearAutoStartTimers = useCallback(() => {
+    if (autoStartTimerRef.current) {
+      clearTimeout(autoStartTimerRef.current);
+      autoStartTimerRef.current = null;
+    }
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+    setAutoStartCountdown(null);
+  }, []);
+
+  // Start auto-start countdown
+  const startAutoStartCountdown = useCallback(() => {
+    clearAutoStartTimers();
+    
+    // Start 2-second countdown
+    setAutoStartCountdown(2);
+    
+    countdownIntervalRef.current = setInterval(() => {
+      setAutoStartCountdown(prev => {
+        if (prev === null || prev <= 1) {
+          return prev;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    // After 2 seconds, start the hand
+    autoStartTimerRef.current = setTimeout(() => {
+      clearAutoStartTimers();
+      if (soundEnabled) playSound('shuffle');
+      startHand();
+    }, 2000);
+  }, [clearAutoStartTimers, soundEnabled, playSound, startHand]);
 
   // Sound effects based on game state changes
   useEffect(() => {
@@ -82,11 +127,40 @@ export default function Table() {
           playSound('deal');
         }
       } else if (game.status === 'showdown' || game.status === 'complete') {
-        // Find winner - player with highest stack increase
-        if (prevPot.current > 0) {
-          const winner = players.find(p => !p.isFolded && p.stack > 0);
-          if (winner) {
-            setWinnerInfo({ name: winner.username, amount: prevPot.current, id: winner.userId });
+        // Find winner - compare stacks to previous stacks to find who gained chips
+        if (prevPot.current > 0 && players.length > 0) {
+          let maxGain = 0;
+          let winnerId = '';
+          let winnerName = '';
+          
+          for (const player of players) {
+            const prevStack = prevPlayerStacks.current.get(player.userId) || 0;
+            const gain = player.stack - prevStack + player.currentBet; // Include bet that was returned
+            
+            if (gain > maxGain && !player.isFolded) {
+              maxGain = gain;
+              winnerId = player.userId;
+              winnerName = player.username;
+            }
+          }
+          
+          // If no gain detected, find the non-folded player with highest stack
+          if (!winnerId) {
+            const nonFolded = players.filter(p => !p.isFolded);
+            if (nonFolded.length === 1) {
+              winnerId = nonFolded[0].userId;
+              winnerName = nonFolded[0].username;
+              maxGain = prevPot.current;
+            } else if (nonFolded.length > 0) {
+              const highest = nonFolded.reduce((a, b) => a.stack > b.stack ? a : b);
+              winnerId = highest.userId;
+              winnerName = highest.username;
+              maxGain = prevPot.current;
+            }
+          }
+          
+          if (winnerId && winnerName) {
+            setWinnerInfo({ name: winnerName, amount: Math.max(maxGain, prevPot.current), id: winnerId });
             setShowWinner(true);
             if (soundEnabled) playSound('win');
             setTimeout(() => {
@@ -117,6 +191,82 @@ export default function Table() {
       prevCurrentPlayerId.current = null;
     }
   }, [game?.status, game?.pot, players, soundEnabled, playSound, playDealSequence, user?.id, myCards.length]);
+
+  // Track player stacks for winner detection
+  useEffect(() => {
+    if (game?.status === 'preflop' || !game) {
+      // At the start of a hand, record current stacks
+      const stackMap = new Map<string, number>();
+      players.forEach(p => stackMap.set(p.userId, p.stack));
+      prevPlayerStacks.current = stackMap;
+    }
+  }, [game?.status, players]);
+
+  // Track previous player count for notifications
+  const prevPlayerCount = useRef<number>(0);
+
+  // Auto-start game loop
+  useEffect(() => {
+    const activePlayerCount = players.length;
+    const canAutoStart = isJoined && 
+                         activePlayerCount >= 2 && 
+                         (!game || game.status === 'complete' || game.status === 'showdown') &&
+                         table && table.handsPlayed < table.maxHands;
+    
+    // Check if waiting for players - notify if a player left during countdown
+    if (isJoined && activePlayerCount < 2) {
+      // If countdown was active and player left, notify
+      if (autoStartCountdown !== null && prevPlayerCount.current >= 2) {
+        toast({
+          title: 'Game Paused',
+          description: 'A player left. Waiting for another player to join.',
+          variant: 'default'
+        });
+      }
+      clearAutoStartTimers();
+      setIsWaitingForPlayers(true);
+      prevPlayerCount.current = activePlayerCount;
+      return;
+    }
+    
+    setIsWaitingForPlayers(false);
+    
+    // Start countdown when hand ends and conditions are met
+    if (canAutoStart && !showWinner && autoStartCountdown === null) {
+      // Small delay to let winner animation show first
+      const delayTimer = setTimeout(() => {
+        startAutoStartCountdown();
+      }, 500);
+      
+      prevPlayerCount.current = activePlayerCount;
+      return () => clearTimeout(delayTimer);
+    }
+    
+    // If conditions no longer met, clear timers
+    if (!canAutoStart && autoStartCountdown !== null) {
+      clearAutoStartTimers();
+    }
+    
+    prevPlayerCount.current = activePlayerCount;
+  }, [
+    players.length, 
+    isJoined, 
+    game?.status, 
+    table?.handsPlayed, 
+    table?.maxHands,
+    showWinner,
+    autoStartCountdown,
+    clearAutoStartTimers,
+    startAutoStartCountdown,
+    toast
+  ]);
+
+  // Clean up timers on unmount
+  useEffect(() => {
+    return () => {
+      clearAutoStartTimers();
+    };
+  }, [clearAutoStartTimers]);
 
   // Auto leave when balance is 0 - only after game is settled and confirmed 0 chips
   const hasLeftForZeroChips = useRef(false);
@@ -320,31 +470,39 @@ export default function Table() {
             />
           )}
 
-          {/* Start Hand Button */}
-          {canStartHand && !tableEnded && (
-            <Button 
-              size="sm" 
-              className="bg-primary hover:bg-primary/90 w-full transition-all hover:scale-[1.02] active:scale-[0.98]"
-              onClick={() => {
-                if (soundEnabled) playSound('shuffle');
-                startHand();
-              }}
-            >
-              <Play className="h-4 w-4 mr-2" />
-              {game?.status === 'showdown' || game?.status === 'complete' ? 'Deal Next Hand' : 'Start Hand'}
-            </Button>
-          )}
-
-          {/* Status messages */}
-          {isJoined && players.length < 2 && (
-            <p className="text-muted-foreground text-xs text-center">Waiting for more players...</p>
+          {/* Auto-start countdown or manual start */}
+          {isJoined && !tableEnded && (
+            <>
+              {/* Show countdown when auto-starting */}
+              <AutoStartCountdown 
+                countdown={autoStartCountdown}
+                isWaitingForPlayers={isWaitingForPlayers}
+                playerCount={players.length}
+              />
+              
+              {/* Manual start button - only show if no countdown is active and game can start */}
+              {canStartHand && autoStartCountdown === null && !isWaitingForPlayers && !showWinner && (
+                <Button 
+                  size="sm" 
+                  className="bg-primary hover:bg-primary/90 w-full transition-all hover:scale-[1.02] active:scale-[0.98]"
+                  onClick={() => {
+                    clearAutoStartTimers();
+                    if (soundEnabled) playSound('shuffle');
+                    startHand();
+                  }}
+                >
+                  <Play className="h-4 w-4 mr-2" />
+                  Start Now
+                </Button>
+              )}
+            </>
           )}
 
           {!isJoined && !tableEnded && (
             <p className="text-muted-foreground text-xs text-center">Join the table to play!</p>
           )}
 
-          {game?.status === 'showdown' && (
+          {game?.status === 'showdown' && !showWinner && (
             <motion.p 
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
