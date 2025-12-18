@@ -2,7 +2,6 @@ import { Player, Card, Game } from '@/types/poker';
 import { cn } from '@/lib/utils';
 import PlayingCard from './PlayingCard';
 import { Badge } from '@/components/ui/badge';
-import { motion } from 'framer-motion';
 import { evaluateHand } from '@/lib/poker/handEvaluator';
 
 interface PlayerSeatProps {
