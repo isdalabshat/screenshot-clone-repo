@@ -170,29 +170,34 @@ export function usePokerGame(tableId: string) {
   }, [tableId]);
 
   const fetchGame = useCallback(async () => {
-    const { data } = await supabase
+    // Fetch the most recent game, including complete/showdown for winner display
+    const { data: latestGame } = await supabase
       .from('games')
       .select('*')
       .eq('table_id', tableId)
-      .neq('status', 'complete')
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    if (data) {
+    if (latestGame) {
       const newGame: Game = {
-        id: data.id,
-        tableId: data.table_id,
-        status: data.status as Game['status'],
-        pot: data.pot,
-        communityCards: (data.community_cards || []).map((c: string) => stringToCard(c)),
-        currentBet: data.current_bet,
-        dealerPosition: data.dealer_position,
-        currentPlayerPosition: data.current_player_position,
-        turnExpiresAt: data.turn_expires_at
+        id: latestGame.id,
+        tableId: latestGame.table_id,
+        status: latestGame.status as Game['status'],
+        pot: latestGame.pot,
+        communityCards: (latestGame.community_cards || []).map((c: string) => stringToCard(c)),
+        currentBet: latestGame.current_bet,
+        dealerPosition: latestGame.dealer_position,
+        currentPlayerPosition: latestGame.current_player_position,
+        turnExpiresAt: latestGame.turn_expires_at
       };
       setGame(newGame);
       gameRef.current = newGame;
+      
+      // Clear my cards if game is complete
+      if (latestGame.status === 'complete') {
+        setMyCards([]);
+      }
     } else {
       setGame(null);
       gameRef.current = null;
@@ -668,8 +673,22 @@ export function usePokerGame(tableId: string) {
         return;
       }
 
-      // Update with server response for accurate turn indicator
-      if (data?.nextPlayerPosition !== undefined) {
+      // Handle game completion (fold win or showdown)
+      if (data?.status === 'complete' || data?.status === 'showdown') {
+        // Clear current player position and fetch fresh data
+        setGame(prev => prev ? { 
+          ...prev, 
+          status: data.status,
+          currentPlayerPosition: null,
+          pot: 0 
+        } : prev);
+        
+        // Fetch fresh data to get updated stacks
+        setTimeout(async () => {
+          await Promise.all([fetchGame(), fetchPlayers()]);
+        }, 100);
+      } else if (data?.nextPlayerPosition !== undefined) {
+        // Update with server response for accurate turn indicator
         setGame(prev => prev ? { ...prev, currentPlayerPosition: data.nextPlayerPosition } : prev);
         setPlayers(prev => prev.map(p => ({
           ...p,

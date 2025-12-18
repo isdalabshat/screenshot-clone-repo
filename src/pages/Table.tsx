@@ -51,12 +51,14 @@ export default function Table() {
   const [isWaitingForPlayers, setIsWaitingForPlayers] = useState(false);
   const autoStartTimerRef = useRef<NodeJS.Timeout | null>(null);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isStartingHand = useRef(false);
   
   const prevGameStatus = useRef<string | null>(null);
   const prevCurrentPlayerId = useRef<string | null>(null);
   const prevMyCardsLength = useRef<number>(0);
   const prevPot = useRef<number>(0);
   const prevPlayerStacks = useRef<Map<string, number>>(new Map());
+  const lastWinnerId = useRef<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -85,6 +87,9 @@ export default function Table() {
 
   // Start auto-start countdown
   const startAutoStartCountdown = useCallback(() => {
+    // Prevent multiple simultaneous starts
+    if (isStartingHand.current) return;
+    
     clearAutoStartTimers();
     
     // Start 2-second countdown
@@ -100,10 +105,20 @@ export default function Table() {
     }, 1000);
     
     // After 2 seconds, start the hand
-    autoStartTimerRef.current = setTimeout(() => {
+    autoStartTimerRef.current = setTimeout(async () => {
       clearAutoStartTimers();
+      
+      // Prevent double-start
+      if (isStartingHand.current) return;
+      isStartingHand.current = true;
+      
       if (soundEnabled) playSound('shuffle');
-      startHand();
+      await startHand();
+      
+      // Reset after a delay
+      setTimeout(() => {
+        isStartingHand.current = false;
+      }, 1000);
     }, 2000);
   }, [clearAutoStartTimers, soundEnabled, playSound, startHand]);
 
@@ -127,40 +142,37 @@ export default function Table() {
           playSound('deal');
         }
       } else if (game.status === 'showdown' || game.status === 'complete') {
-        // Find winner - compare stacks to previous stacks to find who gained chips
+        // Find winner - the non-folded player(s)
         if (prevPot.current > 0 && players.length > 0) {
-          let maxGain = 0;
+          const nonFolded = players.filter(p => !p.isFolded);
+          
           let winnerId = '';
           let winnerName = '';
+          let winAmount = prevPot.current;
           
-          for (const player of players) {
-            const prevStack = prevPlayerStacks.current.get(player.userId) || 0;
-            const gain = player.stack - prevStack + player.currentBet; // Include bet that was returned
-            
-            if (gain > maxGain && !player.isFolded) {
-              maxGain = gain;
-              winnerId = player.userId;
-              winnerName = player.username;
+          if (nonFolded.length === 1) {
+            // Single winner (everyone else folded)
+            winnerId = nonFolded[0].userId;
+            winnerName = nonFolded[0].username;
+          } else if (nonFolded.length > 0) {
+            // Multiple players at showdown - find who gained the most
+            let maxGain = 0;
+            for (const player of nonFolded) {
+              const prevStack = prevPlayerStacks.current.get(player.userId) || 0;
+              const gain = player.stack - prevStack;
+              if (gain > maxGain) {
+                maxGain = gain;
+                winnerId = player.userId;
+                winnerName = player.username;
+                winAmount = gain;
+              }
             }
           }
           
-          // If no gain detected, find the non-folded player with highest stack
-          if (!winnerId) {
-            const nonFolded = players.filter(p => !p.isFolded);
-            if (nonFolded.length === 1) {
-              winnerId = nonFolded[0].userId;
-              winnerName = nonFolded[0].username;
-              maxGain = prevPot.current;
-            } else if (nonFolded.length > 0) {
-              const highest = nonFolded.reduce((a, b) => a.stack > b.stack ? a : b);
-              winnerId = highest.userId;
-              winnerName = highest.username;
-              maxGain = prevPot.current;
-            }
-          }
-          
-          if (winnerId && winnerName) {
-            setWinnerInfo({ name: winnerName, amount: Math.max(maxGain, prevPot.current), id: winnerId });
+          // Only show winner if we found one and it's different from last shown
+          if (winnerId && winnerName && lastWinnerId.current !== winnerId + game.id) {
+            lastWinnerId.current = winnerId + game.id;
+            setWinnerInfo({ name: winnerName, amount: winAmount, id: winnerId });
             setShowWinner(true);
             if (soundEnabled) playSound('win');
             setTimeout(() => {
@@ -204,14 +216,17 @@ export default function Table() {
 
   // Track previous player count for notifications
   const prevPlayerCount = useRef<number>(0);
+  const autoStartTriggered = useRef(false);
 
   // Auto-start game loop
   useEffect(() => {
     const activePlayerCount = players.length;
+    const gameEnded = !game || game.status === 'complete' || game.status === 'showdown';
     const canAutoStart = isJoined && 
                          activePlayerCount >= 2 && 
-                         (!game || game.status === 'complete' || game.status === 'showdown') &&
-                         table && table.handsPlayed < table.maxHands;
+                         gameEnded &&
+                         table && table.handsPlayed < table.maxHands &&
+                         !isStartingHand.current;
     
     // Check if waiting for players - notify if a player left during countdown
     if (isJoined && activePlayerCount < 2) {
@@ -225,6 +240,7 @@ export default function Table() {
       }
       clearAutoStartTimers();
       setIsWaitingForPlayers(true);
+      autoStartTriggered.current = false;
       prevPlayerCount.current = activePlayerCount;
       return;
     }
@@ -232,7 +248,8 @@ export default function Table() {
     setIsWaitingForPlayers(false);
     
     // Start countdown when hand ends and conditions are met
-    if (canAutoStart && !showWinner && autoStartCountdown === null) {
+    if (canAutoStart && !showWinner && autoStartCountdown === null && !autoStartTriggered.current) {
+      autoStartTriggered.current = true;
       // Small delay to let winner animation show first
       const delayTimer = setTimeout(() => {
         startAutoStartCountdown();
@@ -242,8 +259,13 @@ export default function Table() {
       return () => clearTimeout(delayTimer);
     }
     
+    // Reset trigger when game starts
+    if (game && game.status !== 'complete' && game.status !== 'showdown') {
+      autoStartTriggered.current = false;
+    }
+    
     // If conditions no longer met, clear timers
-    if (!canAutoStart && autoStartCountdown !== null) {
+    if (!canAutoStart && autoStartCountdown !== null && !isStartingHand.current) {
       clearAutoStartTimers();
     }
     

@@ -84,7 +84,26 @@ export default function Admin() {
   };
 
   const updateTable = async () => { if (!editingTable) return; await supabase.from('poker_tables').update({ name: editingTable.name, small_blind: editingTable.smallBlind, big_blind: editingTable.bigBlind, max_hands: editingTable.maxHands, is_active: editingTable.isActive }).eq('id', editingTable.id); toast({ title: 'Success', description: 'Table updated!' }); setEditingTable(null); fetchTables(); };
-  const deleteTable = async (tableId: string) => { await supabase.from('poker_tables').delete().eq('id', tableId); toast({ title: 'Success', description: 'Table deleted!' }); fetchTables(); };
+  const deleteTable = async (tableId: string) => {
+    try {
+      // First delete related records to avoid FK constraint errors
+      await supabase.from('game_actions').delete().in('game_id', 
+        (await supabase.from('games').select('id').eq('table_id', tableId)).data?.map(g => g.id) || []
+      );
+      await supabase.from('collected_fees').delete().eq('table_id', tableId);
+      await supabase.from('games').delete().eq('table_id', tableId);
+      await supabase.from('chat_messages').delete().eq('table_id', tableId);
+      await supabase.from('table_players').delete().eq('table_id', tableId);
+      
+      const { error } = await supabase.from('poker_tables').delete().eq('id', tableId);
+      if (error) throw error;
+      
+      toast({ title: 'Success', description: 'Table deleted!' });
+      fetchTables();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to delete table', variant: 'destructive' });
+    }
+  };
   const resetTableHands = async (tableId: string) => { await supabase.from('poker_tables').update({ hands_played: 0 }).eq('id', tableId); toast({ title: 'Success', description: 'Hands reset!' }); fetchTables(); };
   const adjustChips = async (add: boolean) => { if (!chipAdjustment) return; const user = users.find(u => u.userId === chipAdjustment.userId); if (!user) return; const newChips = add ? user.chips + chipAdjustment.amount : Math.max(0, user.chips - chipAdjustment.amount); await supabase.from('profiles').update({ chips: newChips }).eq('user_id', chipAdjustment.userId); toast({ title: 'Success', description: `${add ? 'Added' : 'Deducted'} ${chipAdjustment.amount} chips` }); setChipAdjustment(null); fetchUsers(); };
 
