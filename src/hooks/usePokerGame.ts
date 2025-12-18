@@ -484,6 +484,16 @@ export function usePokerGame(tableId: string) {
     if (!currentGame || !currentPlayer || !isCurrentPlayerTurn) return;
 
     try {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session) {
+        toast({
+          title: 'Session expired',
+          description: 'Please refresh the page.',
+          variant: 'destructive'
+        });
+        return;
+      }
+
       const { data, error } = await supabase.functions.invoke('poker-game', {
         body: {
           action: 'perform_action',
@@ -528,36 +538,41 @@ export function usePokerGame(tableId: string) {
     init();
   }, [fetchTable, fetchGame, fetchPlayers, fetchMyCards]);
 
-  // Realtime subscriptions with debouncing to prevent cascading updates
+  // Realtime subscriptions - throttled to prevent cascading updates
   useEffect(() => {
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    
-    const debouncedFetch = (fn: () => void) => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(fn, 100);
-    };
+    let lastGameFetch = 0;
+    let lastPlayerFetch = 0;
+    let lastTableFetch = 0;
+    const THROTTLE_MS = 500;
     
     const channel = supabase
       .channel(`table-${tableId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter: `table_id=eq.${tableId}` }, () => {
-        debouncedFetch(() => {
+        const now = Date.now();
+        if (now - lastGameFetch > THROTTLE_MS) {
+          lastGameFetch = now;
           fetchGame();
           fetchMyCards();
-        });
+        }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'table_players', filter: `table_id=eq.${tableId}` }, () => {
-        debouncedFetch(() => {
+        const now = Date.now();
+        if (now - lastPlayerFetch > THROTTLE_MS) {
+          lastPlayerFetch = now;
           fetchPlayers();
           fetchMyCards();
-        });
+        }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'poker_tables', filter: `id=eq.${tableId}` }, () => {
-        debouncedFetch(fetchTable);
+        const now = Date.now();
+        if (now - lastTableFetch > THROTTLE_MS) {
+          lastTableFetch = now;
+          fetchTable();
+        }
       })
       .subscribe();
 
     return () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
     };
   }, [tableId, fetchGame, fetchPlayers, fetchTable, fetchMyCards]);

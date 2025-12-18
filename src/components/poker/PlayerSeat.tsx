@@ -75,8 +75,8 @@ export default function PlayerSeat({
     showMyCards ? (
       <div className="flex flex-col items-center gap-0.5">
         <div className="flex gap-0.5 bg-black/80 backdrop-blur-sm rounded-lg p-1 border border-primary/40 shadow-lg shadow-primary/20">
-          {myCards.map((card, i) => (
-            <div key={`${card.suit}-${card.rank}`} className="card-deal">
+          {myCards.map((card) => (
+            <div key={`my-${card.suit}-${card.rank}`}>
               <PlayingCard card={card} size="sm" />
             </div>
           ))}
@@ -176,7 +176,7 @@ export default function PlayerSeat({
 
       {/* Current bet chip */}
       {player.currentBet > 0 && !player.isFolded && (
-        <div className="bg-gradient-to-br from-yellow-400 to-yellow-600 text-black px-2 py-0.5 rounded-full text-[8px] font-bold shadow-lg chip-stack">
+        <div className="bg-gradient-to-br from-yellow-400 to-yellow-600 text-black px-2 py-0.5 rounded-full text-[8px] font-bold shadow-lg">
           {player.currentBet}
         </div>
       )}
