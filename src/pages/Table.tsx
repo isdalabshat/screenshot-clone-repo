@@ -5,11 +5,13 @@ import { usePokerGame } from '@/hooks/usePokerGame';
 import { useSoundEffects } from '@/hooks/useSoundEffects';
 import PokerTableComponent from '@/components/poker/PokerTable';
 import ActionButtons from '@/components/poker/ActionButtons';
+import MyCardsDisplay from '@/components/poker/MyCardsDisplay';
+import TableChat from '@/components/poker/TableChat';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ArrowLeft, Play, LogOut, Coins, Volume2, VolumeX } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Table() {
   const { tableId } = useParams<{ tableId: string }>();
@@ -91,7 +93,7 @@ export default function Table() {
       autoStartTimeout.current = setTimeout(() => {
         startHand();
         setAutoStarting(false);
-      }, 3000); // 3 second delay before auto-starting
+      }, 3000);
     }
 
     if (!canAutoStart && autoStarting) {
@@ -215,13 +217,33 @@ export default function Table() {
             pot={game?.pot || 0}
             currentUserId={user?.id}
             gameStatus={game?.status}
-            myCards={myCards}
             turnTimeLeft={turnTimeLeft}
             handsPlayed={table.handsPlayed}
             maxHands={table.maxHands}
           />
         )}
       </main>
+
+      {/* My Cards Display - Fixed at bottom center */}
+      <AnimatePresence>
+        {isJoined && myCards.length > 0 && !currentPlayer?.isFolded && (
+          <MyCardsDisplay
+            cards={myCards}
+            communityCards={game?.communityCards || []}
+            gameStatus={game?.status}
+            isFolded={currentPlayer?.isFolded}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Table Chat */}
+      {isJoined && (
+        <TableChat
+          tableId={tableId!}
+          userId={user?.id}
+          username={profile?.username}
+        />
+      )}
 
       {/* Bottom Action Area */}
       <motion.div 
