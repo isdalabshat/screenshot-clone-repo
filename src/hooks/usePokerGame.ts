@@ -242,7 +242,7 @@ export function usePokerGame(tableId: string) {
     setIsJoined(playerList.some(p => p.userId === currentUserId));
   }, [tableId]);
 
-  // Join table
+  // Join table with retry for race conditions
   const joinTable = async (buyIn: number) => {
     if (!user || !profile) return;
     
@@ -255,6 +255,7 @@ export function usePokerGame(tableId: string) {
       return;
     }
 
+    // Check if already at this table
     const { data: existingRecord } = await supabase
       .from('table_players')
       .select('*')
@@ -273,6 +274,7 @@ export function usePokerGame(tableId: string) {
         return;
       }
 
+      // Reactivate existing seat
       const { error } = await supabase
         .from('table_players')
         .update({
@@ -308,35 +310,60 @@ export function usePokerGame(tableId: string) {
       return;
     }
 
-    const { data: currentPlayers } = await supabase
-      .from('table_players')
-      .select('position')
-      .eq('table_id', tableId)
-      .eq('is_active', true);
+    // Find available position with retry logic
+    const maxRetries = 3;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const { data: currentPlayers } = await supabase
+        .from('table_players')
+        .select('position')
+        .eq('table_id', tableId)
+        .eq('is_active', true);
 
-    const takenPositions = (currentPlayers || []).map(p => p.position);
-    const availablePosition = Array.from({ length: 9 }, (_, i) => i)
-      .find(pos => !takenPositions.includes(pos));
+      const takenPositions = new Set((currentPlayers || []).map(p => p.position));
+      const availablePosition = Array.from({ length: 9 }, (_, i) => i)
+        .find(pos => !takenPositions.has(pos));
 
-    if (availablePosition === undefined) {
-      toast({
-        title: 'Table full',
-        description: 'This table is full.',
-        variant: 'destructive'
-      });
-      return;
-    }
+      if (availablePosition === undefined) {
+        toast({
+          title: 'Table full',
+          description: 'This table is full.',
+          variant: 'destructive'
+        });
+        return;
+      }
 
-    const { error } = await supabase
-      .from('table_players')
-      .insert({
-        table_id: tableId,
-        user_id: user.id,
-        position: availablePosition,
-        stack: buyIn
-      });
+      const { error } = await supabase
+        .from('table_players')
+        .insert({
+          table_id: tableId,
+          user_id: user.id,
+          position: availablePosition,
+          stack: buyIn
+        });
 
-    if (error) {
+      if (!error) {
+        // Success
+        await supabase
+          .from('profiles')
+          .update({ chips: profile.chips - buyIn })
+          .eq('user_id', user.id);
+
+        await refreshProfile();
+        await fetchPlayers();
+        toast({
+          title: 'Joined table!',
+          description: `You've joined with ${buyIn} chips.`
+        });
+        return;
+      }
+
+      // If duplicate position error, retry with different position
+      if (error.code === '23505') {
+        console.log(`Position ${availablePosition} taken, retrying...`);
+        continue;
+      }
+
+      // Other error
       toast({
         title: 'Failed to join',
         description: error.message,
@@ -345,16 +372,10 @@ export function usePokerGame(tableId: string) {
       return;
     }
 
-    await supabase
-      .from('profiles')
-      .update({ chips: profile.chips - buyIn })
-      .eq('user_id', user.id);
-
-    await refreshProfile();
-    await fetchPlayers();
     toast({
-      title: 'Joined table!',
-      description: `You've joined with ${buyIn} chips.`
+      title: 'Failed to join',
+      description: 'Could not find an available seat. Please try again.',
+      variant: 'destructive'
     });
   };
 
