@@ -68,8 +68,6 @@ export default function PlayerSeat({
   const visibleCommunity = getVisibleCommunityCards(gameStatus, communityCards);
   const handRank = showMyCards ? evaluateHand(myCards, visibleCommunity) : null;
 
-  // For position 0 (current user), use a special centered layout
-  const isBottomCenter = position === 0;
 
   return (
     <motion.div 
@@ -78,15 +76,10 @@ export default function PlayerSeat({
       transition={{ delay: position * 0.05, type: 'spring', stiffness: 200 }}
       className={cn('absolute z-10', positionStyles[position])}
     >
-      <div className={cn(
-        'flex items-center gap-1',
-        isBottomCenter ? 'flex-col' : 'flex-col'
-      )}>
-        {/* Cards Section - positioned above/beside avatar */}
-        <div className={cn(
-          'flex items-center gap-1',
-          isBottomCenter && 'order-first mb-1'
-        )}>
+      {/* Horizontal layout: Cards on left, Avatar/Info on right */}
+      <div className="flex items-center gap-2">
+        {/* Cards Section - LEFT side */}
+        <div className="flex items-center">
           {/* Current User's Cards */}
           {showMyCards && (
             <div className="flex flex-col items-center gap-0.5">
@@ -151,26 +144,41 @@ export default function PlayerSeat({
           )}
         </div>
 
-        {/* Avatar and Info Section */}
+        {/* Avatar and Info Section - RIGHT side */}
         <div className="flex flex-col items-center gap-0.5">
-          {/* Avatar */}
+          {/* Avatar with enhanced turn indicator */}
           <motion.div 
             animate={player.isCurrentPlayer ? { 
-              scale: [1, 1.08, 1],
+              scale: [1, 1.12, 1],
+              boxShadow: [
+                '0 0 0 0 rgba(34, 197, 94, 0)',
+                '0 0 20px 8px rgba(34, 197, 94, 0.6)',
+                '0 0 0 0 rgba(34, 197, 94, 0)'
+              ]
             } : {}}
-            transition={{ repeat: player.isCurrentPlayer ? Infinity : 0, duration: 1.5 }}
+            transition={{ repeat: player.isCurrentPlayer ? Infinity : 0, duration: 1.2 }}
             className={cn(
-              'w-10 h-10 rounded-full flex items-center justify-center shadow-lg border-2 transition-all',
+              'w-10 h-10 rounded-full flex items-center justify-center shadow-lg border-3 transition-all relative',
               player.isFolded 
                 ? 'bg-slate-700/50 border-slate-600 opacity-40' 
                 : player.isCurrentPlayer 
-                  ? 'bg-gradient-to-br from-primary to-primary/80 border-primary pulse-glow' 
+                  ? 'bg-gradient-to-br from-green-500 to-green-600 border-green-400 ring-4 ring-green-400/50' 
                   : isCurrentUser 
                     ? 'bg-gradient-to-br from-secondary to-secondary/80 border-secondary' 
                     : 'bg-slate-700 border-slate-500'
             )}
           >
             <span className="text-sm">{isCurrentUser ? '👤' : '🎭'}</span>
+            {/* Turn indicator badge */}
+            {player.isCurrentPlayer && !player.isFolded && (
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center border-2 border-white"
+              >
+                <span className="text-[8px]">▶</span>
+              </motion.div>
+            )}
           </motion.div>
           
           {/* Name & Stack */}

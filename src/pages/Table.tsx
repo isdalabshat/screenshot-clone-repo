@@ -10,12 +10,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ArrowLeft, Play, LogOut, Coins, Volume2, VolumeX } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Table() {
   const { tableId } = useParams<{ tableId: string }>();
   const navigate = useNavigate();
   const { user, profile, isLoading: authLoading } = useAuth();
+  const { toast } = useToast();
   const { playSound, playDealSequence } = useSoundEffects();
   const { 
     table, 
@@ -90,13 +92,18 @@ export default function Table() {
     }
   }, [game?.status, players, soundEnabled, playSound, playDealSequence, user?.id, myCards.length]);
 
-  // Auto sit-out when balance is 0
+  // Auto sit-out when balance is 0 - redirect to buy-in
   useEffect(() => {
-    if (currentPlayer && currentPlayer.stack === 0 && !game) {
+    if (currentPlayer && currentPlayer.stack === 0 && (!game || game.status === 'complete' || game.status === 'showdown')) {
       leaveTable();
+      toast({
+        title: 'Out of chips!',
+        description: 'Your stack is empty. Please buy in again to continue playing.',
+        variant: 'destructive'
+      });
       setShowJoinDialog(true);
     }
-  }, [currentPlayer?.stack, game, leaveTable]);
+  }, [currentPlayer?.stack, game?.status, leaveTable]);
 
   // Auto-start hands logic
   const isStartingRef = useRef(false);
