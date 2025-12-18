@@ -51,7 +51,7 @@ export default function Auth() {
         });
       } else {
         toast({
-          title: 'Welcome to Texas Hold\'em!',
+          title: 'Welcome to JD Club!',
           description: 'Your account has been created. You start with 1,000 chips!'
         });
         navigate('/lobby');
@@ -112,7 +112,7 @@ export default function Auth() {
       <Card className="w-full max-w-md border-emerald-700/30 bg-card/90 backdrop-blur">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 text-6xl">🃏</div>
-          <CardTitle className="text-3xl font-bold text-emerald-400">Texas Hold'em</CardTitle>
+          <CardTitle className="text-3xl font-bold text-emerald-400">JD Club</CardTitle>
           <CardDescription>Join the table and test your poker skills</CardDescription>
         </CardHeader>
         <CardContent>
