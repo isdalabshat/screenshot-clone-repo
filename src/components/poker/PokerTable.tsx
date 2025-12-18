@@ -13,6 +13,7 @@ interface PokerTableProps {
   turnTimeLeft?: number | null;
   handsPlayed?: number;
   maxHands?: number;
+  myCards?: Card[];
 }
 
 const getVisibleCards = (status: Game['status'] | undefined): number => {
@@ -25,6 +26,12 @@ const getVisibleCards = (status: Game['status'] | undefined): number => {
   }
 };
 
+// Rotate positions so current user is always at position 0 (bottom center)
+const getRotatedPosition = (actualPosition: number, userPosition: number): number => {
+  const offset = userPosition;
+  return (actualPosition - offset + 9) % 9;
+};
+
 export default function PokerTableComponent({ 
   players, 
   communityCards, 
@@ -33,12 +40,19 @@ export default function PokerTableComponent({
   gameStatus,
   turnTimeLeft,
   handsPlayed = 0,
-  maxHands = 50
+  maxHands = 50,
+  myCards = []
 }: PokerTableProps) {
+  // Find current user's actual position
+  const currentUserPlayer = players.find(p => p.userId === currentUserId);
+  const userPosition = currentUserPlayer?.position ?? 0;
+
+  // Create rotated seats array for perspective view
   const seats: (Player | undefined)[] = Array(9).fill(undefined);
   players.forEach(player => {
     if (player.position >= 0 && player.position < 9) {
-      seats[player.position] = player;
+      const displayPosition = getRotatedPosition(player.position, userPosition);
+      seats[displayPosition] = player;
     }
   });
 
@@ -137,17 +151,18 @@ export default function PokerTableComponent({
         </div>
       </motion.div>
 
-      {/* Player Seats - don't show cards for current user (shown separately at bottom) */}
-      {seats.map((player, position) => (
+      {/* Player Seats - Position 0 is always current user (bottom center) */}
+      {seats.map((player, displayPosition) => (
         <PlayerSeat
-          key={position}
+          key={displayPosition}
           player={player}
-          position={position}
+          position={displayPosition}
           isCurrentUser={player?.userId === currentUserId}
           showCards={isShowdown}
-          hideMyCards={player?.userId === currentUserId}
+          hideMyCards={false}
           communityCards={communityCards}
           gameStatus={gameStatus}
+          myCards={player?.userId === currentUserId ? myCards : undefined}
         />
       ))}
     </div>
