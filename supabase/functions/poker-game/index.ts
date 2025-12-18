@@ -183,6 +183,16 @@ function compareKickers(a: number[], b: number[]): number {
   return 0;
 }
 
+// Fee calculation helper - 10% rake, min pot of 5 big blinds
+function calculateFee(pot: number, bigBlind: number, gameStatus: string): number {
+  // No fee if hand ended pre-flop (only blinds collected)
+  if (gameStatus === 'preflop') return 0;
+  // No fee if pot is less than 5 big blinds
+  if (pot < bigBlind * 5) return 0;
+  // 10% rake
+  return Math.floor(pot * 0.10);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -537,6 +547,22 @@ serve(async (req) => {
         const winner = activePlayers[0];
         const winnerStack = winner.id === currentPlayer.id ? newStack : winner.stack;
         
+        // Calculate fee (only if post-flop and pot >= 5 big blinds)
+        const bigBlind = tableData.big_blind;
+        const fee = calculateFee(newPot, bigBlind, game.status);
+        const winnings = newPot - fee;
+        
+        // Record fee if applicable
+        if (fee > 0) {
+          await supabase.from('collected_fees').insert({
+            game_id: game.id,
+            table_id: tableId,
+            fee_amount: fee,
+            pot_size: newPot,
+            big_blind: bigBlind
+          });
+        }
+        
         await supabase
           .from('games')
           .update({ status: 'complete', pot: 0, turn_expires_at: null })
@@ -544,14 +570,15 @@ serve(async (req) => {
 
         await supabase
           .from('table_players')
-          .update({ stack: winnerStack + newPot, current_bet: 0 })
+          .update({ stack: winnerStack + winnings, current_bet: 0 })
           .eq('id', winner.id);
 
         return new Response(JSON.stringify({
           success: true,
           status: 'complete',
           winner: winner.user_id,
-          pot: newPot
+          pot: newPot,
+          fee: fee
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
@@ -635,7 +662,15 @@ serve(async (req) => {
           const playerHands = activeAtShowdown.map(p => ({
             player: p,
             hand: evaluateHand(p.hole_cards || [], communityCards)
-          }));
+          })).filter(ph => ph.hand); // Filter out any undefined hands
+
+          if (playerHands.length === 0) {
+            console.error('No valid hands to evaluate');
+            return new Response(JSON.stringify({ error: 'No valid hands to evaluate' }), {
+              status: 500,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
 
           playerHands.sort((a, b) => {
             if (a.hand.rank !== b.hand.rank) return b.hand.rank - a.hand.rank;
@@ -648,7 +683,22 @@ serve(async (req) => {
             compareKickers(ph.hand.kickers, bestHand.kickers) === 0
           );
 
-          const winAmount = Math.floor(newPot / winners.length);
+          // Calculate fee
+          const fee = calculateFee(newPot, tableData.big_blind, game.status);
+          const potAfterFee = newPot - fee;
+          const winAmount = Math.floor(potAfterFee / winners.length);
+          
+          // Record fee if applicable
+          if (fee > 0) {
+            await supabase.from('collected_fees').insert({
+              game_id: game.id,
+              table_id: tableId,
+              fee_amount: fee,
+              pot_size: newPot,
+              big_blind: tableData.big_blind
+            });
+          }
+          
           const winnerIds: string[] = [];
           const winnerHands: { userId: string; hand: string }[] = [];
 
@@ -678,12 +728,13 @@ serve(async (req) => {
             success: true,
             status: 'showdown',
             pot: newPot,
+            fee: fee,
             winners: winnerIds,
             winningHand: winnerHands[0]?.hand,
             allIn: true,
             hands: playerHands.map(ph => ({
               userId: ph.player.user_id,
-              hand: ph.hand.name,
+              hand: ph.hand?.name || 'Unknown',
               cards: ph.player.hole_cards
             }))
           }), {
@@ -704,7 +755,15 @@ serve(async (req) => {
           const playerHands = activeAtShowdown.map(p => ({
             player: p,
             hand: evaluateHand(p.hole_cards || [], communityCards)
-          }));
+          })).filter(ph => ph.hand); // Filter out any undefined hands
+
+          if (playerHands.length === 0) {
+            console.error('No valid hands to evaluate');
+            return new Response(JSON.stringify({ error: 'No valid hands to evaluate' }), {
+              status: 500,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
 
           playerHands.sort((a, b) => {
             if (a.hand.rank !== b.hand.rank) return b.hand.rank - a.hand.rank;
@@ -717,7 +776,22 @@ serve(async (req) => {
             compareKickers(ph.hand.kickers, bestHand.kickers) === 0
           );
 
-          const winAmount = Math.floor(newPot / winners.length);
+          // Calculate fee
+          const fee = calculateFee(newPot, tableData.big_blind, 'river');
+          const potAfterFee = newPot - fee;
+          const winAmount = Math.floor(potAfterFee / winners.length);
+          
+          // Record fee if applicable
+          if (fee > 0) {
+            await supabase.from('collected_fees').insert({
+              game_id: game.id,
+              table_id: tableId,
+              fee_amount: fee,
+              pot_size: newPot,
+              big_blind: tableData.big_blind
+            });
+          }
+          
           const winnerIds: string[] = [];
           const winnerHands: { userId: string; hand: string }[] = [];
 
