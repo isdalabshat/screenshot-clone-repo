@@ -79,25 +79,42 @@ export default function Table() {
     }
   }, [game?.status, players, soundEnabled, playSound, user?.id]);
 
-  // Auto-start hands logic
+  // Auto-start hands logic - only one player initiates
+  const isStartingRef = useRef(false);
+  
   useEffect(() => {
-    if (!table || !isJoined) return;
+    if (!table || !isJoined || !currentPlayer) return;
 
+    // Only the player at position 0 (or lowest position) triggers auto-start
+    const lowestPositionPlayer = players.reduce((lowest, p) => 
+      p.position < lowest.position ? p : lowest
+    , players[0]);
+    
+    const shouldTriggerAutoStart = currentPlayer.position === lowestPositionPlayer?.position;
+    
     const canAutoStart = 
       players.length >= 2 && 
       (!game || game.status === 'complete' || game.status === 'showdown') &&
-      table.handsPlayed < table.maxHands;
+      table.handsPlayed < table.maxHands &&
+      shouldTriggerAutoStart;
 
-    if (canAutoStart && !autoStarting) {
+    if (canAutoStart && !autoStarting && !isStartingRef.current) {
       setAutoStarting(true);
-      autoStartTimeout.current = setTimeout(() => {
-        startHand();
+      isStartingRef.current = true;
+      autoStartTimeout.current = setTimeout(async () => {
+        try {
+          await startHand();
+        } catch (e) {
+          console.error('Auto-start failed:', e);
+        }
         setAutoStarting(false);
+        isStartingRef.current = false;
       }, 3000);
     }
 
     if (!canAutoStart && autoStarting) {
       setAutoStarting(false);
+      isStartingRef.current = false;
       if (autoStartTimeout.current) {
         clearTimeout(autoStartTimeout.current);
       }
@@ -108,7 +125,7 @@ export default function Table() {
         clearTimeout(autoStartTimeout.current);
       }
     };
-  }, [game?.status, players.length, table?.handsPlayed, table?.maxHands, isJoined, autoStarting, startHand]);
+  }, [game?.status, players.length, table?.handsPlayed, table?.maxHands, isJoined, autoStarting, startHand, currentPlayer?.position, players]);
 
   // Handle action with sound
   const handleAction = (action: any, amount?: number) => {
