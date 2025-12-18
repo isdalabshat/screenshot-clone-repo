@@ -23,6 +23,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Admin usernames - add usernames here to grant admin access
+const ADMIN_USERNAMES = ['Jeydi', 'jeydi'];
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -43,13 +46,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq('user_id', userId)
         .maybeSingle();
 
+      // Check if user is admin via role OR via username whitelist
+      const isAdminByRole = roleData?.role === 'admin';
+      const isAdminByUsername = ADMIN_USERNAMES.includes(data.username);
+
       setProfile({
         id: data.id,
         userId: data.user_id,
         username: data.username,
         chips: data.chips,
-        isAdmin: roleData?.role === 'admin'
+        isAdmin: isAdminByRole || isAdminByUsername
       });
+
+      // Auto-add admin role for whitelisted usernames if not already set
+      if (isAdminByUsername && !isAdminByRole) {
+        await supabase.from('user_roles').upsert({
+          user_id: userId,
+          role: 'admin'
+        }, { onConflict: 'user_id' }).select();
+      }
     }
   };
 

@@ -504,36 +504,23 @@ export function usePokerGame(tableId: string) {
     init();
   }, [fetchTable, fetchGame, fetchPlayers, fetchMyCards]);
 
-  // Realtime subscriptions
+  // Realtime subscriptions - immediate updates for faster sync
   useEffect(() => {
-    let gameTimeout: NodeJS.Timeout | null = null;
-    let playersTimeout: NodeJS.Timeout | null = null;
-
-    const debouncedFetchGame = () => {
-      if (gameTimeout) clearTimeout(gameTimeout);
-      gameTimeout = setTimeout(() => {
-        fetchGame();
-      }, 50);
-    };
-
-    const debouncedFetchPlayers = () => {
-      if (playersTimeout) clearTimeout(playersTimeout);
-      playersTimeout = setTimeout(() => {
-        fetchPlayers();
-        fetchMyCards();
-      }, 50);
-    };
-
     const channel = supabase
       .channel(`table-${tableId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter: `table_id=eq.${tableId}` }, debouncedFetchGame)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'table_players', filter: `table_id=eq.${tableId}` }, debouncedFetchPlayers)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'poker_tables', filter: `id=eq.${tableId}` }, fetchTable)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter: `table_id=eq.${tableId}` }, () => {
+        fetchGame();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'table_players', filter: `table_id=eq.${tableId}` }, () => {
+        fetchPlayers();
+        fetchMyCards();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'poker_tables', filter: `id=eq.${tableId}` }, () => {
+        fetchTable();
+      })
       .subscribe();
 
     return () => {
-      if (gameTimeout) clearTimeout(gameTimeout);
-      if (playersTimeout) clearTimeout(playersTimeout);
       supabase.removeChannel(channel);
     };
   }, [tableId, fetchGame, fetchPlayers, fetchTable, fetchMyCards]);
