@@ -5,7 +5,6 @@ import { usePokerGame } from '@/hooks/usePokerGame';
 import { useSoundEffects } from '@/hooks/useSoundEffects';
 import PokerTableComponent from '@/components/poker/PokerTable';
 import ActionButtons from '@/components/poker/ActionButtons';
-import MyCardsDisplay from '@/components/poker/MyCardsDisplay';
 import TableChat from '@/components/poker/TableChat';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -237,21 +236,12 @@ export default function Table() {
             turnTimeLeft={turnTimeLeft}
             handsPlayed={table.handsPlayed}
             maxHands={table.maxHands}
+            myCards={myCards}
           />
         )}
       </main>
 
-      {/* My Cards Display - Fixed at bottom center */}
-      <AnimatePresence>
-        {isJoined && myCards.length > 0 && !currentPlayer?.isFolded && (
-          <MyCardsDisplay
-            cards={myCards}
-            communityCards={game?.communityCards || []}
-            gameStatus={game?.status}
-            isFolded={currentPlayer?.isFolded}
-          />
-        )}
-      </AnimatePresence>
+      {/* Cards are now shown in PlayerSeat component */}
 
       {/* Table Chat */}
       {isJoined && (
