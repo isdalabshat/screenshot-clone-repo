@@ -77,10 +77,11 @@ export default function PlayerSeat({
       transition={{ delay: position * 0.05, type: 'spring', stiffness: 200 }}
       className={cn('absolute z-10', positionStyles[position])}
     >
-      <div className="flex flex-col items-center gap-0.5">
-        {/* Current User's Cards - shown to the left of their seat */}
+      {/* Main container - horizontal layout for cards + player info */}
+      <div className="flex items-center gap-1">
+        {/* Current User's Cards - shown to the LEFT of their avatar */}
         {showMyCards && (
-          <div className="flex items-center gap-1 mb-1">
+          <div className="flex flex-col items-center gap-0.5">
             <div className="flex gap-0.5 bg-black/70 backdrop-blur-sm rounded-lg p-1 border border-emerald-500/30">
               {myCards.map((card, i) => (
                 <motion.div
@@ -104,6 +105,9 @@ export default function PlayerSeat({
             )}
           </div>
         )}
+
+        {/* Player info column */}
+        <div className="flex flex-col items-center gap-0.5">
 
         {/* Opponent's Cards */}
         {!isCurrentUser && !player.isFolded && (showFaceDownCards || showFaceUpCards) && (
@@ -208,15 +212,16 @@ export default function PlayerSeat({
         )}
 
         {/* Current bet chip */}
-        {player.currentBet > 0 && !player.isFolded && (
-          <motion.div 
-            initial={{ scale: 0, y: -10 }}
-            animate={{ scale: 1, y: 0 }}
-            className="bg-yellow-500 text-black px-1.5 py-0.5 rounded-full text-[7px] font-bold shadow-lg"
-          >
-            {player.currentBet}
-          </motion.div>
-        )}
+          {player.currentBet > 0 && !player.isFolded && (
+            <motion.div 
+              initial={{ scale: 0, y: -10 }}
+              animate={{ scale: 1, y: 0 }}
+              className="bg-yellow-500 text-black px-1.5 py-0.5 rounded-full text-[7px] font-bold shadow-lg"
+            >
+              {player.currentBet}
+            </motion.div>
+          )}
+        </div>
       </div>
     </motion.div>
   );
