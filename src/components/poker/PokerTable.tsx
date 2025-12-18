@@ -10,7 +10,6 @@ interface PokerTableProps {
   pot: number;
   currentUserId?: string;
   gameStatus?: Game['status'];
-  myCards?: Card[];
   turnTimeLeft?: number | null;
   handsPlayed?: number;
   maxHands?: number;
@@ -32,7 +31,6 @@ export default function PokerTableComponent({
   pot, 
   currentUserId,
   gameStatus,
-  myCards = [],
   turnTimeLeft,
   handsPlayed = 0,
   maxHands = 50
@@ -139,7 +137,7 @@ export default function PokerTableComponent({
         </div>
       </motion.div>
 
-      {/* Player Seats */}
+      {/* Player Seats - don't show cards for current user (shown separately at bottom) */}
       {seats.map((player, position) => (
         <PlayerSeat
           key={position}
@@ -147,7 +145,7 @@ export default function PokerTableComponent({
           position={position}
           isCurrentUser={player?.userId === currentUserId}
           showCards={isShowdown}
-          myCards={player?.userId === currentUserId ? myCards : undefined}
+          hideMyCards={player?.userId === currentUserId}
           communityCards={communityCards}
           gameStatus={gameStatus}
         />

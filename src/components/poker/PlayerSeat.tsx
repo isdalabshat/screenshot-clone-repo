@@ -2,7 +2,6 @@ import { Player, Card, Game } from '@/types/poker';
 import { cn } from '@/lib/utils';
 import PlayingCard from './PlayingCard';
 import { Badge } from '@/components/ui/badge';
-import { evaluateHand } from '@/lib/poker/handEvaluator';
 import { motion } from 'framer-motion';
 
 interface PlayerSeatProps {
@@ -10,13 +9,13 @@ interface PlayerSeatProps {
   position: number;
   isCurrentUser?: boolean;
   showCards?: boolean;
-  myCards?: Card[];
+  hideMyCards?: boolean;
   communityCards?: Card[];
   gameStatus?: Game['status'];
 }
 
 const positionStyles: Record<number, string> = {
-  0: 'bottom-0 left-1/2 -translate-x-1/2',
+  0: 'bottom-[5%] left-1/2 -translate-x-1/2',
   1: 'bottom-[12%] left-[5%]',
   2: 'left-0 top-[40%] -translate-x-[10%]',
   3: 'top-[15%] left-[5%]',
@@ -32,9 +31,9 @@ export default function PlayerSeat({
   position, 
   isCurrentUser = false, 
   showCards = false,
-  myCards = [],
+  hideMyCards = false,
   communityCards = [],
-  gameStatus = 'preflop'
+  gameStatus
 }: PlayerSeatProps) {
   if (!player) {
     return (
@@ -46,26 +45,10 @@ export default function PlayerSeat({
     );
   }
 
-  const cardsToShow = isCurrentUser ? myCards : (showCards ? player.holeCards : []);
-  const hasCards = isCurrentUser ? myCards.length > 0 : (player.hasHiddenCards || player.holeCards.length > 0);
-  const shouldShowFaceDown = !isCurrentUser && hasCards && !showCards;
-
-  const getVisibleCommunityCards = () => {
-    if (!communityCards) return [];
-    switch (gameStatus) {
-      case 'preflop': return [];
-      case 'flop': return communityCards.slice(0, 3);
-      case 'turn': return communityCards.slice(0, 4);
-      case 'river':
-      case 'showdown': return communityCards;
-      default: return [];
-    }
-  };
-
-  const visibleCommunity = getVisibleCommunityCards();
-  const handRank = isCurrentUser && myCards.length > 0 
-    ? evaluateHand(myCards, visibleCommunity) 
-    : null;
+  // For current user, don't show cards here (they're shown at bottom of screen)
+  // For other players, show face-down cards or face-up at showdown
+  const showFaceDownCards = !isCurrentUser && player.hasHiddenCards && !showCards && !player.isFolded;
+  const showFaceUpCards = !isCurrentUser && showCards && player.holeCards.length > 0 && !player.isFolded;
 
   return (
     <motion.div 
@@ -75,10 +58,21 @@ export default function PlayerSeat({
       className={cn('absolute z-10', positionStyles[position])}
     >
       <div className="flex flex-col items-center gap-0.5">
-        {/* Hole Cards */}
-        {hasCards && !player.isFolded && (
+        {/* Opponent's Cards */}
+        {!isCurrentUser && !player.isFolded && (showFaceDownCards || showFaceUpCards) && (
           <div className="flex gap-0.5">
-            {shouldShowFaceDown ? (
+            {showFaceUpCards ? (
+              player.holeCards.map((card, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ rotateY: 180 }}
+                  animate={{ rotateY: 0 }}
+                  transition={{ duration: 0.3, delay: i * 0.1 }}
+                >
+                  <PlayingCard card={card} size="xs" />
+                </motion.div>
+              ))
+            ) : (
               <>
                 <motion.div
                   initial={{ rotateY: 180 }}
@@ -95,30 +89,8 @@ export default function PlayerSeat({
                   <PlayingCard faceDown size="xs" />
                 </motion.div>
               </>
-            ) : (
-              cardsToShow.map((card, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ rotateY: 180, scale: 0 }}
-                  animate={{ rotateY: 0, scale: 1 }}
-                  transition={{ duration: 0.3, delay: i * 0.1 }}
-                >
-                  <PlayingCard card={card} size="xs" />
-                </motion.div>
-              ))
             )}
           </div>
-        )}
-
-        {/* Hand Rank */}
-        {isCurrentUser && handRank && handRank.name && !player.isFolded && (
-          <motion.div 
-            initial={{ opacity: 0, y: 5 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-purple-600/90 text-white px-1.5 py-0.5 rounded text-[7px] font-bold uppercase shadow-lg"
-          >
-            {handRank.name}
-          </motion.div>
         )}
 
         {/* Avatar with turn indicator */}
@@ -139,7 +111,7 @@ export default function PlayerSeat({
                   : 'bg-slate-700 border-slate-500'
           )}
         >
-          <span className="text-sm">👤</span>
+          <span className="text-sm">{isCurrentUser ? '👤' : '🎭'}</span>
         </motion.div>
         
         {/* Name & Stack */}
@@ -149,8 +121,11 @@ export default function PlayerSeat({
             ? 'bg-emerald-800/90 border border-emerald-400' 
             : 'bg-slate-900/90'
         )}>
-          <div className="font-medium text-[8px] text-white truncate max-w-[50px]">
-            {player.username}
+          <div className={cn(
+            'font-medium text-[8px] truncate max-w-[50px]',
+            isCurrentUser ? 'text-amber-300' : 'text-white'
+          )}>
+            {isCurrentUser ? 'You' : player.username}
           </div>
           <div className="text-[8px] text-yellow-400 font-mono">
             {player.stack.toLocaleString()}
