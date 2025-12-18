@@ -478,7 +478,7 @@ export function usePokerGame(tableId: string) {
     }
   };
 
-  // Perform action via edge function (server-side validation) - no delays
+  // Perform action via edge function (server-side validation)
   const performAction = async (action: ActionType, amount?: number) => {
     const currentGame = gameRef.current;
     if (!currentGame || !currentPlayer || !isCurrentPlayerTurn) return;
@@ -504,9 +504,7 @@ export function usePokerGame(tableId: string) {
         return;
       }
 
-      // Immediately fetch updated state for faster sync
-      fetchGame();
-      fetchPlayers();
+      // Realtime subscription will handle the UI update
     } catch (err) {
       console.error('Action exception:', err);
       toast({
@@ -530,23 +528,36 @@ export function usePokerGame(tableId: string) {
     init();
   }, [fetchTable, fetchGame, fetchPlayers, fetchMyCards]);
 
-  // Realtime subscriptions - immediate updates for faster sync
+  // Realtime subscriptions with debouncing to prevent cascading updates
   useEffect(() => {
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    
+    const debouncedFetch = (fn: () => void) => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(fn, 100);
+    };
+    
     const channel = supabase
       .channel(`table-${tableId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter: `table_id=eq.${tableId}` }, () => {
-        fetchGame();
+        debouncedFetch(() => {
+          fetchGame();
+          fetchMyCards();
+        });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'table_players', filter: `table_id=eq.${tableId}` }, () => {
-        fetchPlayers();
-        fetchMyCards();
+        debouncedFetch(() => {
+          fetchPlayers();
+          fetchMyCards();
+        });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'poker_tables', filter: `id=eq.${tableId}` }, () => {
-        fetchTable();
+        debouncedFetch(fetchTable);
       })
       .subscribe();
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
     };
   }, [tableId, fetchGame, fetchPlayers, fetchTable, fetchMyCards]);
