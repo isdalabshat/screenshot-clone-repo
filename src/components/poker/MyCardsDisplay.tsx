@@ -33,15 +33,10 @@ export default function MyCardsDisplay({ cards, communityCards, gameStatus, isFo
       initial={{ y: 50, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       exit={{ y: 50, opacity: 0 }}
-      className="fixed bottom-32 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-2"
+      className="fixed bottom-[140px] left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-1"
     >
-      {/* Your Cards Label */}
-      <div className="bg-black/70 px-3 py-1 rounded-full text-xs text-emerald-400 font-semibold">
-        Your Cards
-      </div>
-
       {/* Cards */}
-      <div className="flex gap-2 bg-black/50 backdrop-blur-sm rounded-xl p-3 border border-emerald-500/30 shadow-2xl">
+      <div className="flex gap-1 bg-black/70 backdrop-blur-sm rounded-lg p-2 border border-emerald-500/30 shadow-2xl">
         {cards.map((card, i) => (
           <motion.div
             key={i}
@@ -49,7 +44,7 @@ export default function MyCardsDisplay({ cards, communityCards, gameStatus, isFo
             animate={{ rotateY: 0, scale: 1 }}
             transition={{ duration: 0.4, delay: i * 0.15 }}
           >
-            <PlayingCard card={card} size="md" />
+            <PlayingCard card={card} size="sm" />
           </motion.div>
         ))}
       </div>
@@ -59,7 +54,7 @@ export default function MyCardsDisplay({ cards, communityCards, gameStatus, isFo
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-4 py-1.5 rounded-full text-sm font-bold shadow-lg"
+          className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-2 py-0.5 rounded-full text-[10px] font-bold shadow-lg"
         >
           {handRank.name}
         </motion.div>

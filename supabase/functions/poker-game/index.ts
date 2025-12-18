@@ -359,10 +359,19 @@ serve(async (req) => {
         });
       }
 
+      // Increment hands_played counter
+      await supabase
+        .from('poker_tables')
+        .update({ hands_played: tableData.hands_played + 1 })
+        .eq('id', tableId);
+
+      console.log(`Hand started. Table ${tableId}, Game ${newGame.id}, Hands played: ${tableData.hands_played + 1}`);
+
       return new Response(JSON.stringify({
         success: true,
         gameId: newGame.id,
-        yourCards: playerCards[user.id] || []
+        yourCards: playerCards[user.id] || [],
+        handsPlayed: tableData.hands_played + 1
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
