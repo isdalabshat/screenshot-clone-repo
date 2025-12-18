@@ -16,6 +16,7 @@ export function usePokerGame(tableId: string) {
   const [isLoading, setIsLoading] = useState(true);
   const [isJoined, setIsJoined] = useState(false);
   const [turnTimeLeft, setTurnTimeLeft] = useState<number | null>(null);
+  const [isActionPending, setIsActionPending] = useState(false);
 
   // Use refs to avoid stale closures in realtime callbacks
   const gameRef = useRef<Game | null>(null);
@@ -41,7 +42,7 @@ export function usePokerGame(tableId: string) {
   }, [user?.id]);
 
   const currentPlayer = players.find(p => p.userId === user?.id);
-  const isCurrentPlayerTurn = game?.currentPlayerPosition === currentPlayer?.position;
+  const isCurrentPlayerTurn = game?.currentPlayerPosition === currentPlayer?.position && !isActionPending;
 
   // Turn timer effect
   useEffect(() => {
@@ -56,7 +57,6 @@ export function usePokerGame(tableId: string) {
       const remaining = Math.max(0, Math.ceil((expiresAt - now) / 1000));
       setTurnTimeLeft(remaining);
 
-      // Auto-fold check when timer hits 0 (only for current player)
       if (remaining === 0 && isCurrentPlayerTurn) {
         handleAutoFold();
       }
@@ -67,7 +67,6 @@ export function usePokerGame(tableId: string) {
     return () => clearInterval(interval);
   }, [game?.turnExpiresAt, game?.status, isCurrentPlayerTurn]);
 
-  // Handle auto-fold when timer expires
   const handleAutoFold = async () => {
     if (!game) return;
     
@@ -87,7 +86,6 @@ export function usePokerGame(tableId: string) {
     }
   };
 
-  // Fetch table data
   const fetchTable = useCallback(async () => {
     const { data } = await supabase
       .from('poker_tables')
@@ -111,7 +109,6 @@ export function usePokerGame(tableId: string) {
     }
   }, [tableId]);
 
-  // Fetch current game
   const fetchGame = useCallback(async () => {
     const { data } = await supabase
       .from('games')
@@ -143,7 +140,6 @@ export function usePokerGame(tableId: string) {
     }
   }, [tableId]);
 
-  // Fetch my cards only (not other players' cards)
   const fetchMyCards = useCallback(async () => {
     if (!user?.id) return;
 
@@ -162,7 +158,6 @@ export function usePokerGame(tableId: string) {
     }
   }, [tableId, user?.id]);
 
-  // Fetch players at table (without revealing hole cards)
   const fetchPlayers = useCallback(async () => {
     const { data: playersData, error: playersError } = await supabase
       .from('table_players')
@@ -200,7 +195,6 @@ export function usePokerGame(tableId: string) {
     const playerList: Player[] = sortedPlayers.map((p, idx) => {
       const dealerIdx = sortedPlayers.findIndex(pl => pl.position === currentGame?.dealerPosition);
       
-      // Heads-up logic: dealer is SB
       let sbIdx: number, bbIdx: number;
       if (numPlayers === 2 && dealerIdx !== -1) {
         sbIdx = dealerIdx;
@@ -213,7 +207,6 @@ export function usePokerGame(tableId: string) {
         bbIdx = -1;
       }
 
-      // Only show cards for the current user, not for opponents
       const isMe = p.user_id === currentUserId;
       const hasCards = p.hole_cards && p.hole_cards.length > 0;
 
@@ -223,7 +216,6 @@ export function usePokerGame(tableId: string) {
         username: profilesMap.get(p.user_id) || 'Unknown',
         position: p.position,
         stack: p.stack,
-        // Only include actual cards for the current user, empty for opponents
         holeCards: isMe && hasCards ? p.hole_cards.map((c: string) => stringToCard(c)) : [],
         hasHiddenCards: !isMe && hasCards && !p.is_folded,
         currentBet: p.current_bet,
@@ -242,7 +234,6 @@ export function usePokerGame(tableId: string) {
     setIsJoined(playerList.some(p => p.userId === currentUserId));
   }, [tableId]);
 
-  // Join table with retry for race conditions
   const joinTable = async (buyIn: number) => {
     if (!user || !profile) return;
     
@@ -255,7 +246,6 @@ export function usePokerGame(tableId: string) {
       return;
     }
 
-    // Check if already at this table
     const { data: existingRecord } = await supabase
       .from('table_players')
       .select('*')
@@ -274,7 +264,6 @@ export function usePokerGame(tableId: string) {
         return;
       }
 
-      // Reactivate existing seat
       const { error } = await supabase
         .from('table_players')
         .update({
@@ -310,7 +299,6 @@ export function usePokerGame(tableId: string) {
       return;
     }
 
-    // Find available position with retry logic
     const maxRetries = 3;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       const { data: currentPlayers } = await supabase
@@ -342,7 +330,6 @@ export function usePokerGame(tableId: string) {
         });
 
       if (!error) {
-        // Success
         await supabase
           .from('profiles')
           .update({ chips: profile.chips - buyIn })
@@ -357,13 +344,11 @@ export function usePokerGame(tableId: string) {
         return;
       }
 
-      // If duplicate position error, retry with different position
       if (error.code === '23505') {
         console.log(`Position ${availablePosition} taken, retrying...`);
         continue;
       }
 
-      // Other error
       toast({
         title: 'Failed to join',
         description: error.message,
@@ -379,11 +364,9 @@ export function usePokerGame(tableId: string) {
     });
   };
 
-  // Leave table - auto-fold first if in active game
   const leaveTable = async () => {
     if (!currentPlayer) return;
 
-    // If in an active game and not folded, fold first to prevent bugs
     const currentGame = gameRef.current;
     if (currentGame && 
         currentGame.status !== 'complete' && 
@@ -425,7 +408,6 @@ export function usePokerGame(tableId: string) {
     });
   };
 
-  // Start new hand via edge function (server-side card dealing)
   const startHand = async () => {
     const { data: freshPlayers } = await supabase
       .from('table_players')
@@ -464,6 +446,11 @@ export function usePokerGame(tableId: string) {
         setMyCards(data.yourCards.map((c: string) => stringToCard(c)));
       }
 
+      // Optimistic update for turn indicator
+      if (data?.currentPlayerPosition !== undefined) {
+        setGame(prev => prev ? { ...prev, currentPlayerPosition: data.currentPlayerPosition } : prev);
+      }
+
       toast({
         title: 'New hand started!',
         description: 'Cards have been dealt.'
@@ -478,15 +465,108 @@ export function usePokerGame(tableId: string) {
     }
   };
 
-  // Perform action via edge function (server-side validation)
+  // Perform action with optimistic UI updates
   const performAction = async (action: ActionType, amount?: number) => {
     const currentGame = gameRef.current;
-    if (!currentGame || !currentPlayer || !isCurrentPlayerTurn) return;
+    if (!currentGame || !currentPlayer || !isCurrentPlayerTurn || isActionPending) return;
+
+    // Set pending to prevent double-clicks
+    setIsActionPending(true);
+
+    // Optimistic UI update - immediately update local state
+    const optimisticUpdates = () => {
+      // Find next player position for optimistic update
+      const sortedPlayers = [...playersRef.current].sort((a, b) => a.position - b.position);
+      const currentIdx = sortedPlayers.findIndex(p => p.position === currentPlayer.position);
+      
+      let optimisticNextPosition: number | null = null;
+      for (let i = 1; i <= sortedPlayers.length; i++) {
+        const idx = (currentIdx + i) % sortedPlayers.length;
+        const p = sortedPlayers[idx];
+        if (!p.isFolded && !p.isAllIn && p.userId !== currentPlayer.userId) {
+          optimisticNextPosition = p.position;
+          break;
+        }
+      }
+
+      // Calculate optimistic player state changes
+      let optimisticStack = currentPlayer.stack;
+      let optimisticBet = currentPlayer.currentBet;
+      let optimisticPot = currentGame.pot;
+      let optimisticIsFolded = false;
+      let optimisticIsAllIn = false;
+
+      switch (action) {
+        case 'fold':
+          optimisticIsFolded = true;
+          break;
+        case 'check':
+          // No change
+          break;
+        case 'call': {
+          const callAmount = Math.min(currentGame.currentBet - currentPlayer.currentBet, currentPlayer.stack);
+          optimisticStack -= callAmount;
+          optimisticBet += callAmount;
+          optimisticPot += callAmount;
+          if (optimisticStack === 0) optimisticIsAllIn = true;
+          break;
+        }
+        case 'bet':
+        case 'raise': {
+          const betAmount = amount || currentGame.currentBet * 2;
+          const totalBet = betAmount - currentPlayer.currentBet;
+          optimisticStack -= totalBet;
+          optimisticBet = betAmount;
+          optimisticPot += totalBet;
+          if (optimisticStack === 0) optimisticIsAllIn = true;
+          break;
+        }
+        case 'all_in':
+          optimisticPot += optimisticStack;
+          optimisticBet += optimisticStack;
+          optimisticStack = 0;
+          optimisticIsAllIn = true;
+          break;
+      }
+
+      // Update game state optimistically
+      setGame(prev => prev ? {
+        ...prev,
+        pot: optimisticPot,
+        currentPlayerPosition: optimisticNextPosition,
+        currentBet: action === 'bet' || action === 'raise' || action === 'all_in' 
+          ? Math.max(prev.currentBet, optimisticBet) 
+          : prev.currentBet
+      } : prev);
+
+      // Update player state optimistically
+      setPlayers(prev => prev.map(p => 
+        p.userId === currentPlayer.userId
+          ? {
+              ...p,
+              stack: optimisticStack,
+              currentBet: optimisticBet,
+              isFolded: optimisticIsFolded,
+              isAllIn: optimisticIsAllIn,
+              isCurrentPlayer: false
+            }
+          : {
+              ...p,
+              isCurrentPlayer: p.position === optimisticNextPosition
+            }
+      ));
+    };
+
+    // Apply optimistic updates
+    optimisticUpdates();
 
     try {
-      // Refresh session to ensure we have a valid token
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       if (sessionError || !sessionData?.session?.access_token) {
+        // Revert optimistic update on auth error
+        await fetchGame();
+        await fetchPlayers();
+        setIsActionPending(false);
         toast({
           title: 'Session expired',
           description: 'Please refresh the page to continue playing.',
@@ -507,7 +587,10 @@ export function usePokerGame(tableId: string) {
 
       if (error) {
         console.error('Action error:', error);
-        // Parse error for better messages
+        // Revert optimistic update on error
+        await fetchGame();
+        await fetchPlayers();
+        
         let errorMessage = 'Please try again.';
         if (error.message?.includes('401') || error.message?.includes('session') || error.message?.includes('expired')) {
           errorMessage = 'Session expired. Please refresh the page.';
@@ -521,12 +604,28 @@ export function usePokerGame(tableId: string) {
           description: errorMessage,
           variant: 'destructive'
         });
+        setIsActionPending(false);
         return;
       }
 
-      // Realtime subscription will handle the UI update
+      // Update with server response for accurate turn indicator
+      if (data?.nextPlayerPosition !== undefined) {
+        setGame(prev => prev ? { ...prev, currentPlayerPosition: data.nextPlayerPosition } : prev);
+        setPlayers(prev => prev.map(p => ({
+          ...p,
+          isCurrentPlayer: p.position === data.nextPlayerPosition
+        })));
+      }
+
+      // Clear pending after successful response
+      setIsActionPending(false);
+      
     } catch (err: any) {
       console.error('Action exception:', err);
+      // Revert optimistic update on exception
+      await fetchGame();
+      await fetchPlayers();
+      setIsActionPending(false);
       toast({
         title: 'Action failed',
         description: err?.message || 'Server error. Please try again.',
@@ -548,14 +647,15 @@ export function usePokerGame(tableId: string) {
     init();
   }, [fetchTable, fetchGame, fetchPlayers, fetchMyCards]);
 
-  // Realtime subscriptions - fetch game first, then players to ensure correct turn indicator
+  // Realtime subscriptions
   useEffect(() => {
     let updateDebounce: ReturnType<typeof setTimeout> | null = null;
     let tableDebounce: ReturnType<typeof setTimeout> | null = null;
-    const DEBOUNCE_MS = 100;
+    const DEBOUNCE_MS = 50; // Reduced for faster sync
     
-    // Unified update function to ensure game state is fetched before players
     const handleGameOrPlayerUpdate = async () => {
+      // Don't refetch if action is pending (optimistic update in progress)
+      if (isActionPending) return;
       await fetchGame();
       await fetchPlayers();
       await fetchMyCards();
@@ -582,7 +682,7 @@ export function usePokerGame(tableId: string) {
       if (tableDebounce) clearTimeout(tableDebounce);
       supabase.removeChannel(channel);
     };
-  }, [tableId, fetchGame, fetchPlayers, fetchTable, fetchMyCards]);
+  }, [tableId, fetchGame, fetchPlayers, fetchTable, fetchMyCards, isActionPending]);
 
   return {
     table,
@@ -594,6 +694,7 @@ export function usePokerGame(tableId: string) {
     isJoined,
     isCurrentPlayerTurn,
     turnTimeLeft,
+    isActionPending,
     joinTable,
     leaveTable,
     startHand,
