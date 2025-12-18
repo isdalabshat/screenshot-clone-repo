@@ -131,36 +131,15 @@
     50% { background-position: 100% 50%; }
   }
 
-  /* Card Deal Animation */
+  /* Card Deal Animation - only animate once */
   .card-deal {
-    animation: dealCard 0.3s ease-out forwards;
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 
-  @keyframes dealCard {
-    0% {
-      transform: translateY(-100px) rotateY(180deg) scale(0.5);
-      opacity: 0;
-    }
-    100% {
-      transform: translateY(0) rotateY(0) scale(1);
-      opacity: 1;
-    }
-  }
-
-  /* Chip Stack Animation */
+  /* Chip Stack - static, no animation to prevent loops */
   .chip-stack {
-    animation: stackChip 0.2s ease-out;
-  }
-
-  @keyframes stackChip {
-    0% {
-      transform: translateY(-20px);
-      opacity: 0;
-    }
-    100% {
-      transform: translateY(0);
-      opacity: 1;
-    }
+    opacity: 1;
   }
 
   /* Pulse glow for active player */
