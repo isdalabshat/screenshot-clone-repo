@@ -72,8 +72,8 @@ export function usePokerGame(tableId: string) {
     if (!game) return;
     
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !sessionData?.session?.access_token) return;
 
       await supabase.functions.invoke('poker-game', {
         body: {
@@ -484,11 +484,12 @@ export function usePokerGame(tableId: string) {
     if (!currentGame || !currentPlayer || !isCurrentPlayerTurn) return;
 
     try {
-      const { data: session } = await supabase.auth.getSession();
-      if (!session?.session) {
+      // Refresh session to ensure we have a valid token
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !sessionData?.session?.access_token) {
         toast({
           title: 'Session expired',
-          description: 'Please refresh the page.',
+          description: 'Please refresh the page to continue playing.',
           variant: 'destructive'
         });
         return;
@@ -506,20 +507,29 @@ export function usePokerGame(tableId: string) {
 
       if (error) {
         console.error('Action error:', error);
+        // Parse error for better messages
+        let errorMessage = 'Please try again.';
+        if (error.message?.includes('401') || error.message?.includes('session') || error.message?.includes('expired')) {
+          errorMessage = 'Session expired. Please refresh the page.';
+        } else if (error.message?.includes('turn')) {
+          errorMessage = 'Not your turn.';
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
         toast({
           title: 'Action failed',
-          description: error.message,
+          description: errorMessage,
           variant: 'destructive'
         });
         return;
       }
 
       // Realtime subscription will handle the UI update
-    } catch (err) {
+    } catch (err: any) {
       console.error('Action exception:', err);
       toast({
         title: 'Action failed',
-        description: 'Server error',
+        description: err?.message || 'Server error. Please try again.',
         variant: 'destructive'
       });
     }
@@ -538,41 +548,39 @@ export function usePokerGame(tableId: string) {
     init();
   }, [fetchTable, fetchGame, fetchPlayers, fetchMyCards]);
 
-  // Realtime subscriptions - throttled to prevent cascading updates
+  // Realtime subscriptions - debounced to prevent cascading updates but ensure latest state
   useEffect(() => {
-    let lastGameFetch = 0;
-    let lastPlayerFetch = 0;
-    let lastTableFetch = 0;
-    const THROTTLE_MS = 500;
+    let gameDebounce: ReturnType<typeof setTimeout> | null = null;
+    let playerDebounce: ReturnType<typeof setTimeout> | null = null;
+    let tableDebounce: ReturnType<typeof setTimeout> | null = null;
+    const DEBOUNCE_MS = 150;
     
     const channel = supabase
       .channel(`table-${tableId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter: `table_id=eq.${tableId}` }, () => {
-        const now = Date.now();
-        if (now - lastGameFetch > THROTTLE_MS) {
-          lastGameFetch = now;
+        if (gameDebounce) clearTimeout(gameDebounce);
+        gameDebounce = setTimeout(() => {
           fetchGame();
           fetchMyCards();
-        }
+        }, DEBOUNCE_MS);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'table_players', filter: `table_id=eq.${tableId}` }, () => {
-        const now = Date.now();
-        if (now - lastPlayerFetch > THROTTLE_MS) {
-          lastPlayerFetch = now;
+        if (playerDebounce) clearTimeout(playerDebounce);
+        playerDebounce = setTimeout(() => {
           fetchPlayers();
           fetchMyCards();
-        }
+        }, DEBOUNCE_MS);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'poker_tables', filter: `id=eq.${tableId}` }, () => {
-        const now = Date.now();
-        if (now - lastTableFetch > THROTTLE_MS) {
-          lastTableFetch = now;
-          fetchTable();
-        }
+        if (tableDebounce) clearTimeout(tableDebounce);
+        tableDebounce = setTimeout(fetchTable, DEBOUNCE_MS);
       })
       .subscribe();
 
     return () => {
+      if (gameDebounce) clearTimeout(gameDebounce);
+      if (playerDebounce) clearTimeout(playerDebounce);
+      if (tableDebounce) clearTimeout(tableDebounce);
       supabase.removeChannel(channel);
     };
   }, [tableId, fetchGame, fetchPlayers, fetchTable, fetchMyCards]);
