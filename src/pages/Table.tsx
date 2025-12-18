@@ -16,7 +16,7 @@ export default function Table() {
   const { tableId } = useParams<{ tableId: string }>();
   const navigate = useNavigate();
   const { user, profile, isLoading: authLoading } = useAuth();
-  const { playSound } = useSoundEffects();
+  const { playSound, playDealSequence } = useSoundEffects();
   const { 
     table, 
     game, 
@@ -40,6 +40,7 @@ export default function Table() {
   
   const prevGameStatus = useRef<string | null>(null);
   const prevCurrentPlayer = useRef<string | null>(null);
+  const prevMyCardsLength = useRef<number>(0);
   const autoStartTimeout = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -58,10 +59,21 @@ export default function Table() {
   useEffect(() => {
     if (!soundEnabled || !game) return;
 
+    // Card deal sound when cards are dealt
+    if (myCards.length > 0 && prevMyCardsLength.current === 0) {
+      playDealSequence(2, 200);
+    }
+    prevMyCardsLength.current = myCards.length;
+
     // New round sound
     if (prevGameStatus.current !== game.status) {
       if (['flop', 'turn', 'river'].includes(game.status)) {
-        playSound('deal');
+        playSound('cardFlip');
+        if (game.status === 'flop') {
+          playDealSequence(3, 150);
+        } else {
+          playSound('deal');
+        }
       } else if (game.status === 'showdown') {
         playSound('win');
       }
@@ -76,15 +88,22 @@ export default function Table() {
       }
       prevCurrentPlayer.current = currentTurnPlayer.userId;
     }
-  }, [game?.status, players, soundEnabled, playSound, user?.id]);
+  }, [game?.status, players, soundEnabled, playSound, playDealSequence, user?.id, myCards.length]);
 
-  // Auto-start hands logic - only one player initiates
+  // Auto sit-out when balance is 0
+  useEffect(() => {
+    if (currentPlayer && currentPlayer.stack === 0 && !game) {
+      leaveTable();
+      setShowJoinDialog(true);
+    }
+  }, [currentPlayer?.stack, game, leaveTable]);
+
+  // Auto-start hands logic
   const isStartingRef = useRef(false);
   
   useEffect(() => {
     if (!table || !isJoined || !currentPlayer) return;
 
-    // Only the player at position 0 (or lowest position) triggers auto-start
     const lowestPositionPlayer = players.reduce((lowest, p) => 
       p.position < lowest.position ? p : lowest
     , players[0]);
@@ -102,6 +121,7 @@ export default function Table() {
       isStartingRef.current = true;
       autoStartTimeout.current = setTimeout(async () => {
         try {
+          if (soundEnabled) playSound('shuffle');
           await startHand();
         } catch (e) {
           console.error('Auto-start failed:', e);
@@ -124,7 +144,7 @@ export default function Table() {
         clearTimeout(autoStartTimeout.current);
       }
     };
-  }, [game?.status, players.length, table?.handsPlayed, table?.maxHands, isJoined, autoStarting, startHand, currentPlayer?.position, players]);
+  }, [game?.status, players.length, table?.handsPlayed, table?.maxHands, isJoined, autoStarting, startHand, currentPlayer?.position, players, soundEnabled, playSound]);
 
   // Handle action with sound
   const handleAction = (action: any, amount?: number) => {
@@ -155,20 +175,20 @@ export default function Table() {
   const tableEnded = table.handsPlayed >= table.maxHands;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-emerald-950 to-slate-900 flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 flex flex-col">
       {/* Header */}
       <motion.header 
         initial={{ y: -50 }}
         animate={{ y: 0 }}
-        className="border-b border-emerald-700/30 bg-card/30 backdrop-blur shrink-0"
+        className="border-b border-primary/30 bg-card/30 backdrop-blur shrink-0"
       >
-        <div className="px-2 py-2 flex justify-between items-center">
+        <div className="px-3 py-2 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate('/lobby')}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
-              <h1 className="text-sm font-bold text-emerald-400">{table.name}</h1>
+              <h1 className="text-sm font-bold text-primary">{table.name}</h1>
               <p className="text-[10px] text-muted-foreground">
                 {table.smallBlind}/{table.bigBlind} • Hand {table.handsPlayed}/{table.maxHands}
               </p>
@@ -186,7 +206,7 @@ export default function Table() {
             </Button>
 
             {isJoined && currentPlayer && (
-              <div className="flex items-center gap-1 bg-emerald-900/50 px-2 py-1 rounded-lg">
+              <div className="flex items-center gap-1 bg-black/50 px-2 py-1 rounded-lg border border-yellow-500/30">
                 <Coins className="h-3 w-3 text-yellow-400" />
                 <span className="font-bold text-yellow-400 text-xs">{currentPlayer.stack.toLocaleString()}</span>
               </div>
@@ -195,7 +215,7 @@ export default function Table() {
             {!isJoined ? (
               <Button 
                 size="sm"
-                className="bg-emerald-600 hover:bg-emerald-700 h-8 text-xs"
+                className="bg-primary hover:bg-primary/90 h-8 text-xs"
                 onClick={() => setShowJoinDialog(true)}
                 disabled={tableEnded}
               >
@@ -220,9 +240,9 @@ export default function Table() {
             className="flex flex-col items-center justify-center h-full gap-4"
           >
             <div className="text-4xl">🏆</div>
-            <h2 className="text-2xl font-bold text-emerald-400">Table Complete!</h2>
+            <h2 className="text-2xl font-bold text-primary">Table Complete!</h2>
             <p className="text-muted-foreground">All {table.maxHands} hands have been played.</p>
-            <Button onClick={() => navigate('/lobby')} className="bg-emerald-600 hover:bg-emerald-700">
+            <Button onClick={() => navigate('/lobby')} className="bg-primary hover:bg-primary/90">
               Return to Lobby
             </Button>
           </motion.div>
@@ -241,8 +261,6 @@ export default function Table() {
         )}
       </main>
 
-      {/* Cards are now shown in PlayerSeat component */}
-
       {/* Table Chat */}
       {isJoined && (
         <TableChat
@@ -256,7 +274,7 @@ export default function Table() {
       <motion.div 
         initial={{ y: 50 }}
         animate={{ y: 0 }}
-        className="shrink-0 border-t border-emerald-700/30 bg-slate-900/90 backdrop-blur p-3"
+        className="shrink-0 border-t border-primary/30 bg-slate-900/95 backdrop-blur p-3"
       >
         <div className="flex flex-col items-center gap-2 max-w-sm mx-auto">
           {/* Action Buttons */}
@@ -276,14 +294,17 @@ export default function Table() {
           {canStartHand && !tableEnded && (
             <div className="flex flex-col items-center gap-1 w-full">
               {autoStarting ? (
-                <div className="text-emerald-400 text-sm animate-pulse">
+                <div className="text-primary text-sm animate-pulse">
                   Starting next hand...
                 </div>
               ) : (
                 <Button 
                   size="sm" 
-                  className="bg-emerald-600 hover:bg-emerald-700 w-full"
-                  onClick={startHand}
+                  className="bg-primary hover:bg-primary/90 w-full transition-all hover:scale-[1.02] active:scale-[0.98]"
+                  onClick={() => {
+                    if (soundEnabled) playSound('shuffle');
+                    startHand();
+                  }}
                 >
                   <Play className="h-4 w-4 mr-2" />
                   {game?.status === 'showdown' || game?.status === 'complete' ? 'Deal Next Hand' : 'Start Hand'}
@@ -294,7 +315,7 @@ export default function Table() {
 
           {/* Status messages */}
           {isJoined && players.length < 2 && (
-            <p className="text-muted-foreground text-xs text-center">Waiting for more players... (auto-start paused)</p>
+            <p className="text-muted-foreground text-xs text-center">Waiting for more players...</p>
           )}
 
           {!isJoined && !tableEnded && (
@@ -305,7 +326,7 @@ export default function Table() {
             <motion.p 
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
-              className="text-emerald-400 font-bold text-sm"
+              className="text-primary font-bold text-sm"
             >
               🎉 Showdown!
             </motion.p>
@@ -336,12 +357,17 @@ export default function Table() {
             <p className="text-sm text-muted-foreground">
               Your balance: {profile?.chips.toLocaleString()} chips
             </p>
+            {(profile?.chips || 0) < table.bigBlind * 20 && (
+              <p className="text-sm text-destructive">
+                Insufficient balance. Request a cash-in from the lobby.
+              </p>
+            )}
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setShowJoinDialog(false)}>
                 Cancel
               </Button>
               <Button 
-                className="bg-emerald-600 hover:bg-emerald-700 flex-1"
+                className="bg-primary hover:bg-primary/90 flex-1"
                 onClick={() => {
                   if (soundEnabled) playSound('chip');
                   joinTable(buyInAmount);

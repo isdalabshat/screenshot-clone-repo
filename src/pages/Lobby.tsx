@@ -5,14 +5,23 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, Coins, LogOut, Shield } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Users, Coins, LogOut, Shield, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 import { PokerTable } from '@/types/poker';
+import { useToast } from '@/hooks/use-toast';
+import { motion } from 'framer-motion';
 
 export default function Lobby() {
   const navigate = useNavigate();
   const { user, profile, signOut, isLoading } = useAuth();
+  const { toast } = useToast();
   const [tables, setTables] = useState<PokerTable[]>([]);
   const [playerCounts, setPlayerCounts] = useState<Record<string, number>>({});
+  const [cashAmount, setCashAmount] = useState(1000);
+  const [showCashIn, setShowCashIn] = useState(false);
+  const [showCashOut, setShowCashOut] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -80,6 +89,30 @@ export default function Lobby() {
     navigate('/auth');
   };
 
+  const handleCashRequest = async (type: 'cash_in' | 'cash_out') => {
+    if (!user || cashAmount <= 0) return;
+
+    const { error } = await supabase
+      .from('cash_requests')
+      .insert({
+        user_id: user.id,
+        request_type: type,
+        amount: cashAmount
+      });
+
+    if (error) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } else {
+      toast({ 
+        title: 'Request Submitted', 
+        description: `Your ${type === 'cash_in' ? 'cash in' : 'cash out'} request for ${cashAmount} chips has been submitted for admin approval.` 
+      });
+      setShowCashIn(false);
+      setShowCashOut(false);
+      setCashAmount(1000);
+    }
+  };
+
   if (isLoading || !profile) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -89,21 +122,89 @@ export default function Lobby() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-900 via-background to-emerald-950">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-background to-slate-950">
       {/* Header */}
-      <header className="border-b border-emerald-700/30 bg-card/50 backdrop-blur sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+      <header className="border-b border-primary/30 bg-card/50 backdrop-blur sticky top-0 z-10">
+        <div className="container mx-auto px-4 py-4 flex justify-between items-center flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <span className="text-4xl">🃏</span>
-            <h1 className="text-2xl font-bold text-emerald-400">Texas Hold'em</h1>
+            <div>
+              <h1 className="text-2xl font-bold text-primary">JD Club</h1>
+              <p className="text-xs text-muted-foreground">Texas Hold'em</p>
+            </div>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 bg-emerald-900/50 px-4 py-2 rounded-lg">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2 bg-black/50 px-4 py-2 rounded-lg border border-yellow-500/30">
               <Coins className="h-5 w-5 text-yellow-400" />
               <span className="font-bold text-yellow-400">{profile.chips.toLocaleString()}</span>
             </div>
-            <div className="text-muted-foreground">
-              Welcome, <span className="text-foreground font-medium">{profile.username}</span>
+            
+            {/* Cash In/Out Buttons */}
+            <Dialog open={showCashIn} onOpenChange={setShowCashIn}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="border-green-500/50 text-green-400 hover:bg-green-500/10">
+                  <ArrowDownCircle className="h-4 w-4 mr-1" />
+                  Cash In
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Cash In Request</DialogTitle>
+                  <DialogDescription>Request chips to be added to your account. Admin approval required.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label>Amount</Label>
+                    <Input
+                      type="number"
+                      value={cashAmount}
+                      onChange={(e) => setCashAmount(parseInt(e.target.value) || 0)}
+                      min={100}
+                    />
+                  </div>
+                  <Button onClick={() => handleCashRequest('cash_in')} className="w-full bg-green-600 hover:bg-green-700">
+                    Submit Request
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={showCashOut} onOpenChange={setShowCashOut}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="border-orange-500/50 text-orange-400 hover:bg-orange-500/10">
+                  <ArrowUpCircle className="h-4 w-4 mr-1" />
+                  Cash Out
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Cash Out Request</DialogTitle>
+                  <DialogDescription>Request to withdraw chips from your account. Admin approval required.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label>Amount (Max: {profile.chips})</Label>
+                    <Input
+                      type="number"
+                      value={cashAmount}
+                      onChange={(e) => setCashAmount(Math.min(parseInt(e.target.value) || 0, profile.chips))}
+                      min={100}
+                      max={profile.chips}
+                    />
+                  </div>
+                  <Button 
+                    onClick={() => handleCashRequest('cash_out')} 
+                    className="w-full bg-orange-600 hover:bg-orange-700"
+                    disabled={cashAmount > profile.chips}
+                  >
+                    Submit Request
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            <div className="text-muted-foreground text-sm">
+              <span className="text-foreground font-medium">{profile.username}</span>
             </div>
             {profile.isAdmin && (
               <Button
@@ -112,7 +213,7 @@ export default function Lobby() {
                 onClick={() => navigate('/admin')}
                 className="border-amber-500/50 text-amber-400 hover:bg-amber-500/10"
               >
-                <Shield className="h-4 w-4 mr-2" />
+                <Shield className="h-4 w-4 mr-1" />
                 Admin
               </Button>
             )}
@@ -125,57 +226,67 @@ export default function Lobby() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
-        <div className="mb-8">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8"
+        >
           <h2 className="text-3xl font-bold mb-2">Game Lobby</h2>
           <p className="text-muted-foreground">Choose a table to join and start playing!</p>
-        </div>
+        </motion.div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {tables.map((table) => (
-            <Card 
-              key={table.id} 
-              className="border-emerald-700/30 bg-card/80 backdrop-blur hover:border-emerald-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/10"
+          {tables.map((table, i) => (
+            <motion.div
+              key={table.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1 }}
             >
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="text-xl text-emerald-400">{table.name}</CardTitle>
-                    <CardDescription>
-                      Blinds: {table.smallBlind}/{table.bigBlind}
-                    </CardDescription>
+              <Card 
+                className="border-primary/30 bg-card/80 backdrop-blur hover:border-primary/50 transition-all duration-300 hover:shadow-lg hover:shadow-primary/10"
+              >
+                <CardHeader>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <CardTitle className="text-xl text-primary">{table.name}</CardTitle>
+                      <CardDescription>
+                        Blinds: {table.smallBlind}/{table.bigBlind}
+                      </CardDescription>
+                    </div>
+                    <Badge variant="secondary" className="bg-primary/20 text-primary">
+                      <Users className="h-3 w-3 mr-1" />
+                      {playerCounts[table.id] || 0}/{table.maxPlayers}
+                    </Badge>
                   </div>
-                  <Badge variant="secondary" className="bg-emerald-900/50">
-                    <Users className="h-3 w-3 mr-1" />
-                    {playerCounts[table.id] || 0}/{table.maxPlayers}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex justify-between text-sm text-muted-foreground">
-                    <span>Hands played:</span>
-                    <span>{table.handsPlayed}/{table.maxHands}</span>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex justify-between text-sm text-muted-foreground">
+                      <span>Hands played:</span>
+                      <span>{table.handsPlayed}/{table.maxHands}</span>
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-2">
+                      <div 
+                        className="bg-primary h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${(table.handsPlayed / table.maxHands) * 100}%` }}
+                      />
+                    </div>
+                    <Button 
+                      className="w-full bg-primary hover:bg-primary/90 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                      onClick={() => handleJoinTable(table.id)}
+                      disabled={(playerCounts[table.id] || 0) >= table.maxPlayers}
+                    >
+                      {(playerCounts[table.id] || 0) >= table.maxPlayers ? 'Table Full' : 'Join Table'}
+                    </Button>
                   </div>
-                  <div className="w-full bg-muted rounded-full h-2">
-                    <div 
-                      className="bg-emerald-500 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${(table.handsPlayed / table.maxHands) * 100}%` }}
-                    />
-                  </div>
-                  <Button 
-                    className="w-full bg-emerald-600 hover:bg-emerald-700"
-                    onClick={() => handleJoinTable(table.id)}
-                    disabled={(playerCounts[table.id] || 0) >= table.maxPlayers}
-                  >
-                    {(playerCounts[table.id] || 0) >= table.maxPlayers ? 'Table Full' : 'Join Table'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </motion.div>
           ))}
 
           {tables.length === 0 && (
-            <Card className="col-span-full border-dashed border-emerald-700/30 bg-transparent">
+            <Card className="col-span-full border-dashed border-primary/30 bg-transparent">
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <span className="text-6xl mb-4">🎴</span>
                 <p className="text-muted-foreground text-lg">No tables available</p>

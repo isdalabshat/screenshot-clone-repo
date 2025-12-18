@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { ActionType } from '@/types/poker';
+import { cn } from '@/lib/utils';
+import { motion } from 'framer-motion';
 
 interface ActionButtonsProps {
   currentBet: number;
@@ -28,119 +30,130 @@ export default function ActionButtons({
   
   const [betAmount, setBetAmount] = useState(minRaise);
 
-  // Reset bet amount when turn changes or bet changes
   useEffect(() => {
     setBetAmount(Math.min(minRaise, maxBet));
   }, [minRaise, maxBet, currentBet]);
 
   if (!isCurrentPlayer) {
     return (
-      <div className="bg-card/80 backdrop-blur border border-border rounded-lg p-6 text-center">
-        <p className="text-muted-foreground text-lg">Waiting for other players...</p>
-      </div>
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="text-muted-foreground text-xs text-center py-2"
+      >
+        Waiting for your turn...
+      </motion.div>
     );
   }
 
   const canRaise = playerStack > callAmount && maxBet > minRaise;
 
   return (
-    <div className="bg-card/90 backdrop-blur border border-emerald-700/50 rounded-xl p-6 space-y-4 shadow-2xl">
-      <div className="text-center mb-4">
-        <p className="text-emerald-400 font-bold text-lg">Your Turn!</p>
-        <p className="text-muted-foreground text-sm">Choose your action</p>
-      </div>
-
-      <div className="flex gap-3 justify-center flex-wrap">
-        <Button 
-          variant="destructive" 
+    <motion.div 
+      initial={{ y: 20, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      className="flex flex-col gap-3 w-full"
+    >
+      {/* Main action buttons */}
+      <div className="grid grid-cols-3 gap-2">
+        <Button
+          variant="destructive"
+          size="sm"
           onClick={() => onAction('fold')}
-          className="px-6 py-3 text-lg font-bold"
-          size="lg"
+          className="font-bold text-xs h-10 transition-all hover:scale-105 active:scale-95"
         >
-          Fold
+          FOLD
         </Button>
         
         {canCheck ? (
-          <Button 
-            variant="secondary" 
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => onAction('check')}
-            className="px-6 py-3 text-lg font-bold"
-            size="lg"
+            className="font-bold text-xs h-10 bg-blue-600 hover:bg-blue-700 text-white transition-all hover:scale-105 active:scale-95"
           >
-            Check
+            CHECK
           </Button>
-        ) : callAmount > 0 && (
-          <Button 
-            variant="secondary" 
+        ) : (
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => onAction('call')}
             disabled={callAmount > playerStack}
-            className="px-6 py-3 text-lg font-bold"
-            size="lg"
+            className="font-bold text-xs h-10 bg-blue-600 hover:bg-blue-700 text-white transition-all hover:scale-105 active:scale-95"
           >
-            Call {callAmount}
+            CALL {callAmount}
           </Button>
         )}
         
-        {canRaise && (
-          <Button 
-            className="bg-emerald-600 hover:bg-emerald-700 px-6 py-3 text-lg font-bold"
-            onClick={() => onAction(currentBet === 0 ? 'bet' : 'raise', betAmount)}
-            size="lg"
-          >
-            {currentBet === 0 ? 'Bet' : 'Raise to'} {betAmount}
-          </Button>
-        )}
-        
-        <Button 
-          variant="outline" 
+        <Button
+          variant="default"
+          size="sm"
           onClick={() => onAction('all_in')}
-          className="px-6 py-3 border-2 border-red-500 text-red-500 hover:bg-red-500 hover:text-white text-lg font-bold"
-          size="lg"
+          className="font-bold text-xs h-10 bg-red-600 hover:bg-red-700 transition-all hover:scale-105 active:scale-95"
         >
-          All In ({playerStack})
+          ALL IN
         </Button>
       </div>
 
+      {/* Raise section */}
       {canRaise && (
-        <div className="space-y-3 pt-4 border-t border-border/50">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Bet/Raise amount:</span>
-            <span className="font-bold text-emerald-400 text-lg">{betAmount}</span>
+        <div className="bg-card/80 backdrop-blur-sm rounded-xl p-3 border border-border/50">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-medium text-muted-foreground">Raise to:</span>
+            <span className="text-sm font-bold text-primary">{betAmount}</span>
           </div>
           <Slider
             value={[betAmount]}
             onValueChange={([value]) => setBetAmount(value)}
-            min={minRaise}
+            min={Math.min(minRaise, maxBet)}
             max={maxBet}
             step={bigBlind}
-            className="w-full"
+            className="mb-3"
           />
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>Min: {minRaise}</span>
-            <div className="flex gap-2">
-              <button 
-                onClick={() => setBetAmount(Math.min(minRaise * 2, maxBet))}
-                className="px-2 py-1 bg-muted rounded hover:bg-muted/80"
-              >
-                2x
-              </button>
-              <button 
-                onClick={() => setBetAmount(Math.min(minRaise * 3, maxBet))}
-                className="px-2 py-1 bg-muted rounded hover:bg-muted/80"
-              >
-                3x
-              </button>
-              <button 
-                onClick={() => setBetAmount(Math.floor(maxBet / 2))}
-                className="px-2 py-1 bg-muted rounded hover:bg-muted/80"
-              >
-                1/2 Pot
-              </button>
-            </div>
-            <span>Max: {maxBet}</span>
+          <div className="grid grid-cols-4 gap-1.5 mb-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setBetAmount(Math.min(minRaise, maxBet))}
+              className="text-[10px] h-7 transition-all hover:scale-105"
+            >
+              Min
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setBetAmount(Math.min(Math.floor(maxBet * 0.33), maxBet))}
+              className="text-[10px] h-7 transition-all hover:scale-105"
+            >
+              1/3 Pot
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setBetAmount(Math.min(Math.floor(maxBet * 0.5), maxBet))}
+              className="text-[10px] h-7 transition-all hover:scale-105"
+            >
+              1/2 Pot
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setBetAmount(maxBet)}
+              className="text-[10px] h-7 transition-all hover:scale-105"
+            >
+              Max
+            </Button>
           </div>
+          <Button
+            className="w-full font-bold text-sm h-10 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all hover:scale-[1.02] active:scale-[0.98]"
+            onClick={() => onAction(currentBet === 0 ? 'bet' : 'raise', betAmount)}
+            disabled={betAmount > maxBet}
+          >
+            {currentBet === 0 ? 'BET' : 'RAISE TO'} {betAmount}
+          </Button>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }

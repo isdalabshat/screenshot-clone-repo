@@ -26,7 +26,6 @@ const getVisibleCards = (status: Game['status'] | undefined): number => {
   }
 };
 
-// Rotate positions so current user is always at position 0 (bottom center)
 const getRotatedPosition = (actualPosition: number, userPosition: number): number => {
   const offset = userPosition;
   return (actualPosition - offset + 9) % 9;
@@ -43,11 +42,9 @@ export default function PokerTableComponent({
   maxHands = 50,
   myCards = []
 }: PokerTableProps) {
-  // Find current user's actual position
   const currentUserPlayer = players.find(p => p.userId === currentUserId);
   const userPosition = currentUserPlayer?.position ?? 0;
 
-  // Create rotated seats array for perspective view
   const seats: (Player | undefined)[] = Array(9).fill(undefined);
   players.forEach(player => {
     if (player.position >= 0 && player.position < 9) {
@@ -61,24 +58,35 @@ export default function PokerTableComponent({
   const currentTurnPlayer = players.find(p => p.isCurrentPlayer);
 
   return (
-    <div className="relative w-full max-w-sm mx-auto aspect-[3/4]">
-      {/* Table Surface */}
+    <div className="relative w-full max-w-md mx-auto aspect-[3/4]">
+      {/* Table Surface with Premium Felt */}
       <motion.div 
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="absolute inset-4 rounded-[45%/35%] bg-gradient-to-br from-emerald-800 via-emerald-700 to-emerald-900 border-[8px] border-amber-900 shadow-2xl"
+        className="absolute inset-6 rounded-[50%/40%] poker-felt border-[10px] border-amber-900/90 shadow-2xl shadow-black/50"
+        style={{
+          boxShadow: 'inset 0 0 60px rgba(0,0,0,0.4), 0 0 40px rgba(0,0,0,0.5)'
+        }}
       >
-        {/* Table felt pattern */}
-        <div className="absolute inset-0 rounded-[45%/35%] opacity-10 bg-[radial-gradient(circle_at_50%_50%,transparent_0%,rgba(0,0,0,0.3)_100%)]" />
+        {/* Table Rail Highlight */}
+        <div className="absolute -inset-[10px] rounded-[50%/40%] border-4 border-amber-700/30 pointer-events-none" />
         
+        {/* Inner felt pattern */}
+        <div className="absolute inset-0 rounded-[50%/40%] opacity-20 bg-[radial-gradient(circle_at_50%_30%,transparent_0%,rgba(0,0,0,0.4)_100%)]" />
+        
+        {/* JD Club Logo */}
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 text-primary/30 font-bold text-lg tracking-widest">
+          JD CLUB
+        </div>
+
         {/* Center area */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 pt-8">
           {/* Hand counter */}
-          <div className="bg-black/40 px-2 py-0.5 rounded text-[10px] text-emerald-300">
+          <div className="bg-black/50 px-3 py-1 rounded-full text-[10px] text-primary font-medium border border-primary/30">
             Hand {handsPlayed}/{maxHands}
           </div>
 
-          {/* Current turn indicator with animation */}
+          {/* Current turn indicator */}
           <AnimatePresence mode="wait">
             {currentTurnPlayer && gameStatus && gameStatus !== 'waiting' && gameStatus !== 'complete' && (
               <motion.div
@@ -89,8 +97,8 @@ export default function PokerTableComponent({
                 className={cn(
                   'px-4 py-1.5 rounded-full text-xs font-bold shadow-lg',
                   turnTimeLeft !== null && turnTimeLeft <= 10 
-                    ? 'bg-red-600 text-white animate-pulse' 
-                    : 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white'
+                    ? 'bg-destructive text-destructive-foreground animate-pulse' 
+                    : 'bg-gradient-to-r from-primary to-primary/80 text-primary-foreground'
                 )}
               >
                 🎯 {currentTurnPlayer.username}'s Turn
@@ -108,31 +116,33 @@ export default function PokerTableComponent({
 
           {/* Pot display */}
           <motion.div 
-            animate={{ scale: pot > 0 ? [1, 1.05, 1] : 1 }}
+            animate={{ scale: pot > 0 ? [1, 1.03, 1] : 1 }}
             transition={{ duration: 0.3 }}
-            className="bg-black/60 px-4 py-2 rounded-full backdrop-blur-sm border border-yellow-500/40 shadow-lg"
+            className="bg-black/70 px-5 py-2 rounded-full backdrop-blur-sm border border-yellow-500/50 shadow-lg shadow-yellow-500/20"
           >
-            <span className="text-yellow-400 font-bold text-lg flex items-center gap-1">
-              💰 {pot.toLocaleString()}
+            <span className="text-yellow-400 font-bold text-xl flex items-center gap-2">
+              <span className="text-2xl">💰</span>
+              {pot.toLocaleString()}
             </span>
           </motion.div>
 
           {/* Community Cards */}
-          <div className="flex gap-1 flex-wrap justify-center max-w-[200px]">
+          <div className="flex gap-1.5 flex-wrap justify-center max-w-[220px] min-h-[56px]">
             {[0, 1, 2, 3, 4].map((i) => (
               <motion.div 
                 key={i}
-                initial={{ rotateY: 180, opacity: 0 }}
+                initial={{ rotateY: 180, opacity: 0, y: -50 }}
                 animate={{ 
                   rotateY: i < visibleCardCount && communityCards[i] ? 0 : 180,
-                  opacity: i < visibleCardCount && communityCards[i] ? 1 : 0.3
+                  opacity: i < visibleCardCount && communityCards[i] ? 1 : 0.2,
+                  y: 0
                 }}
-                transition={{ duration: 0.4, delay: i * 0.1 }}
+                transition={{ duration: 0.5, delay: i * 0.15, type: 'spring' }}
               >
                 {i < visibleCardCount && communityCards[i] ? (
                   <PlayingCard card={communityCards[i]} size="sm" />
                 ) : (
-                  <div className="w-8 h-12 rounded border border-dashed border-emerald-500/30" />
+                  <div className="w-9 h-13 rounded border border-dashed border-primary/20 bg-black/20" />
                 )}
               </motion.div>
             ))}
@@ -143,7 +153,7 @@ export default function PokerTableComponent({
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="bg-emerald-900/80 px-3 py-1 rounded-full text-emerald-300 text-xs font-semibold uppercase tracking-wider border border-emerald-500/30"
+              className="bg-black/60 px-4 py-1 rounded-full text-primary text-xs font-bold uppercase tracking-wider border border-primary/30"
             >
               {gameStatus}
             </motion.div>
@@ -151,7 +161,7 @@ export default function PokerTableComponent({
         </div>
       </motion.div>
 
-      {/* Player Seats - Position 0 is always current user (bottom center) */}
+      {/* Player Seats */}
       {seats.map((player, displayPosition) => (
         <PlayerSeat
           key={displayPosition}
