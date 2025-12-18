@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      cash_requests: {
+        Row: {
+          admin_notes: string | null
+          amount: number
+          created_at: string
+          id: string
+          processed_at: string | null
+          processed_by: string | null
+          request_type: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          amount: number
+          created_at?: string
+          id?: string
+          processed_at?: string | null
+          processed_by?: string | null
+          request_type: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          amount?: number
+          created_at?: string
+          id?: string
+          processed_at?: string | null
+          processed_by?: string | null
+          request_type?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       chat_messages: {
         Row: {
           created_at: string
@@ -42,6 +78,51 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "chat_messages_table_id_fkey"
+            columns: ["table_id"]
+            isOneToOne: false
+            referencedRelation: "poker_tables"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      collected_fees: {
+        Row: {
+          big_blind: number
+          created_at: string
+          fee_amount: number
+          game_id: string
+          id: string
+          pot_size: number
+          table_id: string
+        }
+        Insert: {
+          big_blind?: number
+          created_at?: string
+          fee_amount?: number
+          game_id: string
+          id?: string
+          pot_size?: number
+          table_id: string
+        }
+        Update: {
+          big_blind?: number
+          created_at?: string
+          fee_amount?: number
+          game_id?: string
+          id?: string
+          pot_size?: number
+          table_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "collected_fees_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "collected_fees_table_id_fkey"
             columns: ["table_id"]
             isOneToOne: false
             referencedRelation: "poker_tables"
