@@ -13,7 +13,7 @@ interface Card {
 
 interface SidePot {
   amount: number;
-  eligiblePlayers: string[]; // user_ids
+  eligiblePlayers: string[];
   allInAmount: number;
 }
 
@@ -181,27 +181,15 @@ function calculateFee(pot: number, bigBlind: number, gameStatus: string): number
 }
 
 // Calculate side pots when players are all-in with different amounts
-function calculateSidePots(players: any[]): SidePot[] {
+function calculateSidePots(players: any[], totalPot: number): SidePot[] {
   const activePlayers = players.filter(p => !p.is_folded);
   if (activePlayers.length === 0) return [];
   
-  // Get all unique contribution levels (total bet amounts)
-  const contributions = activePlayers.map(p => ({
-    userId: p.user_id,
-    totalContribution: p.current_bet,
-    isAllIn: p.is_all_in
-  })).sort((a, b) => a.totalContribution - b.totalContribution);
+  // Get all unique contribution levels sorted
+  const allInPlayers = activePlayers.filter(p => p.is_all_in);
   
-  // Get unique all-in amounts
-  const allInAmounts = [...new Set(
-    contributions
-      .filter(c => c.isAllIn)
-      .map(c => c.totalContribution)
-  )].sort((a, b) => a - b);
-  
-  if (allInAmounts.length === 0) {
-    // No all-ins, single main pot
-    const totalPot = contributions.reduce((sum, c) => sum + c.totalContribution, 0);
+  if (allInPlayers.length === 0) {
+    // No side pots needed - single main pot
     return [{
       amount: totalPot,
       eligiblePlayers: activePlayers.map(p => p.user_id),
@@ -209,17 +197,21 @@ function calculateSidePots(players: any[]): SidePot[] {
     }];
   }
   
+  // Get unique all-in amounts sorted
+  const allInAmounts = [...new Set(allInPlayers.map(p => p.total_invested || p.current_bet))].sort((a, b) => a - b);
+  
   const sidePots: SidePot[] = [];
   let previousLevel = 0;
+  let remainingPot = totalPot;
   
   for (const allInAmount of allInAmounts) {
-    const contributionForThisPot = allInAmount - previousLevel;
     const eligiblePlayers = activePlayers
-      .filter(p => p.current_bet >= allInAmount)
+      .filter(p => (p.total_invested || p.current_bet) >= allInAmount)
       .map(p => p.user_id);
     
-    // Each eligible player contributes (allInAmount - previousLevel) to this pot
-    const potAmount = contributionForThisPot * activePlayers.filter(p => p.current_bet >= allInAmount || p.current_bet > previousLevel).length;
+    const contributionLevel = allInAmount - previousLevel;
+    const contributorsCount = activePlayers.filter(p => (p.total_invested || p.current_bet) > previousLevel).length;
+    const potAmount = Math.min(contributionLevel * contributorsCount, remainingPot);
     
     if (potAmount > 0 && eligiblePlayers.length > 0) {
       sidePots.push({
@@ -227,25 +219,24 @@ function calculateSidePots(players: any[]): SidePot[] {
         eligiblePlayers,
         allInAmount
       });
+      remainingPot -= potAmount;
     }
     
     previousLevel = allInAmount;
   }
   
-  // Main pot for remaining amounts above highest all-in
-  const maxAllIn = Math.max(...allInAmounts);
-  const remainingPlayers = activePlayers.filter(p => p.current_bet > maxAllIn && !p.is_all_in);
-  if (remainingPlayers.length > 0) {
-    const remainingContributions = activePlayers
-      .filter(p => p.current_bet > maxAllIn)
-      .reduce((sum, p) => sum + (p.current_bet - maxAllIn), 0);
-    
-    if (remainingContributions > 0) {
+  // Remaining pot for non-all-in players
+  if (remainingPot > 0) {
+    const nonAllInPlayers = activePlayers.filter(p => !p.is_all_in);
+    if (nonAllInPlayers.length > 0) {
       sidePots.push({
-        amount: remainingContributions,
-        eligiblePlayers: remainingPlayers.map(p => p.user_id),
+        amount: remainingPot,
+        eligiblePlayers: nonAllInPlayers.map(p => p.user_id),
         allInAmount: 0
       });
+    } else if (sidePots.length > 0) {
+      // Add remaining to last pot
+      sidePots[sidePots.length - 1].amount += remainingPot;
     }
   }
   
@@ -276,12 +267,12 @@ function distributePotWithSidePots(
     hand: evaluateHand(p.hole_cards || [], communityCards)
   }));
   
-  // Calculate side pots
-  const sidePots = calculateSidePots(activePlayers);
-  
-  // Calculate total fee on the total pot
+  // Calculate total fee
   const fee = calculateFee(totalPot, bigBlind, gameStatus);
-  const feePerPot = sidePots.length > 0 ? fee / sidePots.length : 0;
+  const potAfterFee = totalPot - fee;
+  
+  // Calculate side pots
+  const sidePots = calculateSidePots(activePlayers, potAfterFee);
   
   const distributions: Map<string, number> = new Map();
   
@@ -304,9 +295,8 @@ function distributePotWithSidePots(
       compareKickers(ph.hand.kickers, bestHand.kickers) === 0
     );
     
-    // Distribute this side pot among winners, minus proportional fee
-    const potAfterFee = sidePot.amount - Math.floor(feePerPot);
-    const winAmount = Math.floor(potAfterFee / winners.length);
+    // Distribute this side pot among winners
+    const winAmount = Math.floor(sidePot.amount / winners.length);
     
     for (const winner of winners) {
       const current = distributions.get(winner.player.id) || 0;
@@ -423,13 +413,14 @@ serve(async (req) => {
       let sbIdx: number, bbIdx: number, firstToActIdx: number;
       
       if (numPlayers === 2) {
+        // Heads-up: dealer is SB, other is BB, dealer acts first preflop
         sbIdx = dealerIdx;
         bbIdx = (dealerIdx + 1) % numPlayers;
-        firstToActIdx = sbIdx;
+        firstToActIdx = sbIdx; // Dealer/SB acts first preflop in heads-up
       } else {
         sbIdx = (dealerIdx + 1) % numPlayers;
         bbIdx = (dealerIdx + 2) % numPlayers;
-        firstToActIdx = (bbIdx + 1) % numPlayers;
+        firstToActIdx = (bbIdx + 1) % numPlayers; // UTG acts first preflop
       }
 
       const firstToActPosition = sortedPlayers[firstToActIdx].position;
@@ -465,24 +456,27 @@ serve(async (req) => {
       const bbPlayer = sortedPlayers[bbIdx];
       let potTotal = 0;
 
+      // Post blinds
       const sbAmount = Math.min(tableData.small_blind, sbPlayer.stack);
+      const sbAllIn = sbPlayer.stack <= tableData.small_blind;
       await supabase
         .from('table_players')
         .update({
           stack: sbPlayer.stack - sbAmount,
           current_bet: sbAmount,
-          is_all_in: sbPlayer.stack <= tableData.small_blind
+          is_all_in: sbAllIn
         })
         .eq('id', sbPlayer.id);
       potTotal += sbAmount;
 
       const bbAmount = Math.min(tableData.big_blind, bbPlayer.stack);
+      const bbAllIn = bbPlayer.stack <= tableData.big_blind;
       await supabase
         .from('table_players')
         .update({
           stack: bbPlayer.stack - bbAmount,
           current_bet: bbAmount,
-          is_all_in: bbPlayer.stack <= tableData.big_blind
+          is_all_in: bbAllIn
         })
         .eq('id', bbPlayer.id);
       potTotal += bbAmount;
@@ -517,7 +511,7 @@ serve(async (req) => {
         .update({ hands_played: tableData.hands_played + 1 })
         .eq('id', tableId);
 
-      console.log(`Hand started. Table ${tableId}, Game ${newGame.id}, Hands played: ${tableData.hands_played + 1}`);
+      console.log(`Hand started. Table ${tableId}, Game ${newGame.id}, Dealer: ${newDealerPosition}, First: ${firstToActPosition}`);
 
       return new Response(JSON.stringify({
         success: true,
@@ -525,7 +519,9 @@ serve(async (req) => {
         yourCards: playerCards[user.id] || [],
         handsPlayed: tableData.hands_played + 1,
         currentPlayerPosition: firstToActPosition,
-        dealerPosition: newDealerPosition
+        dealerPosition: newDealerPosition,
+        pot: potTotal,
+        currentBet: tableData.big_blind
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
@@ -548,6 +544,7 @@ serve(async (req) => {
     }
 
     if (action === 'perform_action') {
+      // Fetch game with latest state
       const { data: game } = await supabase
         .from('games')
         .select('*')
@@ -561,6 +558,13 @@ serve(async (req) => {
         });
       }
 
+      if (game.status === 'complete' || game.status === 'showdown') {
+        return new Response(JSON.stringify({ error: 'Game already finished' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
       const { data: currentPlayer } = await supabase
         .from('table_players')
         .select('*')
@@ -569,8 +573,26 @@ serve(async (req) => {
         .eq('is_active', true)
         .maybeSingle();
 
-      if (!currentPlayer || currentPlayer.position !== game.current_player_position) {
-        return new Response(JSON.stringify({ error: 'Not your turn', yourPosition: currentPlayer?.position, currentPosition: game.current_player_position }), {
+      if (!currentPlayer) {
+        return new Response(JSON.stringify({ error: 'Player not found at table' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (currentPlayer.position !== game.current_player_position) {
+        return new Response(JSON.stringify({ 
+          error: 'Not your turn', 
+          yourPosition: currentPlayer.position, 
+          currentPosition: game.current_player_position 
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (currentPlayer.is_folded) {
+        return new Response(JSON.stringify({ error: 'You have already folded' }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
@@ -594,13 +616,18 @@ serve(async (req) => {
       let newPot = game.pot;
       let newCurrentBet = game.current_bet;
       let isFolded = false;
-      let isAllIn = false;
+      let isAllIn = currentPlayer.is_all_in;
+      const amountToCall = game.current_bet - currentPlayer.current_bet;
+
+      console.log(`Action ${actionType} from ${user.id}, stack: ${newStack}, currentBet: ${newBet}, gameBet: ${game.current_bet}, pot: ${newPot}`);
 
       switch (actionType) {
         case 'fold':
           isFolded = true;
           break;
+          
         case 'check':
+          // Can only check if current bet equals player's bet (or BB preflop option)
           if (game.current_bet > currentPlayer.current_bet) {
             return new Response(JSON.stringify({ error: 'Cannot check, must call or raise' }), {
               status: 400,
@@ -608,17 +635,37 @@ serve(async (req) => {
             });
           }
           break;
+          
         case 'call': {
-          const callAmount = Math.min(game.current_bet - currentPlayer.current_bet, currentPlayer.stack);
+          const callAmount = Math.min(amountToCall, currentPlayer.stack);
+          if (callAmount <= 0) {
+            // Nothing to call, treat as check
+            break;
+          }
           newStack -= callAmount;
           newBet += callAmount;
           newPot += callAmount;
           if (newStack === 0) isAllIn = true;
           break;
         }
-        case 'bet':
-        case 'raise': {
-          const betAmount = amount || game.current_bet * 2;
+        
+        case 'bet': {
+          // Bet is only valid when no one has bet yet (current_bet is 0 or equal to BB preflop)
+          if (game.current_bet > 0 && game.status !== 'preflop') {
+            return new Response(JSON.stringify({ error: 'Cannot bet, there is already a bet. Use raise instead.' }), {
+              status: 400,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+          
+          const betAmount = amount || tableData.big_blind;
+          if (betAmount < tableData.big_blind) {
+            return new Response(JSON.stringify({ error: `Minimum bet is ${tableData.big_blind}` }), {
+              status: 400,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+          
           const totalBet = betAmount - currentPlayer.current_bet;
           if (totalBet > currentPlayer.stack) {
             return new Response(JSON.stringify({ error: 'Not enough chips' }), {
@@ -626,6 +673,7 @@ serve(async (req) => {
               headers: { ...corsHeaders, 'Content-Type': 'application/json' }
             });
           }
+          
           newStack -= totalBet;
           newBet = betAmount;
           newPot += totalBet;
@@ -633,16 +681,56 @@ serve(async (req) => {
           if (newStack === 0) isAllIn = true;
           break;
         }
-        case 'all_in':
-          newPot += newStack;
-          newBet += newStack;
-          if (newBet > newCurrentBet) newCurrentBet = newBet;
+        
+        case 'raise': {
+          const raiseAmount = amount || (game.current_bet * 2);
+          const minRaise = game.current_bet + tableData.big_blind; // Min raise is current bet + big blind
+          
+          // Allow smaller raise only if going all-in
+          if (raiseAmount < minRaise && raiseAmount < currentPlayer.stack + currentPlayer.current_bet) {
+            return new Response(JSON.stringify({ error: `Minimum raise is ${minRaise}` }), {
+              status: 400,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+          
+          const totalBet = raiseAmount - currentPlayer.current_bet;
+          if (totalBet > currentPlayer.stack) {
+            return new Response(JSON.stringify({ error: 'Not enough chips' }), {
+              status: 400,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+          
+          newStack -= totalBet;
+          newBet = raiseAmount;
+          newPot += totalBet;
+          newCurrentBet = raiseAmount;
+          if (newStack === 0) isAllIn = true;
+          break;
+        }
+        
+        case 'all_in': {
+          const allInAmount = currentPlayer.stack;
+          newPot += allInAmount;
+          newBet += allInAmount;
           newStack = 0;
           isAllIn = true;
+          // Only update current bet if this all-in is a raise
+          if (newBet > newCurrentBet) {
+            newCurrentBet = newBet;
+          }
           break;
+        }
+        
+        default:
+          return new Response(JSON.stringify({ error: 'Invalid action type' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
       }
 
-      // Update player state
+      // Update player state atomically
       await supabase
         .from('table_players')
         .update({
@@ -660,11 +748,11 @@ serve(async (req) => {
           game_id: game.id,
           user_id: user.id,
           action_type: actionType,
-          amount: amount || 0,
+          amount: amount || (actionType === 'all_in' ? currentPlayer.stack : 0),
           round: game.status
         });
 
-      // Get all players for turn logic
+      // Get all players with fresh state
       const { data: allPlayers } = await supabase
         .from('table_players')
         .select('*')
@@ -678,20 +766,22 @@ serve(async (req) => {
         });
       }
 
-      const updatedCurrentPlayer = { ...currentPlayer, stack: newStack, current_bet: newBet, is_folded: isFolded, is_all_in: isAllIn };
-      const playersWithUpdated = allPlayers.map(p => p.id === currentPlayer.id ? updatedCurrentPlayer : p);
+      // Update current player in the list with new values
+      const playersWithUpdated = allPlayers.map(p => 
+        p.id === currentPlayer.id 
+          ? { ...p, stack: newStack, current_bet: newBet, is_folded: isFolded, is_all_in: isAllIn }
+          : p
+      );
       
       const activePlayers = playersWithUpdated.filter(p => !p.is_folded);
       const sortedPlayers = [...playersWithUpdated].sort((a, b) => a.position - b.position);
-      const numPlayers = sortedPlayers.filter(p => !p.is_folded).length;
 
-      // Check if only one player left
+      // Check if only one player left (everyone else folded)
       if (activePlayers.length === 1) {
         const winner = activePlayers[0];
         const winnerStack = winner.id === currentPlayer.id ? newStack : winner.stack;
         
-        const bigBlind = tableData.big_blind;
-        const fee = calculateFee(newPot, bigBlind, game.status);
+        const fee = calculateFee(newPot, tableData.big_blind, game.status);
         const winnings = newPot - fee;
         
         if (fee > 0) {
@@ -700,19 +790,37 @@ serve(async (req) => {
             table_id: tableId,
             fee_amount: fee,
             pot_size: newPot,
-            big_blind: bigBlind
+            big_blind: tableData.big_blind
           });
         }
         
         await supabase
           .from('games')
-          .update({ status: 'complete', pot: 0, turn_expires_at: null, current_player_position: null })
+          .update({ 
+            status: 'complete', 
+            pot: 0, 
+            turn_expires_at: null, 
+            current_player_position: null,
+            current_bet: 0
+          })
           .eq('id', game.id);
 
-        await supabase
-          .from('table_players')
-          .update({ stack: winnerStack + winnings, current_bet: 0 })
-          .eq('id', winner.id);
+        // Reset all players' bets and award winner
+        for (const p of playersWithUpdated) {
+          if (p.id === winner.id) {
+            await supabase
+              .from('table_players')
+              .update({ stack: winnerStack + winnings, current_bet: 0 })
+              .eq('id', p.id);
+          } else {
+            await supabase
+              .from('table_players')
+              .update({ current_bet: 0 })
+              .eq('id', p.id);
+          }
+        }
+
+        console.log(`Winner by fold: ${winner.user_id}, pot: ${newPot}, fee: ${fee}, winnings: ${winnings}`);
 
         return new Response(JSON.stringify({
           success: true,
@@ -728,17 +836,20 @@ serve(async (req) => {
 
       const dealerIdx = sortedPlayers.findIndex(p => p.position === game.dealer_position);
       const currentPlayerIdx = sortedPlayers.findIndex(p => p.position === currentPlayer.position);
+      const numPlayers = sortedPlayers.length;
 
+      // Get actions this round to determine who has acted
       const { data: roundActions } = await supabase
         .from('game_actions')
-        .select('user_id')
+        .select('user_id, action_type')
         .eq('game_id', game.id)
         .eq('round', game.status);
 
+      // Track who has acted and if there was aggression
       const actedUserIds = new Set((roundActions || []).map(a => a.user_id));
-      actedUserIds.add(user.id);
-
-      // Find next player
+      actedUserIds.add(user.id); // Include current action
+      
+      // Find next player who needs to act
       let nextPosition: number | null = null;
       
       for (let i = 1; i <= sortedPlayers.length; i++) {
@@ -748,49 +859,52 @@ serve(async (req) => {
         const playerFolded = p.id === currentPlayer.id ? isFolded : p.is_folded;
         const playerAllIn = p.id === currentPlayer.id ? isAllIn : p.is_all_in;
         
+        // Skip folded or all-in players
         if (playerFolded || playerAllIn) continue;
         
         const hasActed = actedUserIds.has(p.user_id);
         const needsToMatch = playerBet < newCurrentBet;
         
+        // Player needs to act if they haven't acted OR they need to match a raise
         if (!hasActed || needsToMatch) {
           nextPosition = p.position;
           break;
         }
       }
 
+      // Check if round should advance
       const activeNonAllIn = activePlayers.filter(p => {
-        const isAllInNow = p.id === currentPlayer.id ? isAllIn : p.is_all_in;
-        return !isAllInNow;
+        const pAllIn = p.id === currentPlayer.id ? isAllIn : p.is_all_in;
+        return !pAllIn;
       });
+      
       const allBetsEqual = activeNonAllIn.every(p => {
         const bet = p.id === currentPlayer.id ? newBet : p.current_bet;
         return bet === newCurrentBet;
       });
 
       const allPlayersAllIn = activeNonAllIn.length === 0;
-      const onlyOneCanAct = activeNonAllIn.length === 1;
+      const onlyOneCanAct = activeNonAllIn.length <= 1;
       
       const shouldSkipToShowdown = allPlayersAllIn || (onlyOneCanAct && allBetsEqual);
       const shouldAdvanceRound = (nextPosition === null && allBetsEqual) || shouldSkipToShowdown;
 
+      console.log(`Turn logic: nextPos=${nextPosition}, allBetsEqual=${allBetsEqual}, shouldAdvance=${shouldAdvanceRound}, activeNonAllIn=${activeNonAllIn.length}`);
+
       if (shouldAdvanceRound) {
         // Reset bets for new round
         for (const p of playersWithUpdated) {
-          if (!p.is_folded) {
-            await supabase
-              .from('table_players')
-              .update({ current_bet: 0 })
-              .eq('id', p.id);
-          }
+          await supabase
+            .from('table_players')
+            .update({ current_bet: 0 })
+            .eq('id', p.id);
         }
 
         if (shouldSkipToShowdown) {
-          console.log('All players all-in, skipping to showdown');
+          console.log('Advancing to showdown (all-in or only one can act)');
           
           const communityCards = (game.community_cards || []) as string[];
           
-          // Use side pot distribution
           const { distributions, fee } = distributePotWithSidePots(
             playersWithUpdated,
             communityCards,
@@ -816,7 +930,7 @@ serve(async (req) => {
               const playerStack = player.id === currentPlayer.id ? newStack : player.stack;
               await supabase
                 .from('table_players')
-                .update({ stack: playerStack + dist.amount })
+                .update({ stack: playerStack + dist.amount, current_bet: 0 })
                 .eq('id', dist.playerId);
               winnerIds.push(player.user_id);
             }
@@ -858,15 +972,16 @@ serve(async (req) => {
           });
         }
 
-        // Move to next round normally
+        // Advance to next round
         const roundOrder = ['preflop', 'flop', 'turn', 'river', 'showdown'];
-        const currentIdx = roundOrder.indexOf(game.status);
-        const nextRound = roundOrder[currentIdx + 1] || 'showdown';
+        const currentRoundIdx = roundOrder.indexOf(game.status);
+        const nextRound = roundOrder[currentRoundIdx + 1] || 'showdown';
+
+        console.log(`Advancing from ${game.status} to ${nextRound}`);
 
         if (nextRound === 'showdown') {
           const communityCards = (game.community_cards || []) as string[];
           
-          // Use side pot distribution
           const { distributions, fee } = distributePotWithSidePots(
             playersWithUpdated,
             communityCards,
@@ -886,20 +1001,15 @@ serve(async (req) => {
           }
           
           const winnerIds: string[] = [];
-          const winnerHands: { userId: string; hand: string }[] = [];
-
           for (const dist of distributions) {
             const player = playersWithUpdated.find(p => p.id === dist.playerId);
             if (player) {
               const playerStack = player.id === currentPlayer.id ? newStack : player.stack;
               await supabase
                 .from('table_players')
-                .update({ stack: playerStack + dist.amount })
+                .update({ stack: playerStack + dist.amount, current_bet: 0 })
                 .eq('id', dist.playerId);
-              
-              const hand = evaluateHand(player.hole_cards || [], communityCards);
               winnerIds.push(player.user_id);
-              winnerHands.push({ userId: player.user_id, hand: hand.name });
             }
           }
 
@@ -924,8 +1034,9 @@ serve(async (req) => {
             success: true,
             status: 'showdown',
             pot: newPot,
+            fee,
             winners: [...new Set(winnerIds)],
-            winningHand: winnerHands[0]?.hand,
+            winningHand: playerHands[0]?.hand?.name,
             hands: playerHands.map(ph => ({
               userId: ph.userId,
               hand: ph.hand?.name || 'Unknown',
@@ -935,52 +1046,47 @@ serve(async (req) => {
           }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           });
-        } else {
-          // Find first player for new betting round
-          let firstToAct: number | null = null;
-          
-          if (numPlayers === 2) {
-            const nonDealerIdx = (dealerIdx + 1) % sortedPlayers.length;
-            const bbPlayer = sortedPlayers[nonDealerIdx];
-            if (!bbPlayer.is_folded && !bbPlayer.is_all_in) {
-              firstToAct = bbPlayer.position;
-            }
-          }
-          
-          if (firstToAct === null) {
-            for (let i = 1; i <= sortedPlayers.length; i++) {
-              const idx = (dealerIdx + i) % sortedPlayers.length;
-              const p = sortedPlayers[idx];
-              if (!p.is_folded && !p.is_all_in) {
-                firstToAct = p.position;
-                break;
-              }
-            }
-          }
-
-          const turnExpiresAt = firstToAct !== null ? new Date(Date.now() + 30000).toISOString() : null;
-
-          await supabase
-            .from('games')
-            .update({
-              status: nextRound,
-              pot: newPot,
-              current_bet: 0,
-              current_player_position: firstToAct,
-              turn_expires_at: turnExpiresAt
-            })
-            .eq('id', game.id);
-
-          return new Response(JSON.stringify({
-            success: true,
-            status: nextRound,
-            nextPlayerPosition: firstToAct
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
         }
+
+        // Find first player for new betting round (starts left of dealer)
+        let firstToAct: number | null = null;
+        
+        for (let i = 1; i <= sortedPlayers.length; i++) {
+          const idx = (dealerIdx + i) % sortedPlayers.length;
+          const p = sortedPlayers[idx];
+          const pFolded = p.id === currentPlayer.id ? isFolded : p.is_folded;
+          const pAllIn = p.id === currentPlayer.id ? isAllIn : p.is_all_in;
+          if (!pFolded && !pAllIn) {
+            firstToAct = p.position;
+            break;
+          }
+        }
+
+        const turnExpiresAt = firstToAct !== null ? new Date(Date.now() + 30000).toISOString() : null;
+
+        await supabase
+          .from('games')
+          .update({
+            status: nextRound,
+            pot: newPot,
+            current_bet: 0,
+            current_player_position: firstToAct,
+            turn_expires_at: turnExpiresAt
+          })
+          .eq('id', game.id);
+
+        return new Response(JSON.stringify({
+          success: true,
+          status: nextRound,
+          pot: newPot,
+          currentBet: 0,
+          nextPlayerPosition: firstToAct
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
       }
 
+      // Continue same round with next player
       const turnExpiresAt = nextPosition !== null ? new Date(Date.now() + 30000).toISOString() : null;
 
       await supabase
@@ -995,6 +1101,8 @@ serve(async (req) => {
 
       return new Response(JSON.stringify({
         success: true,
+        pot: newPot,
+        currentBet: newCurrentBet,
         nextPlayerPosition: nextPosition
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -1069,21 +1177,52 @@ serve(async (req) => {
 
       if (activePlayers.length === 1) {
         const winner = activePlayers[0];
-        await supabase
-          .from('games')
-          .update({ status: 'complete', pot: 0, turn_expires_at: null, current_player_position: null })
-          .eq('id', game.id);
+        const { data: tableData } = await supabase
+          .from('poker_tables')
+          .select('big_blind')
+          .eq('id', tableId)
+          .single();
+        
+        const fee = calculateFee(game.pot, tableData?.big_blind || 0, game.status);
+        const winnings = game.pot - fee;
+        
+        if (fee > 0 && tableData) {
+          await supabase.from('collected_fees').insert({
+            game_id: game.id,
+            table_id: tableId,
+            fee_amount: fee,
+            pot_size: game.pot,
+            big_blind: tableData.big_blind
+          });
+        }
 
         await supabase
-          .from('table_players')
-          .update({ stack: winner.stack + game.pot, current_bet: 0 })
-          .eq('id', winner.id);
+          .from('games')
+          .update({ status: 'complete', pot: 0, turn_expires_at: null, current_player_position: null, current_bet: 0 })
+          .eq('id', game.id);
+
+        // Reset all bets
+        for (const p of allPlayers) {
+          if (p.id === winner.id) {
+            await supabase
+              .from('table_players')
+              .update({ stack: winner.stack + winnings, current_bet: 0 })
+              .eq('id', p.id);
+          } else {
+            await supabase
+              .from('table_players')
+              .update({ current_bet: 0 })
+              .eq('id', p.id);
+          }
+        }
 
         return new Response(JSON.stringify({
           success: true,
           status: 'complete',
           autoFolded: timedOutPlayer.user_id,
           winner: winner.user_id,
+          pot: game.pot,
+          fee,
           nextPlayerPosition: null
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
