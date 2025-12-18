@@ -38,12 +38,10 @@ export default function Table() {
   const [showJoinDialog, setShowJoinDialog] = useState(false);
   const [buyInAmount, setBuyInAmount] = useState(100);
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const [autoStarting, setAutoStarting] = useState(false);
   
   const prevGameStatus = useRef<string | null>(null);
   const prevCurrentPlayer = useRef<string | null>(null);
   const prevMyCardsLength = useRef<number>(0);
-  const autoStartTimeout = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -92,72 +90,25 @@ export default function Table() {
     }
   }, [game?.status, players, soundEnabled, playSound, playDealSequence, user?.id, myCards.length]);
 
-  // Auto sit-out when balance is 0 - redirect to buy-in
-  const hasShownOutOfChips = useRef(false);
+  // Auto leave when balance is 0
+  const hasLeftForZeroChips = useRef(false);
   
   useEffect(() => {
     if (currentPlayer && currentPlayer.stack === 0 && (!game || game.status === 'complete' || game.status === 'showdown')) {
-      if (!hasShownOutOfChips.current) {
-        hasShownOutOfChips.current = true;
+      if (!hasLeftForZeroChips.current) {
+        hasLeftForZeroChips.current = true;
         toast({
           title: 'Out of chips!',
-          description: 'Your stack is empty. Please buy in again to continue playing.',
+          description: 'Your stack is empty. Returning to lobby.',
           variant: 'destructive'
         });
-        // Leave table first, then show dialog after a brief delay
         leaveTable();
-        setTimeout(() => {
-          setShowJoinDialog(true);
-        }, 500);
+        navigate('/lobby');
       }
     } else if (currentPlayer && currentPlayer.stack > 0) {
-      hasShownOutOfChips.current = false;
+      hasLeftForZeroChips.current = false;
     }
-  }, [currentPlayer?.stack, game?.status, leaveTable, toast]);
-
-  // Auto-start hands logic - simplified
-  const lastHandsPlayed = useRef<number>(-1);
-  
-  useEffect(() => {
-    if (!table || !isJoined) return;
-    
-    // Only proceed if we have enough players
-    if (players.length < 2) {
-      setAutoStarting(false);
-      if (autoStartTimeout.current) {
-        clearTimeout(autoStartTimeout.current);
-        autoStartTimeout.current = null;
-      }
-      return;
-    }
-
-    const gameIsOver = !game || game.status === 'complete' || game.status === 'showdown';
-    const canAutoStart = gameIsOver && table.handsPlayed < table.maxHands;
-
-    // Detect new hand completion by checking handsPlayed change
-    const handJustCompleted = lastHandsPlayed.current !== -1 && lastHandsPlayed.current !== table.handsPlayed;
-    lastHandsPlayed.current = table.handsPlayed;
-
-    if (canAutoStart && !autoStarting && (handJustCompleted || (!game && players.length >= 2))) {
-      setAutoStarting(true);
-      autoStartTimeout.current = setTimeout(async () => {
-        try {
-          if (soundEnabled) playSound('shuffle');
-          await startHand();
-        } catch (e) {
-          console.error('Auto-start failed:', e);
-        }
-        setAutoStarting(false);
-      }, 3000);
-    }
-
-    return () => {
-      if (autoStartTimeout.current) {
-        clearTimeout(autoStartTimeout.current);
-        autoStartTimeout.current = null;
-      }
-    };
-  }, [game?.status, players.length, table?.handsPlayed, table?.maxHands, isJoined, soundEnabled, playSound, startHand]);
+  }, [currentPlayer?.stack, game?.status, leaveTable, toast, navigate]);
 
   // Handle action with sound
   const handleAction = (action: any, amount?: number) => {
@@ -303,27 +254,19 @@ export default function Table() {
             />
           )}
 
-          {/* Start Hand Button / Auto-start indicator */}
+          {/* Start Hand Button */}
           {canStartHand && !tableEnded && (
-            <div className="flex flex-col items-center gap-1 w-full">
-              {autoStarting ? (
-                <div className="text-primary text-sm animate-pulse">
-                  Starting next hand...
-                </div>
-              ) : (
-                <Button 
-                  size="sm" 
-                  className="bg-primary hover:bg-primary/90 w-full transition-all hover:scale-[1.02] active:scale-[0.98]"
-                  onClick={() => {
-                    if (soundEnabled) playSound('shuffle');
-                    startHand();
-                  }}
-                >
-                  <Play className="h-4 w-4 mr-2" />
-                  {game?.status === 'showdown' || game?.status === 'complete' ? 'Deal Next Hand' : 'Start Hand'}
-                </Button>
-              )}
-            </div>
+            <Button 
+              size="sm" 
+              className="bg-primary hover:bg-primary/90 w-full transition-all hover:scale-[1.02] active:scale-[0.98]"
+              onClick={() => {
+                if (soundEnabled) playSound('shuffle');
+                startHand();
+              }}
+            >
+              <Play className="h-4 w-4 mr-2" />
+              {game?.status === 'showdown' || game?.status === 'complete' ? 'Deal Next Hand' : 'Start Hand'}
+            </Button>
           )}
 
           {/* Status messages */}
