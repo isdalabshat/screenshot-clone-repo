@@ -58,7 +58,8 @@ export default function Table() {
   const prevMyCardsLength = useRef<number>(0);
   const prevPot = useRef<number>(0);
   const prevPlayerStacks = useRef<Map<string, number>>(new Map());
-  const lastWinnerId = useRef<string | null>(null);
+  const lastWinnerGameId = useRef<string | null>(null);
+  const lastCompletedGameId = useRef<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -141,7 +142,7 @@ export default function Table() {
         } else {
           playSound('deal');
         }
-      } else if (game.status === 'showdown' || game.status === 'complete') {
+      } else if ((game.status === 'showdown' || game.status === 'complete') && lastWinnerGameId.current !== game.id) {
         // Find winner - the non-folded player(s)
         if (prevPot.current > 0 && players.length > 0) {
           const nonFolded = players.filter(p => !p.isFolded);
@@ -169,9 +170,9 @@ export default function Table() {
             }
           }
           
-          // Only show winner if we found one and it's different from last shown
-          if (winnerId && winnerName && lastWinnerId.current !== winnerId + game.id) {
-            lastWinnerId.current = winnerId + game.id;
+          // Only show winner if we found one
+          if (winnerId && winnerName) {
+            lastWinnerGameId.current = game.id;
             setWinnerInfo({ name: winnerName, amount: winAmount, id: winnerId });
             setShowWinner(true);
             if (soundEnabled) playSound('win');
@@ -216,19 +217,20 @@ export default function Table() {
 
   // Track previous player count for notifications
   const prevPlayerCount = useRef<number>(0);
-  const autoStartTriggered = useRef(false);
 
-  // Auto-start game loop
+  // Auto-start game loop - simplified logic
   useEffect(() => {
     const activePlayerCount = players.length;
-    const gameEnded = !game || game.status === 'complete' || game.status === 'showdown';
+    const gameId = game?.id || null;
+    const gameStatus = game?.status || null;
+    const isGameEnded = !game || gameStatus === 'complete' || gameStatus === 'showdown';
     const canAutoStart = isJoined && 
                          activePlayerCount >= 2 && 
-                         gameEnded &&
+                         isGameEnded &&
                          table && table.handsPlayed < table.maxHands &&
                          !isStartingHand.current;
     
-    // Check if waiting for players - notify if a player left during countdown
+    // Handle waiting for players state
     if (isJoined && activePlayerCount < 2) {
       // If countdown was active and player left, notify
       if (autoStartCountdown !== null && prevPlayerCount.current >= 2) {
@@ -240,30 +242,49 @@ export default function Table() {
       }
       clearAutoStartTimers();
       setIsWaitingForPlayers(true);
-      autoStartTriggered.current = false;
+      lastCompletedGameId.current = null; // Reset so auto-start can trigger when player joins
       prevPlayerCount.current = activePlayerCount;
       return;
     }
     
     setIsWaitingForPlayers(false);
     
+    // Check if this is a newly completed game we haven't handled yet
+    const isNewlyCompletedGame = isGameEnded && gameId && lastCompletedGameId.current !== gameId;
+    
     // Start countdown when hand ends and conditions are met
-    if (canAutoStart && !showWinner && autoStartCountdown === null && !autoStartTriggered.current) {
-      autoStartTriggered.current = true;
+    if (canAutoStart && !showWinner && autoStartCountdown === null && isNewlyCompletedGame) {
+      lastCompletedGameId.current = gameId;
+      
       // Small delay to let winner animation show first
       const delayTimer = setTimeout(() => {
         if (!isStartingHand.current && players.length >= 2) {
           startAutoStartCountdown();
         }
-      }, 800);
+      }, 1000);
       
       prevPlayerCount.current = activePlayerCount;
       return () => clearTimeout(delayTimer);
     }
     
-    // Reset trigger when a new hand starts (preflop)
-    if (game && game.status === 'preflop') {
-      autoStartTriggered.current = false;
+    // Also trigger auto-start if no game exists yet but we have 2+ players
+    if (canAutoStart && !showWinner && autoStartCountdown === null && !game && activePlayerCount >= 2) {
+      if (lastCompletedGameId.current !== 'no_game') {
+        lastCompletedGameId.current = 'no_game';
+        const delayTimer = setTimeout(() => {
+          if (!isStartingHand.current && players.length >= 2) {
+            startAutoStartCountdown();
+          }
+        }, 1000);
+        
+        prevPlayerCount.current = activePlayerCount;
+        return () => clearTimeout(delayTimer);
+      }
+    }
+    
+    // Reset tracking when a new hand starts
+    if (gameStatus === 'preflop' && lastCompletedGameId.current) {
+      lastCompletedGameId.current = null;
     }
     
     // If players dropped below 2, clear timers
@@ -275,7 +296,9 @@ export default function Table() {
   }, [
     players.length, 
     isJoined, 
-    game?.status, 
+    game?.status,
+    game?.id,
+    game,
     table?.handsPlayed, 
     table?.maxHands,
     showWinner,
