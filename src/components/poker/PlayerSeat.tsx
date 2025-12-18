@@ -113,22 +113,13 @@ export default function PlayerSeat({
   const AvatarSection = () => (
     <div className="flex flex-col items-center gap-0.5">
       {/* Avatar with enhanced turn indicator */}
-      <motion.div 
-        animate={player.isCurrentPlayer ? { 
-          scale: [1, 1.12, 1],
-          boxShadow: [
-            '0 0 0 0 rgba(34, 197, 94, 0)',
-            '0 0 20px 8px rgba(34, 197, 94, 0.6)',
-            '0 0 0 0 rgba(34, 197, 94, 0)'
-          ]
-        } : {}}
-        transition={{ repeat: player.isCurrentPlayer ? Infinity : 0, duration: 1.2 }}
+      <div 
         className={cn(
           'w-10 h-10 rounded-full flex items-center justify-center shadow-lg border-3 transition-all relative',
           player.isFolded 
             ? 'bg-slate-700/50 border-slate-600 opacity-40' 
             : player.isCurrentPlayer 
-              ? 'bg-gradient-to-br from-green-500 to-green-600 border-green-400 ring-4 ring-green-400/50' 
+              ? 'bg-gradient-to-br from-green-500 to-green-600 border-green-400 ring-4 ring-green-400/50 animate-pulse' 
               : isCurrentUser 
                 ? 'bg-gradient-to-br from-secondary to-secondary/80 border-secondary' 
                 : 'bg-slate-700 border-slate-500'
@@ -137,15 +128,11 @@ export default function PlayerSeat({
         <span className="text-sm">{isCurrentUser ? '👤' : '🎭'}</span>
         {/* Turn indicator badge */}
         {player.isCurrentPlayer && !player.isFolded && (
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center border-2 border-white"
-          >
+          <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center border-2 border-white">
             <span className="text-[8px]">▶</span>
-          </motion.div>
+          </div>
         )}
-      </motion.div>
+      </div>
       
       {/* Name & Stack */}
       <div className={cn(
@@ -180,39 +167,25 @@ export default function PlayerSeat({
 
       {/* Status badges */}
       {(player.isAllIn || player.isFolded) && (
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-        >
-          <Badge className={cn(
-            'text-[7px] px-1.5 py-0 h-4 font-bold',
-            player.isAllIn ? 'bg-red-600 text-white animate-pulse shadow-lg shadow-red-500/50' : 'bg-slate-600 text-white'
-          )}>
-            {player.isAllIn ? 'ALL IN' : 'FOLD'}
-          </Badge>
-        </motion.div>
+        <Badge className={cn(
+          'text-[7px] px-1.5 py-0 h-4 font-bold',
+          player.isAllIn ? 'bg-red-600 text-white animate-pulse shadow-lg shadow-red-500/50' : 'bg-slate-600 text-white'
+        )}>
+          {player.isAllIn ? 'ALL IN' : 'FOLD'}
+        </Badge>
       )}
 
       {/* Current bet chip */}
       {player.currentBet > 0 && !player.isFolded && (
-        <motion.div 
-          initial={{ scale: 0, y: -10 }}
-          animate={{ scale: 1, y: 0 }}
-          className="bg-gradient-to-br from-yellow-400 to-yellow-600 text-black px-2 py-0.5 rounded-full text-[8px] font-bold shadow-lg chip-stack"
-        >
+        <div className="bg-gradient-to-br from-yellow-400 to-yellow-600 text-black px-2 py-0.5 rounded-full text-[8px] font-bold shadow-lg chip-stack">
           {player.currentBet}
-        </motion.div>
+        </div>
       )}
     </div>
   );
 
   return (
-    <motion.div 
-      initial={{ scale: 0, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      transition={{ delay: position * 0.05, type: 'spring', stiffness: 200 }}
-      className={cn('absolute z-10', positionStyles[position])}
-    >
+    <div className={cn('absolute z-10', positionStyles[position])}>
       {isCurrentUser ? (
         // Current user: horizontal layout with cards on left
         <div className="flex items-center gap-2">
@@ -226,6 +199,6 @@ export default function PlayerSeat({
           <AvatarSection />
         </div>
       )}
-    </motion.div>
+    </div>
   );
 }
