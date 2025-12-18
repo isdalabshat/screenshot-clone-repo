@@ -93,39 +93,53 @@ export default function Table() {
   }, [game?.status, players, soundEnabled, playSound, playDealSequence, user?.id, myCards.length]);
 
   // Auto sit-out when balance is 0 - redirect to buy-in
-  useEffect(() => {
-    if (currentPlayer && currentPlayer.stack === 0 && (!game || game.status === 'complete' || game.status === 'showdown')) {
-      leaveTable();
-      toast({
-        title: 'Out of chips!',
-        description: 'Your stack is empty. Please buy in again to continue playing.',
-        variant: 'destructive'
-      });
-      setShowJoinDialog(true);
-    }
-  }, [currentPlayer?.stack, game?.status, leaveTable]);
-
-  // Auto-start hands logic
-  const isStartingRef = useRef(false);
+  const hasShownOutOfChips = useRef(false);
   
   useEffect(() => {
-    if (!table || !isJoined || !currentPlayer) return;
+    if (currentPlayer && currentPlayer.stack === 0 && (!game || game.status === 'complete' || game.status === 'showdown')) {
+      if (!hasShownOutOfChips.current) {
+        hasShownOutOfChips.current = true;
+        toast({
+          title: 'Out of chips!',
+          description: 'Your stack is empty. Please buy in again to continue playing.',
+          variant: 'destructive'
+        });
+        // Leave table first, then show dialog after a brief delay
+        leaveTable();
+        setTimeout(() => {
+          setShowJoinDialog(true);
+        }, 500);
+      }
+    } else if (currentPlayer && currentPlayer.stack > 0) {
+      hasShownOutOfChips.current = false;
+    }
+  }, [currentPlayer?.stack, game?.status, leaveTable, toast]);
 
-    const lowestPositionPlayer = players.reduce((lowest, p) => 
-      p.position < lowest.position ? p : lowest
-    , players[0]);
+  // Auto-start hands logic - simplified
+  const lastHandsPlayed = useRef<number>(-1);
+  
+  useEffect(() => {
+    if (!table || !isJoined) return;
     
-    const shouldTriggerAutoStart = currentPlayer.position === lowestPositionPlayer?.position;
-    
-    const canAutoStart = 
-      players.length >= 2 && 
-      (!game || game.status === 'complete' || game.status === 'showdown') &&
-      table.handsPlayed < table.maxHands &&
-      shouldTriggerAutoStart;
+    // Only proceed if we have enough players
+    if (players.length < 2) {
+      setAutoStarting(false);
+      if (autoStartTimeout.current) {
+        clearTimeout(autoStartTimeout.current);
+        autoStartTimeout.current = null;
+      }
+      return;
+    }
 
-    if (canAutoStart && !autoStarting && !isStartingRef.current) {
+    const gameIsOver = !game || game.status === 'complete' || game.status === 'showdown';
+    const canAutoStart = gameIsOver && table.handsPlayed < table.maxHands;
+
+    // Detect new hand completion by checking handsPlayed change
+    const handJustCompleted = lastHandsPlayed.current !== -1 && lastHandsPlayed.current !== table.handsPlayed;
+    lastHandsPlayed.current = table.handsPlayed;
+
+    if (canAutoStart && !autoStarting && (handJustCompleted || (!game && players.length >= 2))) {
       setAutoStarting(true);
-      isStartingRef.current = true;
       autoStartTimeout.current = setTimeout(async () => {
         try {
           if (soundEnabled) playSound('shuffle');
@@ -134,24 +148,16 @@ export default function Table() {
           console.error('Auto-start failed:', e);
         }
         setAutoStarting(false);
-        isStartingRef.current = false;
       }, 3000);
-    }
-
-    if (!canAutoStart && autoStarting) {
-      setAutoStarting(false);
-      isStartingRef.current = false;
-      if (autoStartTimeout.current) {
-        clearTimeout(autoStartTimeout.current);
-      }
     }
 
     return () => {
       if (autoStartTimeout.current) {
         clearTimeout(autoStartTimeout.current);
+        autoStartTimeout.current = null;
       }
     };
-  }, [game?.status, players.length, table?.handsPlayed, table?.maxHands, isJoined, autoStarting, startHand, currentPlayer?.position, players, soundEnabled, playSound]);
+  }, [game?.status, players.length, table?.handsPlayed, table?.maxHands, isJoined, soundEnabled, playSound, startHand]);
 
   // Handle action with sound
   const handleAction = (action: any, amount?: number) => {
