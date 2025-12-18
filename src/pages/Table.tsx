@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { usePokerGame } from '@/hooks/usePokerGame';
@@ -117,25 +118,53 @@ export default function Table() {
     }
   }, [game?.status, game?.pot, players, soundEnabled, playSound, playDealSequence, user?.id, myCards.length]);
 
-  // Auto leave when balance is 0
+  // Auto leave when balance is 0 - only after game is settled and confirmed 0 chips
   const hasLeftForZeroChips = useRef(false);
+  const zeroChipCheckTimeout = useRef<NodeJS.Timeout | null>(null);
   
   useEffect(() => {
-    if (currentPlayer && currentPlayer.stack === 0 && (!game || game.status === 'complete' || game.status === 'showdown')) {
-      if (!hasLeftForZeroChips.current) {
-        hasLeftForZeroChips.current = true;
-        toast({
-          title: 'Out of chips!',
-          description: 'Your stack is empty. Returning to lobby.',
-          variant: 'destructive'
-        });
-        leaveTable();
-        navigate('/lobby');
-      }
+    // Clear any pending timeout
+    if (zeroChipCheckTimeout.current) {
+      clearTimeout(zeroChipCheckTimeout.current);
+      zeroChipCheckTimeout.current = null;
+    }
+    
+    // Only check after game is complete/showdown AND player has 0 stack
+    if (currentPlayer && currentPlayer.stack === 0 && (game?.status === 'complete' || game?.status === 'showdown')) {
+      // Wait a bit for winnings to be distributed before checking
+      // This prevents the winner from being kicked out due to race conditions
+      zeroChipCheckTimeout.current = setTimeout(async () => {
+        // Re-check the current player's stack from the database to be sure
+        const { data: freshPlayer } = await supabase
+          .from('table_players')
+          .select('stack')
+          .eq('table_id', tableId)
+          .eq('user_id', user?.id)
+          .eq('is_active', true)
+          .maybeSingle();
+        
+        // Only leave if player truly has 0 chips after winnings are distributed
+        if (freshPlayer && freshPlayer.stack === 0 && !hasLeftForZeroChips.current) {
+          hasLeftForZeroChips.current = true;
+          toast({
+            title: 'Out of chips!',
+            description: 'Your stack is empty. Returning to lobby.',
+            variant: 'destructive'
+          });
+          leaveTable();
+          navigate('/lobby');
+        }
+      }, 1500); // Wait 1.5s for winnings to be fully distributed
     } else if (currentPlayer && currentPlayer.stack > 0) {
       hasLeftForZeroChips.current = false;
     }
-  }, [currentPlayer?.stack, game?.status, leaveTable, toast, navigate]);
+    
+    return () => {
+      if (zeroChipCheckTimeout.current) {
+        clearTimeout(zeroChipCheckTimeout.current);
+      }
+    };
+  }, [currentPlayer?.stack, game?.status, leaveTable, toast, navigate, tableId, user?.id]);
 
   // Handle action with sound
   const handleAction = (action: any, amount?: number) => {
