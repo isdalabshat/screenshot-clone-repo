@@ -7,7 +7,7 @@ interface Emoji {
   id: string;
   emoji: string;
   name: string;
-  sound: 'laugh' | 'wow' | 'angry' | 'celebrate' | 'cry' | 'thinking';
+  sound: 'laugh' | 'wow' | 'angry' | 'celebrate' | 'cry' | 'thinking' | 'thumbsUp' | 'clap' | 'fire';
 }
 
 const EMOJIS: Emoji[] = [
@@ -17,6 +17,9 @@ const EMOJIS: Emoji[] = [
   { id: '4', emoji: '🎉', name: 'Celebrate', sound: 'celebrate' },
   { id: '5', emoji: '😢', name: 'Cry', sound: 'cry' },
   { id: '6', emoji: '🤔', name: 'Thinking', sound: 'thinking' },
+  { id: '7', emoji: '👍', name: 'Thumbs Up', sound: 'thumbsUp' },
+  { id: '8', emoji: '👏', name: 'Clap', sound: 'clap' },
+  { id: '9', emoji: '🔥', name: 'Fire', sound: 'fire' },
 ];
 
 interface PlayerEmoji {
@@ -113,6 +116,51 @@ export default function EmojiReactions({ tableId, userId, username, isJoined, on
           oscillator.start(ctx.currentTime);
           oscillator.stop(ctx.currentTime + 0.35);
           break;
+        case 'thumbsUp':
+          oscillator.type = 'sine';
+          oscillator.frequency.setValueAtTime(440, ctx.currentTime);
+          oscillator.frequency.exponentialRampToValueAtTime(550, ctx.currentTime + 0.15);
+          gainNode.gain.value = 0.18;
+          gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+          oscillator.start(ctx.currentTime);
+          oscillator.stop(ctx.currentTime + 0.25);
+          break;
+        case 'clap':
+          // Create a clap-like sound with white noise effect
+          oscillator.type = 'square';
+          oscillator.frequency.setValueAtTime(100, ctx.currentTime);
+          oscillator.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.05);
+          gainNode.gain.value = 0.3;
+          gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+          oscillator.start(ctx.currentTime);
+          oscillator.stop(ctx.currentTime + 0.1);
+          // Second clap
+          setTimeout(() => {
+            try {
+              const osc2 = ctx.createOscillator();
+              const gain2 = ctx.createGain();
+              osc2.connect(gain2);
+              gain2.connect(ctx.destination);
+              osc2.type = 'square';
+              osc2.frequency.value = 80;
+              gain2.gain.value = 0.25;
+              gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+              osc2.start(ctx.currentTime);
+              osc2.stop(ctx.currentTime + 0.1);
+            } catch {}
+          }, 150);
+          break;
+        case 'fire':
+          // Rising fire-like sound
+          oscillator.type = 'sawtooth';
+          oscillator.frequency.setValueAtTime(200, ctx.currentTime);
+          oscillator.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.2);
+          oscillator.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + 0.35);
+          gainNode.gain.value = 0.2;
+          gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+          oscillator.start(ctx.currentTime);
+          oscillator.stop(ctx.currentTime + 0.4);
+          break;
       }
     } catch (e) {
       console.log('Sound not available');
@@ -169,40 +217,40 @@ export default function EmojiReactions({ tableId, userId, username, isJoined, on
   if (!isJoined) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-40">
+    <div className="fixed bottom-24 right-4 z-30">
       <motion.button
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(!isOpen)}
         disabled={cooldown}
         className={cn(
-          'w-12 h-12 rounded-full bg-gradient-to-br from-primary to-emerald-600 shadow-lg flex items-center justify-center border-2 border-primary/50 transition-all',
+          'w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-primary to-emerald-600 shadow-lg flex items-center justify-center border-2 border-primary/50 transition-all',
           cooldown && 'opacity-50 cursor-not-allowed',
           isOpen && 'ring-2 ring-primary ring-offset-2 ring-offset-background'
         )}
       >
-        <span className="text-2xl">{cooldown ? '⏳' : '😀'}</span>
+        <span className="text-xl sm:text-2xl">{cooldown ? '⏳' : '😀'}</span>
       </motion.button>
 
-      {/* Emoji Picker - positioned to the left to avoid overlap */}
+      {/* Emoji Picker - positioned above button */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.8, x: 10 }}
-            animate={{ opacity: 1, scale: 1, x: 0 }}
-            exit={{ opacity: 0, scale: 0.8, x: 10 }}
-            className="absolute bottom-0 right-16 bg-card/95 backdrop-blur-lg rounded-2xl p-2 shadow-xl border border-primary/30"
+            initial={{ opacity: 0, scale: 0.8, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 10 }}
+            className="absolute bottom-14 right-0 bg-card/95 backdrop-blur-lg rounded-xl p-2 shadow-xl border border-primary/30"
           >
-            <div className="flex gap-1.5">
+            <div className="grid grid-cols-3 gap-1">
               {EMOJIS.map((emoji) => (
                 <motion.button
                   key={emoji.id}
-                  whileHover={{ scale: 1.2 }}
+                  whileHover={{ scale: 1.15 }}
                   whileTap={{ scale: 0.9 }}
                   onClick={() => sendEmoji(emoji)}
-                  className="w-10 h-10 rounded-xl bg-slate-800/50 hover:bg-slate-700/50 flex items-center justify-center transition-colors"
+                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 flex items-center justify-center transition-colors"
                 >
-                  <span className="text-xl">{emoji.emoji}</span>
+                  <span className="text-lg sm:text-xl">{emoji.emoji}</span>
                 </motion.button>
               ))}
             </div>
