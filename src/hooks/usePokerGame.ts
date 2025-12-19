@@ -763,22 +763,41 @@ export function usePokerGame(tableId: string) {
 
   // Realtime subscriptions - INSTANT sync for all users
   useEffect(() => {
-    // Track if we're the one who triggered the update
-    const myUserIdRef = userIdRef.current;
+    // Track game status for instant card reveal
+    let lastGameStatus = gameRef.current?.status || null;
     
-    // Instant update handler - no debounce for real-time poker
-    const handleInstantUpdate = async (payload: any) => {
-      // Don't refetch if this user's action is pending (optimistic update handles it)
-      // But ALWAYS update for OTHER users' actions
-      const isMyAction = payload?.new?.user_id === myUserIdRef;
-      if (isActionPending && isMyAction) return;
+    // Instant update handler - priority on game state sync
+    const handleGameUpdate = async (payload: any) => {
+      const newData = payload?.new;
       
-      // Immediate parallel fetch for instant sync
+      // If game status changed (new round), update IMMEDIATELY for card reveal sync
+      if (newData?.status && newData.status !== lastGameStatus) {
+        lastGameStatus = newData.status;
+        
+        // Immediately update game state for card visibility
+        if (newData.community_cards) {
+          setGame(prev => prev ? {
+            ...prev,
+            status: newData.status,
+            communityCards: newData.community_cards.map((c: string) => stringToCard(c)),
+            pot: newData.pot ?? prev.pot,
+            currentBet: newData.current_bet ?? prev.currentBet,
+            currentPlayerPosition: newData.current_player_position,
+            turnExpiresAt: newData.turn_expires_at
+          } : prev);
+        }
+      }
+      
+      // Full fetch to ensure complete sync
       await Promise.all([fetchGame(), fetchPlayers(), fetchMyCards()]);
     };
 
-    const handleGameUpdate = async (payload: any) => {
-      // Game updates (pot, community cards, current player) - always instant
+    const handlePlayerUpdate = async (payload: any) => {
+      // Don't refetch if this user's action is pending (optimistic update handles it)
+      const isMyAction = payload?.new?.user_id === userIdRef.current;
+      if (isActionPending && isMyAction) return;
+      
+      // Immediate parallel fetch for instant sync
       await Promise.all([fetchGame(), fetchPlayers(), fetchMyCards()]);
     };
     
@@ -795,7 +814,7 @@ export function usePokerGame(tableId: string) {
         schema: 'public', 
         table: 'table_players', 
         filter: `table_id=eq.${tableId}` 
-      }, handleInstantUpdate)
+      }, handlePlayerUpdate)
       .on('postgres_changes', { 
         event: '*', 
         schema: 'public', 

@@ -9,12 +9,13 @@ import ActionButtons from '@/components/poker/ActionButtons';
 import TableChat from '@/components/poker/TableChat';
 import WinnerAnimation from '@/components/poker/WinnerAnimation';
 import AutoStartCountdown from '@/components/poker/AutoStartCountdown';
+import EmojiReactions from '@/components/poker/EmojiReactions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ArrowLeft, Play, LogOut, Coins, Volume2, VolumeX } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Table() {
   const { tableId } = useParams<{ tableId: string }>();
@@ -477,6 +478,14 @@ export default function Table() {
         winnerName={winnerInfo?.name}
         amount={winnerInfo?.amount}
         isVisible={showWinner}
+      />
+
+      {/* Emoji Reactions */}
+      <EmojiReactions
+        tableId={tableId!}
+        userId={user?.id}
+        username={profile?.username}
+        isJoined={isJoined}
       />
 
       {/* Table Chat */}
