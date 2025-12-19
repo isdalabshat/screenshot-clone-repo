@@ -102,12 +102,12 @@ export default function TableChat({ tableId, userId, username }: TableChatProps)
 
   return (
     <>
-      {/* Chat Toggle Button */}
+      {/* Chat Toggle Button - positioned above emoji button */}
       <Button
         variant="outline"
         size="icon"
         className={cn(
-          'fixed bottom-20 right-4 z-50 h-12 w-12 rounded-full shadow-lg',
+          'fixed bottom-20 right-4 z-40 h-12 w-12 rounded-full shadow-lg',
           'bg-emerald-600 hover:bg-emerald-700 border-emerald-500',
           unreadCount > 0 && 'animate-pulse'
         )}
@@ -132,7 +132,7 @@ export default function TableChat({ tableId, userId, username }: TableChatProps)
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-36 right-4 z-50 w-72 h-80 bg-slate-900/95 backdrop-blur border border-emerald-700/30 rounded-lg shadow-xl flex flex-col"
+            className="fixed bottom-36 right-4 z-40 w-72 h-80 bg-slate-900/95 backdrop-blur border border-emerald-700/30 rounded-lg shadow-xl flex flex-col"
           >
             {/* Header */}
             <div className="px-3 py-2 border-b border-emerald-700/30 flex items-center justify-between">

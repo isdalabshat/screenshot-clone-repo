@@ -470,10 +470,10 @@ export function usePokerGame(tableId: string) {
     if (!currentPlayer) return;
 
     const currentGame = gameRef.current;
+    // Auto-fold when leaving during any active game state (including preflop/waiting)
     if (currentGame && 
         currentGame.status !== 'complete' && 
-        currentGame.status !== 'showdown' && 
-        currentGame.status !== 'waiting' &&
+        currentGame.status !== 'showdown' &&
         !currentPlayer.isFolded) {
       try {
         await supabase.functions.invoke('poker-game', {

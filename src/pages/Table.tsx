@@ -46,6 +46,7 @@ export default function Table() {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [showWinner, setShowWinner] = useState(false);
   const [winnerInfo, setWinnerInfo] = useState<{ name: string; amount: number; id: string } | null>(null);
+  const [playerEmojis, setPlayerEmojis] = useState<Map<string, string>>(new Map());
   
   // Auto-start countdown state
   const [autoStartCountdown, setAutoStartCountdown] = useState<number | null>(null);
@@ -60,6 +61,24 @@ export default function Table() {
   const prevPot = useRef<number>(0);
   const prevPlayerStacks = useRef<Map<string, number>>(new Map());
   const lastWinnerGameId = useRef<string | null>(null);
+
+  // Handle player emoji from EmojiReactions
+  const handlePlayerEmoji = useCallback((emojiData: { id: string; emoji: string; username: string; userId: string }) => {
+    setPlayerEmojis(prev => {
+      const newMap = new Map(prev);
+      newMap.set(emojiData.userId, emojiData.emoji);
+      return newMap;
+    });
+    
+    // Remove emoji after 2.5 seconds
+    setTimeout(() => {
+      setPlayerEmojis(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(emojiData.userId);
+        return newMap;
+      });
+    }, 2500);
+  }, []);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -469,6 +488,7 @@ export default function Table() {
             myCards={myCards}
             winnerId={winnerInfo?.id}
             sidePots={sidePots}
+            playerEmojis={playerEmojis}
           />
         )}
       </main>
@@ -486,6 +506,7 @@ export default function Table() {
         userId={user?.id}
         username={profile?.username}
         isJoined={isJoined}
+        onPlayerEmoji={handlePlayerEmoji}
       />
 
       {/* Table Chat */}
