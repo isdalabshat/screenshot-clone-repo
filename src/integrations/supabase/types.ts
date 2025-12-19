@@ -22,6 +22,7 @@ export type Database = {
           id: string
           processed_at: string | null
           processed_by: string | null
+          proof_image_url: string | null
           request_type: string
           status: string
           user_id: string
@@ -33,6 +34,7 @@ export type Database = {
           id?: string
           processed_at?: string | null
           processed_by?: string | null
+          proof_image_url?: string | null
           request_type: string
           status?: string
           user_id: string
@@ -44,6 +46,7 @@ export type Database = {
           id?: string
           processed_at?: string | null
           processed_by?: string | null
+          proof_image_url?: string | null
           request_type?: string
           status?: string
           user_id?: string

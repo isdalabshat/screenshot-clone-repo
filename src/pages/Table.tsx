@@ -133,7 +133,7 @@ export default function Table() {
     }
     prevMyCardsLength.current = myCards.length;
 
-    // New round sound and winner detection
+    // New round sound
     if (prevGameStatus.current !== game.status) {
       if (soundEnabled && ['flop', 'turn', 'river'].includes(game.status)) {
         playSound('cardFlip');
@@ -141,46 +141,6 @@ export default function Table() {
           playDealSequence(3, 150);
         } else {
           playSound('deal');
-        }
-      } else if ((game.status === 'showdown' || game.status === 'complete') && lastWinnerGameId.current !== game.id) {
-        // Find winner - the non-folded player(s)
-        if (prevPot.current > 0 && players.length > 0) {
-          const nonFolded = players.filter(p => !p.isFolded);
-          
-          let winnerId = '';
-          let winnerName = '';
-          let winAmount = prevPot.current;
-          
-          if (nonFolded.length === 1) {
-            // Single winner (everyone else folded)
-            winnerId = nonFolded[0].userId;
-            winnerName = nonFolded[0].username;
-          } else if (nonFolded.length > 0) {
-            // Multiple players at showdown - find who gained the most
-            let maxGain = 0;
-            for (const player of nonFolded) {
-              const prevStack = prevPlayerStacks.current.get(player.userId) || 0;
-              const gain = player.stack - prevStack;
-              if (gain > maxGain) {
-                maxGain = gain;
-                winnerId = player.userId;
-                winnerName = player.username;
-                winAmount = gain;
-              }
-            }
-          }
-          
-          // Only show winner if we found one
-          if (winnerId && winnerName) {
-            lastWinnerGameId.current = game.id;
-            setWinnerInfo({ name: winnerName, amount: winAmount, id: winnerId });
-            setShowWinner(true);
-            if (soundEnabled) playSound('win');
-            setTimeout(() => {
-              setShowWinner(false);
-              setWinnerInfo(null);
-            }, 3000);
-          }
         }
       }
       prevGameStatus.current = game.status;
@@ -205,6 +165,58 @@ export default function Table() {
     }
   }, [game?.status, game?.pot, players, soundEnabled, playSound, playDealSequence, user?.id, myCards.length]);
 
+  // Winner detection - separate effect for reliability
+  useEffect(() => {
+    if (!game) return;
+    
+    const isGameEnded = game.status === 'showdown' || game.status === 'complete';
+    
+    // Only detect winner once per game
+    if (isGameEnded && lastWinnerGameId.current !== game.id) {
+      // Find winner - the non-folded player(s)
+      if (prevPot.current > 0 && players.length > 0) {
+        const nonFolded = players.filter(p => !p.isFolded);
+        
+        let winnerId = '';
+        let winnerName = '';
+        let winAmount = prevPot.current;
+        
+        if (nonFolded.length === 1) {
+          // Single winner (everyone else folded)
+          winnerId = nonFolded[0].userId;
+          winnerName = nonFolded[0].username;
+        } else if (nonFolded.length > 0) {
+          // Multiple players at showdown - find who gained the most
+          let maxGain = 0;
+          for (const player of nonFolded) {
+            const prevStack = prevPlayerStacks.current.get(player.userId) || 0;
+            const gain = player.stack - prevStack;
+            if (gain > maxGain) {
+              maxGain = gain;
+              winnerId = player.userId;
+              winnerName = player.username;
+              winAmount = gain;
+            }
+          }
+        }
+        
+        // Show winner animation
+        if (winnerId && winnerName) {
+          lastWinnerGameId.current = game.id;
+          setWinnerInfo({ name: winnerName, amount: winAmount, id: winnerId });
+          setShowWinner(true);
+          if (soundEnabled) playSound('win');
+          
+          // Hide winner after 3 seconds
+          setTimeout(() => {
+            setShowWinner(false);
+            setWinnerInfo(null);
+          }, 3000);
+        }
+      }
+    }
+  }, [game?.id, game?.status, players, soundEnabled, playSound]);
+
   // Track player stacks for winner detection
   useEffect(() => {
     if (game?.status === 'preflop' || !game) {
@@ -218,17 +230,12 @@ export default function Table() {
   // Track previous player count for notifications
   const prevPlayerCount = useRef<number>(0);
 
-  // Auto-start game loop - simplified logic
+  // Auto-start game loop - reliable trigger after game ends
   useEffect(() => {
     const activePlayerCount = players.length;
     const gameId = game?.id || null;
     const gameStatus = game?.status || null;
-    const isGameEnded = !game || gameStatus === 'complete' || gameStatus === 'showdown';
-    const canAutoStart = isJoined && 
-                         activePlayerCount >= 2 && 
-                         isGameEnded &&
-                         table && table.handsPlayed < table.maxHands &&
-                         !isStartingHand.current;
+    const isGameEnded = gameStatus === 'complete' || gameStatus === 'showdown';
     
     // Handle waiting for players state
     if (isJoined && activePlayerCount < 2) {
@@ -242,57 +249,47 @@ export default function Table() {
       }
       clearAutoStartTimers();
       setIsWaitingForPlayers(true);
-      lastCompletedGameId.current = null; // Reset so auto-start can trigger when player joins
       prevPlayerCount.current = activePlayerCount;
       return;
     }
     
     setIsWaitingForPlayers(false);
-    
-    // Check if this is a newly completed game we haven't handled yet
-    const isNewlyCompletedGame = isGameEnded && gameId && lastCompletedGameId.current !== gameId;
-    
-    // Start countdown when hand ends and conditions are met
-    if (canAutoStart && !showWinner && autoStartCountdown === null && isNewlyCompletedGame) {
-      lastCompletedGameId.current = gameId;
-      
-      // Small delay to let winner animation show first
-      const delayTimer = setTimeout(() => {
-        if (!isStartingHand.current && players.length >= 2) {
-          startAutoStartCountdown();
-        }
-      }, 1000);
-      
-      prevPlayerCount.current = activePlayerCount;
-      return () => clearTimeout(delayTimer);
-    }
-    
-    // Also trigger auto-start if no game exists yet but we have 2+ players
-    if (canAutoStart && !showWinner && autoStartCountdown === null && !game && activePlayerCount >= 2) {
-      if (lastCompletedGameId.current !== 'no_game') {
-        lastCompletedGameId.current = 'no_game';
-        const delayTimer = setTimeout(() => {
-          if (!isStartingHand.current && players.length >= 2) {
-            startAutoStartCountdown();
-          }
-        }, 1000);
-        
-        prevPlayerCount.current = activePlayerCount;
-        return () => clearTimeout(delayTimer);
-      }
-    }
-    
-    // Reset tracking when a new hand starts
-    if (gameStatus === 'preflop' && lastCompletedGameId.current) {
-      lastCompletedGameId.current = null;
-    }
-    
-    // If players dropped below 2, clear timers
-    if (activePlayerCount < 2 && autoStartCountdown !== null) {
-      clearAutoStartTimers();
-    }
-    
     prevPlayerCount.current = activePlayerCount;
+  }, [players.length, isJoined, autoStartCountdown, clearAutoStartTimers, toast]);
+
+  // Separate effect for auto-start trigger - fires when winner animation ends
+  useEffect(() => {
+    // Conditions for auto-start
+    const activePlayerCount = players.length;
+    const gameStatus = game?.status || null;
+    const gameId = game?.id || null;
+    const isGameEnded = gameStatus === 'complete' || gameStatus === 'showdown';
+    const noGameYet = !game && activePlayerCount >= 2;
+    
+    const canAutoStart = isJoined && 
+                         activePlayerCount >= 2 && 
+                         (isGameEnded || noGameYet) &&
+                         table && table.handsPlayed < table.maxHands &&
+                         !isStartingHand.current &&
+                         !showWinner && // Wait for winner animation to finish
+                         autoStartCountdown === null;
+    
+    if (!canAutoStart) return;
+    
+    // Check if this is a new game end we haven't processed
+    const gameKey = gameId || 'no_game';
+    if (lastCompletedGameId.current === gameKey) return;
+    
+    lastCompletedGameId.current = gameKey;
+    
+    // Start countdown after a brief delay
+    const delayTimer = setTimeout(() => {
+      if (!isStartingHand.current && players.length >= 2 && !showWinner) {
+        startAutoStartCountdown();
+      }
+    }, 500);
+    
+    return () => clearTimeout(delayTimer);
   }, [
     players.length, 
     isJoined, 
@@ -303,11 +300,16 @@ export default function Table() {
     table?.maxHands,
     showWinner,
     autoStartCountdown,
-    clearAutoStartTimers,
     startAutoStartCountdown,
-    toast,
     players
   ]);
+
+  // Reset tracking when a new hand starts
+  useEffect(() => {
+    if (game?.status === 'preflop') {
+      lastCompletedGameId.current = null;
+    }
+  }, [game?.status]);
 
   // Clean up timers on unmount
   useEffect(() => {

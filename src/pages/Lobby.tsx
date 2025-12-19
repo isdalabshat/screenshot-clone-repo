@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Users, Coins, LogOut, Shield, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
+import { Users, Coins, LogOut, Shield, ArrowUpCircle, ArrowDownCircle, Upload, Image } from 'lucide-react';
 import { PokerTable } from '@/types/poker';
 import { useToast } from '@/hooks/use-toast';
 import { motion } from 'framer-motion';
@@ -22,6 +22,10 @@ export default function Lobby() {
   const [cashAmount, setCashAmount] = useState(1000);
   const [showCashIn, setShowCashIn] = useState(false);
   const [showCashOut, setShowCashOut] = useState(false);
+  const [proofImage, setProofImage] = useState<File | null>(null);
+  const [proofPreview, setProofPreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -89,16 +93,65 @@ export default function Lobby() {
     navigate('/auth');
   };
 
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setProofImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProofPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const uploadProofImage = async (): Promise<string | null> => {
+    if (!proofImage || !user) return null;
+    
+    const fileExt = proofImage.name.split('.').pop();
+    const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+    
+    const { error } = await supabase.storage
+      .from('cash-proofs')
+      .upload(fileName, proofImage);
+    
+    if (error) {
+      console.error('Upload error:', error);
+      return null;
+    }
+    
+    const { data: { publicUrl } } = supabase.storage
+      .from('cash-proofs')
+      .getPublicUrl(fileName);
+    
+    return publicUrl;
+  };
+
   const handleCashRequest = async (type: 'cash_in' | 'cash_out') => {
     if (!user || cashAmount <= 0) return;
+    
+    setIsUploading(true);
+    
+    let proofUrl: string | null = null;
+    if (type === 'cash_in' && proofImage) {
+      proofUrl = await uploadProofImage();
+      if (!proofUrl) {
+        toast({ title: 'Error', description: 'Failed to upload proof image', variant: 'destructive' });
+        setIsUploading(false);
+        return;
+      }
+    }
 
     const { error } = await supabase
       .from('cash_requests')
       .insert({
         user_id: user.id,
         request_type: type,
-        amount: cashAmount
+        amount: cashAmount,
+        proof_image_url: proofUrl
       });
+
+    setIsUploading(false);
 
     if (error) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -110,6 +163,8 @@ export default function Lobby() {
       setShowCashIn(false);
       setShowCashOut(false);
       setCashAmount(1000);
+      setProofImage(null);
+      setProofPreview(null);
     }
   };
 
@@ -153,8 +208,15 @@ export default function Lobby() {
                   <DialogDescription>Request chips to be added to your account. Admin approval required.</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
+                  {/* GCash Payment Info */}
+                  <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+                    <p className="text-sm font-medium text-blue-400 mb-1">Send payment via GCash:</p>
+                    <p className="text-lg font-bold text-blue-300">09152274107</p>
+                    <p className="text-xs text-muted-foreground mt-1">Upload your payment screenshot below</p>
+                  </div>
+                  
                   <div>
-                    <Label>Amount</Label>
+                    <Label>Amount (in chips)</Label>
                     <Input
                       type="number"
                       value={cashAmount}
@@ -162,8 +224,41 @@ export default function Lobby() {
                       min={100}
                     />
                   </div>
-                  <Button onClick={() => handleCashRequest('cash_in')} className="w-full bg-green-600 hover:bg-green-700">
-                    Submit Request
+                  
+                  {/* Proof Image Upload */}
+                  <div>
+                    <Label>Payment Proof (Screenshot)</Label>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageSelect}
+                      className="hidden"
+                    />
+                    <div 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="mt-2 border-2 border-dashed border-muted-foreground/30 rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                    >
+                      {proofPreview ? (
+                        <div className="relative">
+                          <img src={proofPreview} alt="Proof" className="max-h-40 mx-auto rounded" />
+                          <p className="text-xs text-muted-foreground mt-2">Click to change</p>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-2">
+                          <Upload className="h-8 w-8 text-muted-foreground" />
+                          <p className="text-sm text-muted-foreground">Click to upload payment screenshot</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <Button 
+                    onClick={() => handleCashRequest('cash_in')} 
+                    className="w-full bg-green-600 hover:bg-green-700"
+                    disabled={isUploading || !proofImage}
+                  >
+                    {isUploading ? 'Uploading...' : 'Submit Request'}
                   </Button>
                 </div>
               </DialogContent>
