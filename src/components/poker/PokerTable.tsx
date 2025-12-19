@@ -44,17 +44,17 @@ const getRotatedPosition = (actualPosition: number, userPosition: number): numbe
   return (actualPosition - offset + 9) % 9;
 };
 
-// Bet positions around the table - closer to center for visibility
+// Bet positions - moved closer to center, away from player seats
 const betPositions: Record<number, string> = {
-  0: 'bottom-[28%] left-1/2 -translate-x-1/2',
-  1: 'bottom-[32%] left-[18%]',
-  2: 'left-[18%] top-[42%]',
-  3: 'top-[25%] left-[22%]',
-  4: 'top-[20%] left-[40%]',
-  5: 'top-[20%] right-[40%]',
-  6: 'top-[25%] right-[22%]',
-  7: 'right-[18%] top-[42%]',
-  8: 'bottom-[32%] right-[18%]',
+  0: 'bottom-[35%] left-1/2 -translate-x-1/2',
+  1: 'bottom-[38%] left-[25%]',
+  2: 'left-[25%] top-[45%]',
+  3: 'top-[32%] left-[28%]',
+  4: 'top-[28%] left-[42%]',
+  5: 'top-[28%] right-[42%]',
+  6: 'top-[32%] right-[28%]',
+  7: 'right-[25%] top-[45%]',
+  8: 'bottom-[38%] right-[25%]',
 };
 
 interface ChipAnimationData {
@@ -140,7 +140,7 @@ export default function PokerTableComponent({
   }, [gameStatus]);
 
   return (
-    <div className="relative w-full max-w-lg mx-auto aspect-[3/4]">
+    <div className="relative w-full max-w-xl mx-auto aspect-[3/4]">
       {/* Ambient glow effect */}
       <div className="absolute inset-0 bg-gradient-radial from-emerald-900/20 via-transparent to-transparent pointer-events-none" />
       
@@ -148,7 +148,7 @@ export default function PokerTableComponent({
       <motion.div 
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="absolute inset-6 rounded-[50%/40%] poker-felt border-[14px] border-amber-900/95 shadow-2xl"
+        className="absolute inset-8 sm:inset-6 rounded-[50%/40%] poker-felt border-[12px] sm:border-[14px] border-amber-900/95 shadow-2xl"
         style={{
           boxShadow: `
             inset 0 0 100px rgba(0,0,0,0.6), 
@@ -160,9 +160,9 @@ export default function PokerTableComponent({
         }}
       >
         {/* Table Rail - Multi-layer wood effect */}
-        <div className="absolute -inset-[14px] rounded-[50%/40%] border-4 border-amber-800/60 pointer-events-none" />
-        <div className="absolute -inset-[10px] rounded-[50%/40%] border-2 border-amber-600/30 pointer-events-none" />
-        <div className="absolute -inset-[6px] rounded-[50%/40%] border border-amber-500/10 pointer-events-none" />
+        <div className="absolute -inset-[12px] sm:-inset-[14px] rounded-[50%/40%] border-4 border-amber-800/60 pointer-events-none" />
+        <div className="absolute -inset-[8px] sm:-inset-[10px] rounded-[50%/40%] border-2 border-amber-600/30 pointer-events-none" />
+        <div className="absolute -inset-[4px] sm:-inset-[6px] rounded-[50%/40%] border border-amber-500/10 pointer-events-none" />
         
         {/* Felt texture overlay */}
         <div className="absolute inset-0 rounded-[50%/40%] opacity-40 bg-[radial-gradient(circle_at_50%_30%,transparent_0%,rgba(0,0,0,0.4)_100%)]" />
@@ -180,19 +180,19 @@ export default function PokerTableComponent({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
-          className="absolute top-4 left-1/2 -translate-x-1/2 text-emerald-400/30 font-bold text-lg tracking-[0.4em] uppercase select-none"
+          className="absolute top-3 sm:top-4 left-1/2 -translate-x-1/2 text-emerald-400/30 font-bold text-sm sm:text-lg tracking-[0.3em] sm:tracking-[0.4em] uppercase select-none"
           style={{ textShadow: '0 0 20px rgba(16, 185, 129, 0.3)' }}
         >
           JD CLUB
         </motion.div>
 
         {/* Center area */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 pt-8">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 pt-6 sm:pt-8">
           {/* Hand counter - Enhanced */}
           <motion.div 
             initial={{ y: -10, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            className="bg-black/70 px-4 py-1.5 rounded-full text-[10px] text-emerald-400 font-semibold border border-emerald-500/40 shadow-lg backdrop-blur-sm"
+            className="bg-black/70 px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[8px] sm:text-[10px] text-emerald-400 font-semibold border border-emerald-500/40 shadow-lg backdrop-blur-sm"
           >
             <span className="text-emerald-500/70">Hand</span> {handsPlayed}/{maxHands}
           </motion.div>
@@ -206,7 +206,7 @@ export default function PokerTableComponent({
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.8, opacity: 0, y: 10 }}
                 className={cn(
-                  'px-4 py-1.5 rounded-full text-xs font-bold shadow-xl border backdrop-blur-sm',
+                  'px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-bold shadow-xl border backdrop-blur-sm',
                   turnTimeLeft !== null && turnTimeLeft <= 10 
                     ? 'bg-gradient-to-r from-red-600 to-red-700 text-white border-red-400 animate-pulse shadow-red-500/40' 
                     : 'bg-gradient-to-r from-emerald-500 to-green-600 text-white border-emerald-400/50 shadow-emerald-500/30'
@@ -215,7 +215,7 @@ export default function PokerTableComponent({
                 🎯 {currentTurnPlayer.username}'s Turn
                 {turnTimeLeft !== null && (
                   <span className={cn(
-                    'ml-2 font-mono bg-black/30 px-1.5 rounded',
+                    'ml-1.5 sm:ml-2 font-mono bg-black/30 px-1 sm:px-1.5 rounded',
                     turnTimeLeft <= 5 && 'text-yellow-300 animate-pulse'
                   )}>
                     {turnTimeLeft}s
@@ -231,15 +231,15 @@ export default function PokerTableComponent({
             transition={{ duration: 0.4 }}
             className="relative"
           >
-            <div className="absolute -inset-1 bg-gradient-to-r from-yellow-500 via-amber-500 to-yellow-500 rounded-2xl blur-sm opacity-40 animate-pulse" />
-            <div className="relative bg-gradient-to-br from-slate-900/95 to-black/90 px-6 py-3 rounded-2xl backdrop-blur-md border-2 border-yellow-500/50 shadow-2xl">
+            <div className="absolute -inset-1 bg-gradient-to-r from-yellow-500 via-amber-500 to-yellow-500 rounded-xl sm:rounded-2xl blur-sm opacity-40 animate-pulse" />
+            <div className="relative bg-gradient-to-br from-slate-900/95 to-black/90 px-4 sm:px-6 py-2 sm:py-3 rounded-xl sm:rounded-2xl backdrop-blur-md border-2 border-yellow-500/50 shadow-2xl">
               <div className="flex flex-col items-center gap-0.5">
-                <span className="text-[9px] text-yellow-500/70 uppercase tracking-widest font-semibold">Total Pot</span>
-                <span className="text-yellow-400 font-bold text-2xl flex items-center gap-2 drop-shadow-lg">
+                <span className="text-[8px] sm:text-[9px] text-yellow-500/70 uppercase tracking-widest font-semibold">Total Pot</span>
+                <span className="text-yellow-400 font-bold text-xl sm:text-2xl flex items-center gap-1.5 sm:gap-2 drop-shadow-lg">
                   <motion.span 
                     animate={{ rotate: pot > 0 ? [0, 10, -10, 0] : 0 }}
                     transition={{ duration: 0.3 }}
-                    className="text-3xl"
+                    className="text-2xl sm:text-3xl"
                   >
                     💰
                   </motion.span>
@@ -257,7 +257,7 @@ export default function PokerTableComponent({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="flex gap-1.5 flex-wrap justify-center max-w-[240px] min-h-[60px] bg-black/40 rounded-xl p-2.5 border border-emerald-500/20 shadow-inner backdrop-blur-sm"
+            className="flex gap-1 sm:gap-1.5 flex-wrap justify-center max-w-[200px] sm:max-w-[240px] min-h-[50px] sm:min-h-[60px] bg-black/40 rounded-lg sm:rounded-xl p-2 sm:p-2.5 border border-emerald-500/20 shadow-inner backdrop-blur-sm"
           >
             {[0, 1, 2, 3, 4].map((i) => (
               <motion.div 
@@ -279,7 +279,7 @@ export default function PokerTableComponent({
                 {i < visibleCardCount && communityCards[i] ? (
                   <PlayingCard card={communityCards[i]} size="sm" />
                 ) : (
-                  <div className="w-9 h-13 rounded-md border border-dashed border-emerald-500/20 bg-black/20" />
+                  <div className="w-8 h-12 sm:w-9 sm:h-13 rounded-md border border-dashed border-emerald-500/20 bg-black/20" />
                 )}
               </motion.div>
             ))}
@@ -293,7 +293,7 @@ export default function PokerTableComponent({
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.8 }}
-                className="bg-gradient-to-r from-emerald-600/30 to-green-600/30 px-5 py-1.5 rounded-full text-emerald-400 text-xs font-bold uppercase tracking-[0.2em] border border-emerald-500/40 shadow-lg backdrop-blur-sm"
+                className="bg-gradient-to-r from-emerald-600/30 to-green-600/30 px-4 sm:px-5 py-1 sm:py-1.5 rounded-full text-emerald-400 text-[10px] sm:text-xs font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em] border border-emerald-500/40 shadow-lg backdrop-blur-sm"
               >
                 {gameStatus === 'preflop' ? 'Pre-Flop' : gameStatus.charAt(0).toUpperCase() + gameStatus.slice(1)}
               </motion.div>
@@ -315,7 +315,7 @@ export default function PokerTableComponent({
         ))}
       </AnimatePresence>
 
-      {/* Player Bets on the Table - Enhanced */}
+      {/* Player Bets on the Table - Enhanced and repositioned */}
       <AnimatePresence>
         {seats.map((player, displayPosition) => {
           if (!player || player.currentBet <= 0 || player.isFolded) return null;
@@ -327,17 +327,11 @@ export default function PokerTableComponent({
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0, opacity: 0, y: -10 }}
               transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-              className={cn('absolute z-20', betPositions[displayPosition])}
+              className={cn('absolute z-15', betPositions[displayPosition])}
             >
-              <div className="flex items-center gap-1.5 bg-gradient-to-br from-amber-500 to-yellow-600 text-black px-3 py-1 rounded-full shadow-lg shadow-amber-500/50 border-2 border-yellow-300/60">
-                <motion.span 
-                  animate={{ scale: [1, 1.1, 1] }}
-                  transition={{ repeat: Infinity, duration: 2 }}
-                  className="text-sm"
-                >
-                  🪙
-                </motion.span>
-                <span className="font-bold text-xs drop-shadow-sm">{player.currentBet.toLocaleString()}</span>
+              <div className="flex items-center gap-1 bg-gradient-to-br from-amber-500 to-yellow-600 text-black px-2 py-0.5 rounded-full shadow-lg shadow-amber-500/50 border border-yellow-300/60">
+                <span className="text-xs">🪙</span>
+                <span className="font-bold text-[10px] drop-shadow-sm">{player.currentBet.toLocaleString()}</span>
               </div>
             </motion.div>
           );

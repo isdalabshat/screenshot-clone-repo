@@ -107,16 +107,16 @@ export default function TableChat({ tableId, userId, username }: TableChatProps)
         variant="outline"
         size="icon"
         className={cn(
-          'fixed bottom-20 right-4 z-40 h-12 w-12 rounded-full shadow-lg',
+          'fixed bottom-40 right-4 z-30 h-11 w-11 sm:h-12 sm:w-12 rounded-full shadow-lg',
           'bg-emerald-600 hover:bg-emerald-700 border-emerald-500',
           unreadCount > 0 && 'animate-pulse'
         )}
         onClick={() => setIsOpen(!isOpen)}
       >
         {isOpen ? (
-          <X className="h-5 w-5 text-white" />
+          <X className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
         ) : (
-          <MessageCircle className="h-5 w-5 text-white" />
+          <MessageCircle className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
         )}
         {unreadCount > 0 && !isOpen && (
           <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
@@ -132,12 +132,12 @@ export default function TableChat({ tableId, userId, username }: TableChatProps)
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-36 right-4 z-40 w-72 h-80 bg-slate-900/95 backdrop-blur border border-emerald-700/30 rounded-lg shadow-xl flex flex-col"
+            className="fixed bottom-56 right-4 z-30 w-64 sm:w-72 h-72 sm:h-80 bg-slate-900/95 backdrop-blur border border-emerald-700/30 rounded-lg shadow-xl flex flex-col"
           >
             {/* Header */}
             <div className="px-3 py-2 border-b border-emerald-700/30 flex items-center justify-between">
-              <span className="text-sm font-semibold text-emerald-400">Table Chat</span>
-              <span className="text-xs text-muted-foreground">{messages.length} messages</span>
+              <span className="text-xs sm:text-sm font-semibold text-emerald-400">Table Chat</span>
+              <span className="text-[10px] sm:text-xs text-muted-foreground">{messages.length} messages</span>
             </div>
 
             {/* Messages */}
@@ -164,12 +164,12 @@ export default function TableChat({ tableId, userId, username }: TableChatProps)
                           ? 'bg-emerald-600 text-white'
                           : 'bg-slate-700 text-white'
                       )}>
-                        <div className="text-[10px] font-medium opacity-70">
+                        <div className="text-[9px] sm:text-[10px] font-medium opacity-70">
                           {msg.username}
                         </div>
-                        <div className="text-xs break-words">{msg.message}</div>
+                        <div className="text-[11px] sm:text-xs break-words">{msg.message}</div>
                       </div>
-                      <span className="text-[9px] text-muted-foreground mt-0.5">
+                      <span className="text-[8px] sm:text-[9px] text-muted-foreground mt-0.5">
                         {formatTime(msg.created_at)}
                       </span>
                     </motion.div>
@@ -185,14 +185,14 @@ export default function TableChat({ tableId, userId, username }: TableChatProps)
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   placeholder="Type a message..."
-                  className="h-8 text-xs bg-slate-800 border-slate-700"
+                  className="h-7 sm:h-8 text-[11px] sm:text-xs bg-slate-800 border-slate-700"
                   maxLength={200}
                   disabled={!userId}
                 />
                 <Button
                   type="submit"
                   size="icon"
-                  className="h-8 w-8 bg-emerald-600 hover:bg-emerald-700"
+                  className="h-7 w-7 sm:h-8 sm:w-8 bg-emerald-600 hover:bg-emerald-700"
                   disabled={!newMessage.trim() || !userId}
                 >
                   <Send className="h-3 w-3" />

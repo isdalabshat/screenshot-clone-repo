@@ -343,6 +343,7 @@ export function usePokerGame(tableId: string) {
       return;
     }
 
+    // Check if the user already has an existing record at this table
     const { data: existingRecord } = await supabase
       .from('table_players')
       .select('*')
@@ -361,16 +362,23 @@ export function usePokerGame(tableId: string) {
         return;
       }
 
-      // Reset ALL player state when rejoining to ensure clean state for new hands
+      // Reactivate existing seat - Reset ALL player state when rejoining
+      // Player joins as folded if a hand is in progress, will play next hand
+      const currentGame = gameRef.current;
+      const isHandInProgress = currentGame && 
+        currentGame.status !== 'complete' && 
+        currentGame.status !== 'showdown' && 
+        currentGame.status !== 'waiting';
+
       const { error } = await supabase
         .from('table_players')
         .update({
           is_active: true,
           stack: buyIn,
           current_bet: 0,
-          is_folded: false,
+          is_folded: isHandInProgress, // Auto-fold if hand is in progress
           is_all_in: false,
-          hole_cards: null  // Use null to fully clear - will get new cards on next hand
+          hole_cards: null  // No cards until next hand
         })
         .eq('id', existingRecord.id);
 
@@ -391,35 +399,92 @@ export function usePokerGame(tableId: string) {
       await refreshProfile();
       await fetchPlayers();
       
-      // Clear local cards state to ensure fresh state
+      // Clear local cards state
       setMyCards([]);
       
       toast({
         title: 'Joined table!',
-        description: `You've rejoined with ${buyIn} chips.`
+        description: isHandInProgress 
+          ? `You've rejoined with ${buyIn} chips. You'll play in the next hand.`
+          : `You've rejoined with ${buyIn} chips.`
       });
       return;
     }
 
-    const maxRetries = 3;
+    // New player - find an available seat
+    // Get ALL players at the table (both active and inactive) to find truly empty positions
+    const { data: allTablePlayers } = await supabase
+      .from('table_players')
+      .select('position, is_active, user_id')
+      .eq('table_id', tableId);
+
+    // Find positions that are truly empty (no record at all, or inactive records that belong to OTHER users)
+    const activePositions = new Set(
+      (allTablePlayers || [])
+        .filter(p => p.is_active)
+        .map(p => p.position)
+    );
+    
+    // Check if current user has an inactive record
+    const myInactiveRecord = (allTablePlayers || []).find(
+      p => !p.is_active && p.user_id === user.id
+    );
+    
+    // If user has an inactive record, we should have handled it above
+    // So now we need to find positions not taken by active players
+    const availablePositions = Array.from({ length: 9 }, (_, i) => i)
+      .filter(pos => !activePositions.has(pos));
+
+    if (availablePositions.length === 0) {
+      toast({
+        title: 'Table full',
+        description: 'All seats are currently occupied.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    // Check if a hand is in progress - new players join as folded
+    const currentGame = gameRef.current;
+    const isHandInProgress = currentGame && 
+      currentGame.status !== 'complete' && 
+      currentGame.status !== 'showdown' && 
+      currentGame.status !== 'waiting';
+
+    // Try to insert with retry logic for position conflicts
+    const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const { data: currentPlayers } = await supabase
+      // Re-fetch to get current state
+      const { data: currentActivePlayers } = await supabase
         .from('table_players')
         .select('position')
         .eq('table_id', tableId)
         .eq('is_active', true);
 
-      const takenPositions = new Set((currentPlayers || []).map(p => p.position));
+      const takenPositions = new Set((currentActivePlayers || []).map(p => p.position));
       const availablePosition = Array.from({ length: 9 }, (_, i) => i)
         .find(pos => !takenPositions.has(pos));
 
       if (availablePosition === undefined) {
         toast({
           title: 'Table full',
-          description: 'This table is full.',
+          description: 'All seats are currently occupied.',
           variant: 'destructive'
         });
         return;
+      }
+
+      // Check if there's an existing inactive record at this position from another user
+      const { data: existingAtPosition } = await supabase
+        .from('table_players')
+        .select('id')
+        .eq('table_id', tableId)
+        .eq('position', availablePosition)
+        .maybeSingle();
+
+      if (existingAtPosition) {
+        // Position has an inactive record, try another position
+        continue;
       }
 
       const { error } = await supabase
@@ -428,7 +493,9 @@ export function usePokerGame(tableId: string) {
           table_id: tableId,
           user_id: user.id,
           position: availablePosition,
-          stack: buyIn
+          stack: buyIn,
+          is_folded: isHandInProgress, // Auto-fold if hand is in progress
+          hole_cards: null
         });
 
       if (!error) {
@@ -441,13 +508,15 @@ export function usePokerGame(tableId: string) {
         await fetchPlayers();
         toast({
           title: 'Joined table!',
-          description: `You've joined with ${buyIn} chips.`
+          description: isHandInProgress 
+            ? `You've joined with ${buyIn} chips. You'll play in the next hand.`
+            : `You've joined with ${buyIn} chips.`
         });
         return;
       }
 
       if (error.code === '23505') {
-        console.log(`Position ${availablePosition} taken, retrying...`);
+        console.log(`Position ${availablePosition} conflict, retrying...`);
         continue;
       }
 
@@ -761,20 +830,61 @@ export function usePokerGame(tableId: string) {
     init();
   }, [fetchTable, fetchGame, fetchPlayers, fetchMyCards]);
 
+  // Presence tracking for disconnect detection
+  useEffect(() => {
+    if (!user?.id || !isJoined) return;
+
+    const presenceChannel = supabase.channel(`presence-${tableId}`, {
+      config: { presence: { key: user.id } }
+    });
+
+    presenceChannel
+      .on('presence', { event: 'leave' }, async ({ leftPresences }) => {
+        // When a player leaves (closes browser/disconnects), auto-fold them if it's their turn
+        for (const presence of leftPresences) {
+          const leftUserId = presence.user_id;
+          const currentGame = gameRef.current;
+          const currentPlayers = playersRef.current;
+          
+          if (!currentGame || currentGame.status === 'complete' || currentGame.status === 'showdown') continue;
+          
+          const leftPlayer = currentPlayers.find(p => p.userId === leftUserId);
+          if (leftPlayer && leftPlayer.isCurrentPlayer && !leftPlayer.isFolded) {
+            console.log('Player disconnected during their turn, auto-folding:', leftUserId);
+            try {
+              await supabase.functions.invoke('poker-game', {
+                body: {
+                  action: 'auto_fold',
+                  tableId,
+                  gameId: currentGame.id,
+                  disconnectedUserId: leftUserId
+                }
+              });
+            } catch (error) {
+              console.error('Auto-fold disconnected player failed:', error);
+            }
+          }
+        }
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await presenceChannel.track({ user_id: user.id, online_at: new Date().toISOString() });
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(presenceChannel);
+    };
+  }, [tableId, user?.id, isJoined]);
+
   // Realtime subscriptions - INSTANT sync for all users
   useEffect(() => {
-    // Track game status for instant card reveal
     let lastGameStatus = gameRef.current?.status || null;
     
-    // Instant update handler - priority on game state sync
     const handleGameUpdate = async (payload: any) => {
       const newData = payload?.new;
-      
-      // If game status changed (new round), update IMMEDIATELY for card reveal sync
       if (newData?.status && newData.status !== lastGameStatus) {
         lastGameStatus = newData.status;
-        
-        // Immediately update game state for card visibility
         if (newData.community_cards) {
           setGame(prev => prev ? {
             ...prev,
@@ -787,40 +897,20 @@ export function usePokerGame(tableId: string) {
           } : prev);
         }
       }
-      
-      // Full fetch to ensure complete sync
       await Promise.all([fetchGame(), fetchPlayers(), fetchMyCards()]);
     };
 
     const handlePlayerUpdate = async (payload: any) => {
-      // Don't refetch if this user's action is pending (optimistic update handles it)
       const isMyAction = payload?.new?.user_id === userIdRef.current;
       if (isActionPending && isMyAction) return;
-      
-      // Immediate parallel fetch for instant sync
       await Promise.all([fetchGame(), fetchPlayers(), fetchMyCards()]);
     };
     
     const channel = supabase
       .channel(`table-realtime-${tableId}`)
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'games', 
-        filter: `table_id=eq.${tableId}` 
-      }, handleGameUpdate)
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'table_players', 
-        filter: `table_id=eq.${tableId}` 
-      }, handlePlayerUpdate)
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'poker_tables', 
-        filter: `id=eq.${tableId}` 
-      }, fetchTable)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter: `table_id=eq.${tableId}` }, handleGameUpdate)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'table_players', filter: `table_id=eq.${tableId}` }, handlePlayerUpdate)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'poker_tables', filter: `id=eq.${tableId}` }, fetchTable)
       .subscribe();
 
     return () => {
