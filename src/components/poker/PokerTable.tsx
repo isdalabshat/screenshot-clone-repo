@@ -2,8 +2,10 @@ import { Player, Card, Game } from '@/types/poker';
 import PlayerSeat from './PlayerSeat';
 import PlayingCard from './PlayingCard';
 import SidePotDisplay, { SidePot } from './SidePotDisplay';
+import ChipAnimation from './ChipAnimation';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect, useRef } from 'react';
 
 interface PokerTableProps {
   players: Player[];
@@ -47,6 +49,12 @@ const betPositions: Record<number, string> = {
   8: 'bottom-[32%] right-[18%]',
 };
 
+interface ChipAnimationData {
+  id: string;
+  position: number;
+  amount: number;
+}
+
 export default function PokerTableComponent({ 
   players, 
   communityCards, 
@@ -75,40 +83,112 @@ export default function PokerTableComponent({
   const isShowdown = gameStatus === 'showdown';
   const currentTurnPlayer = players.find(p => p.isCurrentPlayer);
 
-  // Calculate total bets for display
-  const totalBets = players.reduce((sum, p) => sum + (p.currentBet || 0), 0);
+  // Track previous bets for chip animations
+  const prevBetsRef = useRef<Map<string, number>>(new Map());
+  const [chipAnimations, setChipAnimations] = useState<ChipAnimationData[]>([]);
+
+  // Detect bet changes and trigger animations
+  useEffect(() => {
+    const newAnimations: ChipAnimationData[] = [];
+    
+    players.forEach(player => {
+      const prevBet = prevBetsRef.current.get(player.userId) || 0;
+      const betDiff = player.currentBet - prevBet;
+      
+      if (betDiff > 0 && gameStatus !== 'complete' && gameStatus !== 'showdown') {
+        const displayPosition = getRotatedPosition(player.position, userPosition);
+        newAnimations.push({
+          id: `chip-${player.userId}-${Date.now()}`,
+          position: displayPosition,
+          amount: betDiff
+        });
+      }
+    });
+    
+    if (newAnimations.length > 0) {
+      setChipAnimations(prev => [...prev, ...newAnimations]);
+    }
+    
+    // Update tracked bets
+    const newBetsMap = new Map<string, number>();
+    players.forEach(p => newBetsMap.set(p.userId, p.currentBet));
+    prevBetsRef.current = newBetsMap;
+  }, [players, gameStatus, userPosition]);
+
+  // Clear chip animations after they complete
+  const removeChipAnimation = (id: string) => {
+    setChipAnimations(prev => prev.filter(a => a.id !== id));
+  };
+
+  // Reset bets tracking when game changes phase
+  useEffect(() => {
+    if (gameStatus === 'preflop' || gameStatus === 'flop' || gameStatus === 'turn' || gameStatus === 'river') {
+      // Reset on new round - bets are collected
+      if (gameStatus !== 'preflop') {
+        prevBetsRef.current = new Map();
+      }
+    }
+  }, [gameStatus]);
 
   return (
     <div className="relative w-full max-w-md mx-auto aspect-[3/4]">
+      {/* Ambient glow effect */}
+      <div className="absolute inset-0 bg-gradient-radial from-emerald-900/20 via-transparent to-transparent pointer-events-none" />
+      
       {/* Table Surface with Premium Felt */}
       <motion.div 
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="absolute inset-6 rounded-[50%/40%] poker-felt border-[12px] border-amber-900/90 shadow-2xl shadow-black/50"
+        className="absolute inset-6 rounded-[50%/40%] poker-felt border-[14px] border-amber-900/95 shadow-2xl"
         style={{
-          boxShadow: 'inset 0 0 80px rgba(0,0,0,0.5), 0 0 50px rgba(0,0,0,0.6), inset 0 0 30px rgba(16, 185, 129, 0.1)'
+          boxShadow: `
+            inset 0 0 100px rgba(0,0,0,0.6), 
+            0 0 60px rgba(0,0,0,0.7), 
+            inset 0 0 40px rgba(16, 185, 129, 0.15),
+            0 8px 32px rgba(0,0,0,0.5)
+          `,
+          background: 'radial-gradient(ellipse at 50% 30%, #1a5d3a 0%, #0f4228 40%, #0a2e1c 100%)'
         }}
       >
-        {/* Table Rail Highlight */}
-        <div className="absolute -inset-[12px] rounded-[50%/40%] border-4 border-amber-700/40 pointer-events-none" />
-        <div className="absolute -inset-[8px] rounded-[50%/40%] border-2 border-amber-600/20 pointer-events-none" />
+        {/* Table Rail - Multi-layer wood effect */}
+        <div className="absolute -inset-[14px] rounded-[50%/40%] border-4 border-amber-800/60 pointer-events-none" />
+        <div className="absolute -inset-[10px] rounded-[50%/40%] border-2 border-amber-600/30 pointer-events-none" />
+        <div className="absolute -inset-[6px] rounded-[50%/40%] border border-amber-500/10 pointer-events-none" />
         
-        {/* Inner felt pattern */}
-        <div className="absolute inset-0 rounded-[50%/40%] opacity-30 bg-[radial-gradient(circle_at_50%_30%,transparent_0%,rgba(0,0,0,0.5)_100%)]" />
+        {/* Felt texture overlay */}
+        <div className="absolute inset-0 rounded-[50%/40%] opacity-40 bg-[radial-gradient(circle_at_50%_30%,transparent_0%,rgba(0,0,0,0.4)_100%)]" />
         
-        {/* JD Club Logo */}
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 text-primary/40 font-bold text-lg tracking-[0.3em] uppercase">
+        {/* Subtle pattern */}
+        <div 
+          className="absolute inset-0 rounded-[50%/40%] opacity-[0.03]"
+          style={{
+            backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(255,255,255,0.1) 2px, rgba(255,255,255,0.1) 4px)'
+          }}
+        />
+        
+        {/* JD Club Logo - Enhanced */}
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3 }}
+          className="absolute top-4 left-1/2 -translate-x-1/2 text-emerald-400/30 font-bold text-lg tracking-[0.4em] uppercase select-none"
+          style={{ textShadow: '0 0 20px rgba(16, 185, 129, 0.3)' }}
+        >
           JD CLUB
-        </div>
+        </motion.div>
 
         {/* Center area */}
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 pt-8">
-          {/* Hand counter */}
-          <div className="bg-black/60 px-4 py-1.5 rounded-full text-[10px] text-primary font-semibold border border-primary/40 shadow-lg">
-            Hand {handsPlayed}/{maxHands}
-          </div>
+          {/* Hand counter - Enhanced */}
+          <motion.div 
+            initial={{ y: -10, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="bg-black/70 px-4 py-1.5 rounded-full text-[10px] text-emerald-400 font-semibold border border-emerald-500/40 shadow-lg backdrop-blur-sm"
+          >
+            <span className="text-emerald-500/70">Hand</span> {handsPlayed}/{maxHands}
+          </motion.div>
 
-          {/* Current turn indicator */}
+          {/* Current turn indicator - Enhanced */}
           <AnimatePresence mode="wait">
             {currentTurnPlayer && gameStatus && gameStatus !== 'waiting' && gameStatus !== 'complete' && (
               <motion.div
@@ -117,17 +197,17 @@ export default function PokerTableComponent({
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.8, opacity: 0, y: 10 }}
                 className={cn(
-                  'px-4 py-1.5 rounded-full text-xs font-bold shadow-lg border',
+                  'px-4 py-1.5 rounded-full text-xs font-bold shadow-xl border backdrop-blur-sm',
                   turnTimeLeft !== null && turnTimeLeft <= 10 
-                    ? 'bg-destructive/90 text-destructive-foreground border-destructive animate-pulse' 
-                    : 'bg-gradient-to-r from-primary to-emerald-600 text-primary-foreground border-primary/50'
+                    ? 'bg-gradient-to-r from-red-600 to-red-700 text-white border-red-400 animate-pulse shadow-red-500/40' 
+                    : 'bg-gradient-to-r from-emerald-500 to-green-600 text-white border-emerald-400/50 shadow-emerald-500/30'
                 )}
               >
                 🎯 {currentTurnPlayer.username}'s Turn
                 {turnTimeLeft !== null && (
                   <span className={cn(
-                    'ml-2 font-mono',
-                    turnTimeLeft <= 5 && 'text-yellow-300'
+                    'ml-2 font-mono bg-black/30 px-1.5 rounded',
+                    turnTimeLeft <= 5 && 'text-yellow-300 animate-pulse'
                   )}>
                     {turnTimeLeft}s
                   </span>
@@ -136,78 +216,124 @@ export default function PokerTableComponent({
             )}
           </AnimatePresence>
 
-          {/* Pot display */}
+          {/* Pot display - Premium design */}
           <motion.div 
-            animate={{ scale: pot > 0 ? [1, 1.05, 1] : 1 }}
-            transition={{ duration: 0.3 }}
-            className="bg-gradient-to-br from-black/80 to-black/60 px-6 py-3 rounded-2xl backdrop-blur-sm border-2 border-yellow-500/60 shadow-xl shadow-yellow-500/30"
+            animate={{ scale: pot > 0 ? [1, 1.03, 1] : 1 }}
+            transition={{ duration: 0.4 }}
+            className="relative"
           >
-            <div className="flex flex-col items-center gap-1">
-              <span className="text-[10px] text-yellow-500/80 uppercase tracking-wider font-semibold">Total Pot</span>
-              <span className="text-yellow-400 font-bold text-2xl flex items-center gap-2">
-                <span className="text-3xl">💰</span>
-                {pot.toLocaleString()}
-              </span>
+            <div className="absolute -inset-1 bg-gradient-to-r from-yellow-500 via-amber-500 to-yellow-500 rounded-2xl blur-sm opacity-40 animate-pulse" />
+            <div className="relative bg-gradient-to-br from-slate-900/95 to-black/90 px-6 py-3 rounded-2xl backdrop-blur-md border-2 border-yellow-500/50 shadow-2xl">
+              <div className="flex flex-col items-center gap-0.5">
+                <span className="text-[9px] text-yellow-500/70 uppercase tracking-widest font-semibold">Total Pot</span>
+                <span className="text-yellow-400 font-bold text-2xl flex items-center gap-2 drop-shadow-lg">
+                  <motion.span 
+                    animate={{ rotate: pot > 0 ? [0, 10, -10, 0] : 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="text-3xl"
+                  >
+                    💰
+                  </motion.span>
+                  <span className="font-mono">{pot.toLocaleString()}</span>
+                </span>
+              </div>
             </div>
           </motion.div>
 
           {/* Side pots display */}
           <SidePotDisplay sidePots={sidePots} />
 
-          {/* Community Cards */}
-          <div className="flex gap-1.5 flex-wrap justify-center max-w-[240px] min-h-[60px] bg-black/30 rounded-xl p-2 border border-primary/20">
+          {/* Community Cards - Enhanced container */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="flex gap-1.5 flex-wrap justify-center max-w-[240px] min-h-[60px] bg-black/40 rounded-xl p-2.5 border border-emerald-500/20 shadow-inner backdrop-blur-sm"
+          >
             {[0, 1, 2, 3, 4].map((i) => (
               <motion.div 
                 key={i}
-                initial={{ rotateY: 180, opacity: 0, y: -50 }}
+                initial={{ rotateY: 180, opacity: 0, y: -30, scale: 0.8 }}
                 animate={{ 
                   rotateY: i < visibleCardCount && communityCards[i] ? 0 : 180,
-                  opacity: i < visibleCardCount && communityCards[i] ? 1 : 0.3,
-                  y: 0
+                  opacity: i < visibleCardCount && communityCards[i] ? 1 : 0.2,
+                  y: 0,
+                  scale: 1
                 }}
-                transition={{ duration: 0.5, delay: i * 0.15, type: 'spring' }}
+                transition={{ 
+                  duration: 0.4, 
+                  delay: i * 0.12, 
+                  type: 'spring',
+                  stiffness: 200
+                }}
               >
                 {i < visibleCardCount && communityCards[i] ? (
                   <PlayingCard card={communityCards[i]} size="sm" />
                 ) : (
-                  <div className="w-9 h-13 rounded-md border border-dashed border-primary/30 bg-black/30" />
+                  <div className="w-9 h-13 rounded-md border border-dashed border-emerald-500/20 bg-black/20" />
                 )}
               </motion.div>
             ))}
-          </div>
+          </motion.div>
 
-          {/* Game status indicator */}
-          {gameStatus && gameStatus !== 'waiting' && gameStatus !== 'complete' && (
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="bg-gradient-to-r from-primary/20 to-emerald-600/20 px-5 py-1.5 rounded-full text-primary text-xs font-bold uppercase tracking-widest border border-primary/40 shadow-lg"
-            >
-              {gameStatus}
-            </motion.div>
-          )}
+          {/* Game status indicator - Enhanced */}
+          <AnimatePresence mode="wait">
+            {gameStatus && gameStatus !== 'waiting' && gameStatus !== 'complete' && (
+              <motion.div 
+                key={gameStatus}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                className="bg-gradient-to-r from-emerald-600/30 to-green-600/30 px-5 py-1.5 rounded-full text-emerald-400 text-xs font-bold uppercase tracking-[0.2em] border border-emerald-500/40 shadow-lg backdrop-blur-sm"
+              >
+                {gameStatus === 'preflop' ? 'Pre-Flop' : gameStatus.charAt(0).toUpperCase() + gameStatus.slice(1)}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </motion.div>
 
-      {/* Player Bets on the Table */}
-      {seats.map((player, displayPosition) => {
-        if (!player || player.currentBet <= 0 || player.isFolded) return null;
-        
-        return (
-          <motion.div
-            key={`bet-${displayPosition}`}
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            className={cn('absolute z-20', betPositions[displayPosition])}
-          >
-            <div className="flex items-center gap-1 bg-gradient-to-br from-amber-500 to-yellow-600 text-black px-2.5 py-1 rounded-full shadow-lg shadow-amber-500/40 border-2 border-yellow-300/50">
-              <span className="text-sm">🪙</span>
-              <span className="font-bold text-xs">{player.currentBet.toLocaleString()}</span>
-            </div>
-          </motion.div>
-        );
-      })}
+      {/* Chip Animations */}
+      <AnimatePresence>
+        {chipAnimations.map((anim) => (
+          <ChipAnimation
+            key={anim.id}
+            fromPosition={anim.position}
+            amount={anim.amount}
+            id={anim.id}
+            onComplete={() => removeChipAnimation(anim.id)}
+          />
+        ))}
+      </AnimatePresence>
+
+      {/* Player Bets on the Table - Enhanced */}
+      <AnimatePresence>
+        {seats.map((player, displayPosition) => {
+          if (!player || player.currentBet <= 0 || player.isFolded) return null;
+          
+          return (
+            <motion.div
+              key={`bet-${displayPosition}`}
+              initial={{ scale: 0, opacity: 0, y: 10 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0, opacity: 0, y: -10 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+              className={cn('absolute z-20', betPositions[displayPosition])}
+            >
+              <div className="flex items-center gap-1.5 bg-gradient-to-br from-amber-500 to-yellow-600 text-black px-3 py-1 rounded-full shadow-lg shadow-amber-500/50 border-2 border-yellow-300/60">
+                <motion.span 
+                  animate={{ scale: [1, 1.1, 1] }}
+                  transition={{ repeat: Infinity, duration: 2 }}
+                  className="text-sm"
+                >
+                  🪙
+                </motion.span>
+                <span className="font-bold text-xs drop-shadow-sm">{player.currentBet.toLocaleString()}</span>
+              </div>
+            </motion.div>
+          );
+        })}
+      </AnimatePresence>
 
       {/* Player Seats */}
       {seats.map((player, displayPosition) => (

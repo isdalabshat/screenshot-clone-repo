@@ -1,0 +1,261 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { supabase } from '@/integrations/supabase/client';
+import { cn } from '@/lib/utils';
+
+interface Emoji {
+  id: string;
+  emoji: string;
+  name: string;
+  sound: 'laugh' | 'wow' | 'angry' | 'celebrate' | 'cry' | 'thinking';
+}
+
+const EMOJIS: Emoji[] = [
+  { id: '1', emoji: '😂', name: 'Laugh', sound: 'laugh' },
+  { id: '2', emoji: '😮', name: 'Wow', sound: 'wow' },
+  { id: '3', emoji: '😡', name: 'Angry', sound: 'angry' },
+  { id: '4', emoji: '🎉', name: 'Celebrate', sound: 'celebrate' },
+  { id: '5', emoji: '😢', name: 'Cry', sound: 'cry' },
+  { id: '6', emoji: '🤔', name: 'Thinking', sound: 'thinking' },
+];
+
+interface FloatingEmoji {
+  id: string;
+  emoji: string;
+  username: string;
+  position: { x: number; y: number };
+}
+
+interface EmojiReactionsProps {
+  tableId: string;
+  userId?: string;
+  username?: string;
+  isJoined: boolean;
+}
+
+export default function EmojiReactions({ tableId, userId, username, isJoined }: EmojiReactionsProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [floatingEmojis, setFloatingEmojis] = useState<FloatingEmoji[]>([]);
+  const [cooldown, setCooldown] = useState(false);
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  const getContext = useCallback(() => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    return audioContextRef.current;
+  }, []);
+
+  const playEmojiSound = useCallback((sound: Emoji['sound']) => {
+    try {
+      const ctx = getContext();
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+
+      // Different sounds for each emoji
+      switch (sound) {
+        case 'laugh':
+          oscillator.type = 'sine';
+          oscillator.frequency.setValueAtTime(400, ctx.currentTime);
+          oscillator.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.1);
+          oscillator.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + 0.2);
+          gainNode.gain.value = 0.2;
+          gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+          oscillator.start(ctx.currentTime);
+          oscillator.stop(ctx.currentTime + 0.3);
+          break;
+        case 'wow':
+          oscillator.type = 'sine';
+          oscillator.frequency.setValueAtTime(300, ctx.currentTime);
+          oscillator.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.3);
+          gainNode.gain.value = 0.25;
+          gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+          oscillator.start(ctx.currentTime);
+          oscillator.stop(ctx.currentTime + 0.4);
+          break;
+        case 'angry':
+          oscillator.type = 'sawtooth';
+          oscillator.frequency.value = 150;
+          gainNode.gain.value = 0.15;
+          gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+          oscillator.start(ctx.currentTime);
+          oscillator.stop(ctx.currentTime + 0.2);
+          break;
+        case 'celebrate':
+          oscillator.type = 'sine';
+          oscillator.frequency.setValueAtTime(523, ctx.currentTime);
+          oscillator.frequency.setValueAtTime(659, ctx.currentTime + 0.1);
+          oscillator.frequency.setValueAtTime(784, ctx.currentTime + 0.2);
+          gainNode.gain.value = 0.2;
+          gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+          oscillator.start(ctx.currentTime);
+          oscillator.stop(ctx.currentTime + 0.4);
+          break;
+        case 'cry':
+          oscillator.type = 'sine';
+          oscillator.frequency.setValueAtTime(400, ctx.currentTime);
+          oscillator.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.3);
+          gainNode.gain.value = 0.15;
+          gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+          oscillator.start(ctx.currentTime);
+          oscillator.stop(ctx.currentTime + 0.4);
+          break;
+        case 'thinking':
+          oscillator.type = 'triangle';
+          oscillator.frequency.setValueAtTime(350, ctx.currentTime);
+          oscillator.frequency.setValueAtTime(400, ctx.currentTime + 0.15);
+          oscillator.frequency.setValueAtTime(350, ctx.currentTime + 0.3);
+          gainNode.gain.value = 0.12;
+          gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+          oscillator.start(ctx.currentTime);
+          oscillator.stop(ctx.currentTime + 0.35);
+          break;
+      }
+    } catch (e) {
+      console.log('Sound not available');
+    }
+  }, [getContext]);
+
+  const addFloatingEmoji = useCallback((emoji: string, fromUsername: string) => {
+    const id = `${Date.now()}-${Math.random()}`;
+    const position = {
+      x: Math.random() * 200 - 100,
+      y: Math.random() * 50 - 25
+    };
+    setFloatingEmojis(prev => [...prev, { id, emoji, username: fromUsername, position }]);
+    
+    // Remove after animation
+    setTimeout(() => {
+      setFloatingEmojis(prev => prev.filter(e => e.id !== id));
+    }, 2000);
+  }, []);
+
+  // Subscribe to realtime emoji broadcasts
+  useEffect(() => {
+    const channel = supabase.channel(`emoji-${tableId}`)
+      .on('broadcast', { event: 'emoji' }, ({ payload }) => {
+        if (payload.userId !== userId) {
+          addFloatingEmoji(payload.emoji, payload.username);
+          const emojiData = EMOJIS.find(e => e.emoji === payload.emoji);
+          if (emojiData) {
+            playEmojiSound(emojiData.sound);
+          }
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [tableId, userId, addFloatingEmoji, playEmojiSound]);
+
+  const sendEmoji = async (emoji: Emoji) => {
+    if (!userId || !username || cooldown) return;
+    
+    setCooldown(true);
+    setIsOpen(false);
+    
+    // Play sound locally
+    playEmojiSound(emoji.sound);
+    
+    // Add floating emoji locally
+    addFloatingEmoji(emoji.emoji, username);
+    
+    // Broadcast to others
+    await supabase.channel(`emoji-${tableId}`).send({
+      type: 'broadcast',
+      event: 'emoji',
+      payload: { emoji: emoji.emoji, username, userId }
+    });
+    
+    // Reset cooldown after 2 seconds
+    setTimeout(() => setCooldown(false), 2000);
+  };
+
+  if (!isJoined) return null;
+
+  return (
+    <>
+      {/* Floating Emojis */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-50">
+        <AnimatePresence>
+          {floatingEmojis.map(({ id, emoji, username: fromUser, position }) => (
+            <motion.div
+              key={id}
+              initial={{ 
+                x: '50%',
+                y: '50%',
+                scale: 0,
+                opacity: 0
+              }}
+              animate={{ 
+                x: `calc(50% + ${position.x}px)`,
+                y: `calc(40% + ${position.y}px)`,
+                scale: 1.5,
+                opacity: 1
+              }}
+              exit={{ 
+                y: `calc(20% + ${position.y}px)`,
+                scale: 2,
+                opacity: 0
+              }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
+              className="absolute flex flex-col items-center"
+            >
+              <span className="text-5xl drop-shadow-lg">{emoji}</span>
+              <span className="text-xs bg-black/70 text-white px-2 py-0.5 rounded-full mt-1">
+                {fromUser}
+              </span>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+
+      {/* Emoji Button */}
+      <div className="fixed bottom-24 right-4 z-40">
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setIsOpen(!isOpen)}
+          disabled={cooldown}
+          className={cn(
+            'w-12 h-12 rounded-full bg-gradient-to-br from-primary to-emerald-600 shadow-lg flex items-center justify-center border-2 border-primary/50 transition-all',
+            cooldown && 'opacity-50 cursor-not-allowed',
+            isOpen && 'ring-2 ring-primary ring-offset-2 ring-offset-background'
+          )}
+        >
+          <span className="text-2xl">{cooldown ? '⏳' : '😀'}</span>
+        </motion.button>
+
+        {/* Emoji Picker */}
+        <AnimatePresence>
+          {isOpen && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.8, y: 10 }}
+              className="absolute bottom-16 right-0 bg-card/95 backdrop-blur-lg rounded-2xl p-3 shadow-xl border border-primary/30"
+            >
+              <div className="grid grid-cols-3 gap-2">
+                {EMOJIS.map((emoji) => (
+                  <motion.button
+                    key={emoji.id}
+                    whileHover={{ scale: 1.2 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => sendEmoji(emoji)}
+                    className="w-12 h-12 rounded-xl bg-slate-800/50 hover:bg-slate-700/50 flex items-center justify-center transition-colors"
+                  >
+                    <span className="text-2xl">{emoji.emoji}</span>
+                  </motion.button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </>
+  );
+}
