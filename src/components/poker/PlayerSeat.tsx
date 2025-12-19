@@ -193,12 +193,6 @@ export default function PlayerSeat({
         </Badge>
       )}
 
-      {/* Current bet chip */}
-      {player.currentBet > 0 && !player.isFolded && (
-        <div className="bg-gradient-to-br from-yellow-400 to-yellow-600 text-black px-2 py-0.5 rounded-full text-[8px] font-bold shadow-lg">
-          {player.currentBet}
-        </div>
-      )}
     </div>
   );
 

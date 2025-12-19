@@ -361,6 +361,7 @@ export function usePokerGame(tableId: string) {
         return;
       }
 
+      // Reset ALL player state when rejoining to ensure clean state for new hands
       const { error } = await supabase
         .from('table_players')
         .update({
@@ -369,7 +370,7 @@ export function usePokerGame(tableId: string) {
           current_bet: 0,
           is_folded: false,
           is_all_in: false,
-          hole_cards: []
+          hole_cards: null  // Use null to fully clear - will get new cards on next hand
         })
         .eq('id', existingRecord.id);
 
@@ -389,6 +390,10 @@ export function usePokerGame(tableId: string) {
 
       await refreshProfile();
       await fetchPlayers();
+      
+      // Clear local cards state to ensure fresh state
+      setMyCards([]);
+      
       toast({
         title: 'Joined table!',
         description: `You've rejoined with ${buyIn} chips.`
