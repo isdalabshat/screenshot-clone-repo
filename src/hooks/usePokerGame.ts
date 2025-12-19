@@ -167,7 +167,13 @@ export function usePokerGame(tableId: string) {
       if (now > expiresAt + 2000) {
         try {
           console.log('Checking server for turn timeout...');
+          const { data: sessionData } = await supabase.auth.getSession();
+          if (!sessionData?.session?.access_token) return;
+          
           const { data } = await supabase.functions.invoke('poker-game', {
+            headers: {
+              Authorization: `Bearer ${sessionData.session.access_token}`
+            },
             body: {
               action: 'check_turn_timeout',
               tableId
@@ -209,6 +215,9 @@ export function usePokerGame(tableId: string) {
       console.log('Auto-folding due to timer expiry');
       
       await supabase.functions.invoke('poker-game', {
+        headers: {
+          Authorization: `Bearer ${sessionData.session.access_token}`
+        },
         body: {
           action: 'auto_fold',
           tableId,
@@ -632,14 +641,20 @@ export function usePokerGame(tableId: string) {
         currentGame.status !== 'showdown' &&
         !currentPlayer.isFolded) {
       try {
-        await supabase.functions.invoke('poker-game', {
-          body: {
-            action: 'perform_action',
-            tableId,
-            gameId: currentGame.id,
-            actionType: 'fold'
-          }
-        });
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (sessionData?.session?.access_token) {
+          await supabase.functions.invoke('poker-game', {
+            headers: {
+              Authorization: `Bearer ${sessionData.session.access_token}`
+            },
+            body: {
+              action: 'perform_action',
+              tableId,
+              gameId: currentGame.id,
+              actionType: 'fold'
+            }
+          });
+        }
       } catch (error) {
         console.error('Auto-fold on leave failed:', error);
       }
@@ -770,7 +785,20 @@ export function usePokerGame(tableId: string) {
     }
 
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session?.access_token) {
+        toast({
+          title: 'Session expired',
+          description: 'Please refresh the page.',
+          variant: 'destructive'
+        });
+        return;
+      }
+
       const { data, error } = await supabase.functions.invoke('poker-game', {
+        headers: {
+          Authorization: `Bearer ${sessionData.session.access_token}`
+        },
         body: {
           action: 'start_hand',
           tableId
@@ -921,6 +949,9 @@ export function usePokerGame(tableId: string) {
       }
 
       const { data, error } = await supabase.functions.invoke('poker-game', {
+        headers: {
+          Authorization: `Bearer ${sessionData.session.access_token}`
+        },
         body: {
           action: 'perform_action',
           tableId,
@@ -1028,14 +1059,20 @@ export function usePokerGame(tableId: string) {
           if (leftPlayer && leftPlayer.isCurrentPlayer && !leftPlayer.isFolded) {
             console.log('Player disconnected during their turn, auto-folding:', leftUserId);
             try {
-              await supabase.functions.invoke('poker-game', {
-                body: {
-                  action: 'auto_fold',
-                  tableId,
-                  gameId: currentGame.id,
-                  disconnectedUserId: leftUserId
-                }
-              });
+              const { data: sessionData } = await supabase.auth.getSession();
+              if (sessionData?.session?.access_token) {
+                await supabase.functions.invoke('poker-game', {
+                  headers: {
+                    Authorization: `Bearer ${sessionData.session.access_token}`
+                  },
+                  body: {
+                    action: 'auto_fold',
+                    tableId,
+                    gameId: currentGame.id,
+                    disconnectedUserId: leftUserId
+                  }
+                });
+              }
             } catch (error) {
               console.error('Auto-fold disconnected player failed:', error);
             }
