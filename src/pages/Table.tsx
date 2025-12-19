@@ -52,7 +52,6 @@ export default function Table() {
   const autoStartTimerRef = useRef<NodeJS.Timeout | null>(null);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isStartingHand = useRef(false);
-  const hasAutoStarted = useRef(false);
   
   const prevGameStatus = useRef<string | null>(null);
   const prevCurrentPlayerId = useRef<string | null>(null);
@@ -229,21 +228,22 @@ export default function Table() {
 
   // Track previous player count for notifications
   const prevPlayerCount = useRef<number>(0);
-  const lastHandledGameId = useRef<string | null>(null);
 
   // Auto-start game loop - simplified and reliable
   useEffect(() => {
     const activePlayerCount = players.length;
-    const gameId = game?.id || null;
     const gameStatus = game?.status || null;
     const isGameEnded = !game || gameStatus === 'complete' || gameStatus === 'showdown';
-    const isGameInProgress = gameStatus && !['complete', 'showdown', 'waiting'].includes(gameStatus);
     
-    // Reset flags when a new hand starts
-    if (isGameInProgress && gameId && lastHandledGameId.current !== gameId) {
-      hasAutoStarted.current = false;
-      lastHandledGameId.current = gameId;
-    }
+    console.log('[AutoStart] Checking:', { 
+      activePlayerCount, 
+      gameStatus, 
+      isGameEnded, 
+      isJoined, 
+      showWinner, 
+      isStartingHand: isStartingHand.current,
+      autoStartCountdown 
+    });
     
     // Handle waiting for players state - less than 2 players
     if (isJoined && activePlayerCount < 2) {
@@ -257,51 +257,38 @@ export default function Table() {
       }
       clearAutoStartTimers();
       setIsWaitingForPlayers(true);
-      hasAutoStarted.current = false;
       prevPlayerCount.current = activePlayerCount;
       return;
     }
     
     setIsWaitingForPlayers(false);
-    
-    // Check if 2+ players just joined
-    if (activePlayerCount >= 2 && prevPlayerCount.current < 2 && isGameEnded) {
-      // Reset to allow auto-start
-      hasAutoStarted.current = false;
-    }
-    
     prevPlayerCount.current = activePlayerCount;
     
-    // Conditions for auto-start
+    // Conditions for auto-start - removed hasAutoStarted flag since it was causing issues
     const canAutoStart = isJoined && 
                          activePlayerCount >= 2 && 
                          isGameEnded &&
                          table && table.handsPlayed < table.maxHands &&
                          !isStartingHand.current &&
                          !showWinner &&
-                         autoStartCountdown === null &&
-                         !hasAutoStarted.current;
+                         autoStartCountdown === null;
+    
+    console.log('[AutoStart] canAutoStart:', canAutoStart);
     
     if (canAutoStart) {
-      hasAutoStarted.current = true;
-      
-      // Delay before starting countdown (allow winner animation to finish)
+      // Start countdown after a short delay
       const delayTimer = setTimeout(() => {
-        // Double-check conditions before starting
         if (!isStartingHand.current && players.length >= 2 && !showWinner) {
+          console.log('[AutoStart] Starting countdown');
           startAutoStartCountdown();
-        } else {
-          // Reset if conditions changed
-          hasAutoStarted.current = false;
         }
-      }, 1000);
+      }, 500);
       
       return () => clearTimeout(delayTimer);
     }
   }, [
     players.length, 
     isJoined, 
-    game?.id,
     game?.status,
     game,
     table?.handsPlayed, 
@@ -542,7 +529,6 @@ export default function Table() {
                     if (isStartingHand.current) return;
                     isStartingHand.current = true;
                     clearAutoStartTimers();
-                    hasAutoStarted.current = true;
                     if (soundEnabled) playSound('shuffle');
                     startHand();
                     setTimeout(() => { isStartingHand.current = false; }, 1500);
