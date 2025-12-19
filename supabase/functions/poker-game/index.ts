@@ -1109,6 +1109,170 @@ serve(async (req) => {
       });
     }
 
+    // Server-side turn timeout check - any player can trigger this
+    if (action === 'check_turn_timeout') {
+      const { data: game } = await supabase
+        .from('games')
+        .select('*')
+        .eq('table_id', tableId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!game || game.status === 'complete' || game.status === 'showdown') {
+        return new Response(JSON.stringify({ expired: false, reason: 'no_active_game' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (!game.turn_expires_at) {
+        return new Response(JSON.stringify({ expired: false, reason: 'no_turn_timer' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      const now = new Date();
+      const expiresAt = new Date(game.turn_expires_at);
+      
+      if (expiresAt > now) {
+        return new Response(JSON.stringify({ expired: false, timeLeft: Math.ceil((expiresAt.getTime() - now.getTime()) / 1000) }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Turn has expired - auto fold the timed out player
+      console.log(`Turn timeout detected for game ${game.id}, folding player at position ${game.current_player_position}`);
+
+      const { data: timedOutPlayer } = await supabase
+        .from('table_players')
+        .select('*')
+        .eq('table_id', tableId)
+        .eq('position', game.current_player_position)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (!timedOutPlayer) {
+        return new Response(JSON.stringify({ expired: true, error: 'timed_out_player_not_found' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Fold the timed out player
+      await supabase
+        .from('table_players')
+        .update({ is_folded: true })
+        .eq('id', timedOutPlayer.id);
+
+      await supabase
+        .from('game_actions')
+        .insert({
+          game_id: game.id,
+          user_id: timedOutPlayer.user_id,
+          action_type: 'fold',
+          amount: 0,
+          round: game.status
+        });
+
+      // Get all players
+      const { data: allPlayers } = await supabase
+        .from('table_players')
+        .select('*')
+        .eq('table_id', tableId)
+        .eq('is_active', true);
+
+      if (!allPlayers) {
+        return new Response(JSON.stringify({ expired: true, error: 'failed_to_get_players' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      const activePlayers = allPlayers.filter(p => p.id !== timedOutPlayer.id && !p.is_folded);
+
+      // Check if only one player left
+      if (activePlayers.length === 1) {
+        const winner = activePlayers[0];
+        const { data: tableData } = await supabase
+          .from('poker_tables')
+          .select('big_blind')
+          .eq('id', tableId)
+          .single();
+        
+        const fee = calculateFee(game.pot, tableData?.big_blind || 0, game.status);
+        const winnings = game.pot - fee;
+        
+        if (fee > 0 && tableData) {
+          await supabase.from('collected_fees').insert({
+            game_id: game.id,
+            table_id: tableId,
+            fee_amount: fee,
+            pot_size: game.pot,
+            big_blind: tableData.big_blind
+          });
+        }
+
+        await supabase
+          .from('games')
+          .update({ status: 'complete', pot: 0, turn_expires_at: null, current_player_position: null, current_bet: 0 })
+          .eq('id', game.id);
+
+        for (const p of allPlayers) {
+          if (p.id === winner.id) {
+            await supabase
+              .from('table_players')
+              .update({ stack: winner.stack + winnings, current_bet: 0 })
+              .eq('id', p.id);
+          } else {
+            await supabase
+              .from('table_players')
+              .update({ current_bet: 0 })
+              .eq('id', p.id);
+          }
+        }
+
+        return new Response(JSON.stringify({
+          expired: true,
+          autoFolded: timedOutPlayer.user_id,
+          gameEnded: true,
+          winner: winner.user_id
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Find next player
+      const sortedPlayers = [...allPlayers].sort((a, b) => a.position - b.position);
+      const currentIdx = sortedPlayers.findIndex(p => p.position === timedOutPlayer.position);
+      let nextPosition: number | null = null;
+
+      for (let i = 1; i <= sortedPlayers.length; i++) {
+        const idx = (currentIdx + i) % sortedPlayers.length;
+        const p = sortedPlayers[idx];
+        if (!p.is_folded && !p.is_all_in && p.id !== timedOutPlayer.id) {
+          nextPosition = p.position;
+          break;
+        }
+      }
+
+      const turnExpiresAt = nextPosition !== null ? new Date(Date.now() + 30000).toISOString() : null;
+
+      await supabase
+        .from('games')
+        .update({
+          current_player_position: nextPosition,
+          turn_expires_at: turnExpiresAt
+        })
+        .eq('id', game.id);
+
+      return new Response(JSON.stringify({
+        expired: true,
+        autoFolded: timedOutPlayer.user_id,
+        nextPlayerPosition: nextPosition
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     if (action === 'auto_fold') {
       const { data: game } = await supabase
         .from('games')

@@ -214,49 +214,55 @@ export default function EmojiReactions({ tableId, userId, username, isJoined, on
     setTimeout(() => setCooldown(false), 2000);
   };
 
-  if (!isJoined) return null;
+  // Spectators can see emojis but not send them
+  const canSendEmojis = isJoined && userId && username;
 
   return (
-    <div className="fixed bottom-24 right-4 z-30">
-      <motion.button
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={() => setIsOpen(!isOpen)}
-        disabled={cooldown}
-        className={cn(
-          'w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-primary to-emerald-600 shadow-lg flex items-center justify-center border-2 border-primary/50 transition-all',
-          cooldown && 'opacity-50 cursor-not-allowed',
-          isOpen && 'ring-2 ring-primary ring-offset-2 ring-offset-background'
-        )}
-      >
-        <span className="text-xl sm:text-2xl">{cooldown ? '⏳' : '😀'}</span>
-      </motion.button>
-
-      {/* Emoji Picker - positioned above button */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.8, y: 10 }}
-            className="absolute bottom-14 right-0 bg-card/95 backdrop-blur-lg rounded-xl p-2 shadow-xl border border-primary/30"
+    <div className="fixed bottom-20 right-4 z-30">
+      {canSendEmojis && (
+        <>
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setIsOpen(!isOpen)}
+            disabled={cooldown}
+            className={cn(
+              'w-10 h-10 rounded-full bg-gradient-to-br from-primary to-emerald-600 shadow-lg flex items-center justify-center border-2 border-primary/50 transition-all',
+              cooldown && 'opacity-50 cursor-not-allowed',
+              isOpen && 'ring-2 ring-primary ring-offset-2 ring-offset-background'
+            )}
           >
-            <div className="grid grid-cols-3 gap-1">
-              {EMOJIS.map((emoji) => (
-                <motion.button
-                  key={emoji.id}
-                  whileHover={{ scale: 1.15 }}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => sendEmoji(emoji)}
-                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 flex items-center justify-center transition-colors"
-                >
-                  <span className="text-lg sm:text-xl">{emoji.emoji}</span>
-                </motion.button>
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            <span className="text-lg">{cooldown ? '⏳' : '😀'}</span>
+          </motion.button>
+
+          {/* Emoji Picker - positioned above button with proper spacing */}
+          <AnimatePresence>
+            {isOpen && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.8, y: 10 }}
+                className="absolute bottom-12 right-0 bg-card/95 backdrop-blur-lg rounded-xl p-3 shadow-xl border border-primary/30 min-w-[200px]"
+              >
+                <div className="grid grid-cols-5 gap-2">
+                  {EMOJIS.map((emoji) => (
+                    <motion.button
+                      key={emoji.id}
+                      whileHover={{ scale: 1.15 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => sendEmoji(emoji)}
+                      className="w-8 h-8 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 flex items-center justify-center transition-colors"
+                      title={emoji.name}
+                    >
+                      <span className="text-base">{emoji.emoji}</span>
+                    </motion.button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </>
+      )}
     </div>
   );
 }
