@@ -52,7 +52,7 @@ export default function Auth() {
       } else {
         toast({
           title: 'Welcome to JD Club!',
-          description: 'Your account has been created. You start with 1,000 chips!'
+          description: 'Your account has been created successfully!'
         });
         navigate('/lobby');
       }
@@ -191,7 +191,7 @@ export default function Auth() {
                   {isSubmitting ? 'Creating account...' : 'Create Account'}
                 </Button>
                 <p className="text-center text-sm text-muted-foreground">
-                  You'll receive 1,000 chips to start!
+                  Request chips from admin after signing up.
                 </p>
               </form>
             </TabsContent>
