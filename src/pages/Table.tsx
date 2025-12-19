@@ -13,7 +13,7 @@ import EmojiReactions from '@/components/poker/EmojiReactions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { ArrowLeft, Play, LogOut, Coins, Volume2, VolumeX } from 'lucide-react';
+import { ArrowLeft, Play, LogOut, Coins, Volume2, VolumeX, Coffee } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -38,7 +38,8 @@ export default function Table() {
     joinTable, 
     leaveTable, 
     startHand,
-    performAction
+    performAction,
+    toggleSitOut
   } = usePokerGame(tableId!);
 
   const [showJoinDialog, setShowJoinDialog] = useState(false);
@@ -112,8 +113,8 @@ export default function Table() {
     
     clearAutoStartTimers();
     
-    // Start 2-second countdown
-    setAutoStartCountdown(2);
+    // Start 5-second countdown
+    setAutoStartCountdown(5);
     
     countdownIntervalRef.current = setInterval(() => {
       setAutoStartCountdown(prev => {
@@ -124,7 +125,7 @@ export default function Table() {
       });
     }, 1000);
     
-    // After 2 seconds, start the hand
+    // After 5 seconds, start the hand
     autoStartTimerRef.current = setTimeout(async () => {
       clearAutoStartTimers();
       
@@ -139,7 +140,7 @@ export default function Table() {
       setTimeout(() => {
         isStartingHand.current = false;
       }, 1000);
-    }, 2000);
+    }, 5000);
   }, [clearAutoStartTimers, soundEnabled, playSound, startHand]);
 
   // Sound effects based on game state changes
@@ -451,10 +452,30 @@ export default function Table() {
                 Join
               </Button>
             ) : (
-              <Button variant="outline" size="sm" className="h-8 text-xs" onClick={leaveTable}>
-                <LogOut className="h-3 w-3 mr-1" />
-                Leave
-              </Button>
+              <>
+                <Button 
+                  variant={currentPlayer?.isSittingOut ? "default" : "outline"}
+                  size="sm" 
+                  className={`h-8 text-xs ${currentPlayer?.isSittingOut ? 'bg-amber-600 hover:bg-amber-700' : ''}`}
+                  onClick={toggleSitOut}
+                  disabled={game && game.status !== 'complete' && game.status !== 'showdown' && !currentPlayer?.isFolded}
+                  title={currentPlayer?.isSittingOut ? 'Click to sit back in' : 'Click to sit out'}
+                >
+                  <Coffee className="h-3 w-3 mr-1" />
+                  {currentPlayer?.isSittingOut ? 'Sit In' : 'Sit Out'}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-8 text-xs" 
+                  onClick={leaveTable}
+                  disabled={game && game.status !== 'complete' && game.status !== 'showdown'}
+                  title={game && game.status !== 'complete' && game.status !== 'showdown' ? 'Cannot leave during active hand' : ''}
+                >
+                  <LogOut className="h-3 w-3 mr-1" />
+                  Leave
+                </Button>
+              </>
             )}
           </div>
         </div>

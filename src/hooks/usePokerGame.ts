@@ -310,7 +310,7 @@ export function usePokerGame(tableId: string) {
   const fetchPlayers = useCallback(async () => {
     const { data: playersData, error: playersError } = await supabase
       .from('table_players')
-      .select('id, user_id, position, stack, current_bet, is_folded, is_all_in, is_active, hole_cards')
+      .select('id, user_id, position, stack, current_bet, is_folded, is_all_in, is_active, is_sitting_out, hole_cards')
       .eq('table_id', tableId)
       .eq('is_active', true);
 
@@ -371,6 +371,7 @@ export function usePokerGame(tableId: string) {
         isFolded: p.is_folded,
         isAllIn: p.is_all_in,
         isActive: p.is_active,
+        isSittingOut: p.is_sitting_out ?? false,
         isDealer: currentGame?.dealerPosition === p.position,
         isSmallBlind: currentGame && numPlayers > 1 && idx === sbIdx,
         isBigBlind: currentGame && numPlayers > 1 && idx === bbIdx,
@@ -382,6 +383,34 @@ export function usePokerGame(tableId: string) {
     playersRef.current = playerList;
     setIsJoined(playerList.some(p => p.userId === currentUserId));
   }, [tableId]);
+
+  const toggleSitOut = async () => {
+    if (!currentPlayer) return;
+
+    const newSittingOut = !currentPlayer.isSittingOut;
+
+    const { error } = await supabase
+      .from('table_players')
+      .update({ is_sitting_out: newSittingOut })
+      .eq('id', currentPlayer.id);
+
+    if (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to toggle sit out status.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    await fetchPlayers();
+    toast({
+      title: newSittingOut ? 'Sitting out' : 'Back in game',
+      description: newSittingOut 
+        ? 'You will skip the next hands until you sit back in.' 
+        : 'You will be dealt cards in the next hand.'
+    });
+  };
 
   const joinTable = async (buyIn: number) => {
     if (!user || !profile) return;
@@ -985,6 +1014,7 @@ export function usePokerGame(tableId: string) {
     joinTable,
     leaveTable,
     startHand,
-    performAction
+    performAction,
+    toggleSitOut
   };
 }

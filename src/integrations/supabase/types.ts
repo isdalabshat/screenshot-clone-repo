@@ -295,6 +295,7 @@ export type Database = {
           is_active: boolean
           is_all_in: boolean
           is_folded: boolean
+          is_sitting_out: boolean
           joined_at: string
           position: number
           stack: number
@@ -308,6 +309,7 @@ export type Database = {
           is_active?: boolean
           is_all_in?: boolean
           is_folded?: boolean
+          is_sitting_out?: boolean
           joined_at?: string
           position: number
           stack?: number
@@ -321,6 +323,7 @@ export type Database = {
           is_active?: boolean
           is_all_in?: boolean
           is_folded?: boolean
+          is_sitting_out?: boolean
           joined_at?: string
           position?: number
           stack?: number

@@ -18,6 +18,7 @@ export interface Player {
   isFolded: boolean;
   isAllIn: boolean;
   isActive: boolean;
+  isSittingOut: boolean;
   isDealer?: boolean;
   isSmallBlind?: boolean;
   isBigBlind?: boolean;
