@@ -107,19 +107,19 @@ export default function TableChat({ tableId, userId, username }: TableChatProps)
         variant="outline"
         size="icon"
         className={cn(
-          'fixed bottom-40 right-4 z-30 h-11 w-11 sm:h-12 sm:w-12 rounded-full shadow-lg',
+          'fixed bottom-16 right-4 z-30 h-10 w-10 rounded-full shadow-lg',
           'bg-emerald-600 hover:bg-emerald-700 border-emerald-500',
           unreadCount > 0 && 'animate-pulse'
         )}
         onClick={() => setIsOpen(!isOpen)}
       >
         {isOpen ? (
-          <X className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+          <X className="h-4 w-4 text-white" />
         ) : (
-          <MessageCircle className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+          <MessageCircle className="h-4 w-4 text-white" />
         )}
         {unreadCount > 0 && !isOpen && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center text-[10px]">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -132,7 +132,7 @@ export default function TableChat({ tableId, userId, username }: TableChatProps)
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-56 right-4 z-30 w-64 sm:w-72 h-72 sm:h-80 bg-slate-900/95 backdrop-blur border border-emerald-700/30 rounded-lg shadow-xl flex flex-col"
+            className="fixed bottom-28 right-4 z-30 w-64 sm:w-72 h-64 sm:h-72 bg-slate-900/95 backdrop-blur border border-emerald-700/30 rounded-lg shadow-xl flex flex-col"
           >
             {/* Header */}
             <div className="px-3 py-2 border-b border-emerald-700/30 flex items-center justify-between">

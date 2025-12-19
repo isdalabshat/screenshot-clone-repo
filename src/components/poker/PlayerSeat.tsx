@@ -203,12 +203,14 @@ export default function PlayerSeat({
       </div>
 
       {/* Status badges */}
-      {(player.isAllIn || player.isFolded) && (
+      {(player.isAllIn || player.isFolded || player.isSittingOut) && (
         <Badge className={cn(
           'text-[6px] sm:text-[7px] px-1 sm:px-1.5 py-0 h-3.5 sm:h-4 font-bold',
-          player.isAllIn ? 'bg-red-600 text-white animate-pulse shadow-lg shadow-red-500/50' : 'bg-slate-600 text-white'
+          player.isAllIn ? 'bg-red-600 text-white animate-pulse shadow-lg shadow-red-500/50' 
+            : player.isSittingOut ? 'bg-amber-600 text-white' 
+            : 'bg-slate-600 text-white'
         )}>
-          {player.isAllIn ? 'ALL IN' : 'FOLD'}
+          {player.isAllIn ? 'ALL IN' : player.isSittingOut ? 'SITTING OUT' : 'FOLD'}
         </Badge>
       )}
 
