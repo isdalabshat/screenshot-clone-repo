@@ -375,6 +375,16 @@ serve(async (req) => {
         });
       }
 
+      // Filter out sitting out players for active hand participation
+      const activePlayers = playersData.filter(p => !p.is_sitting_out);
+      
+      if (activePlayers.length < 2) {
+        return new Response(JSON.stringify({ error: 'Need at least 2 active players (not sitting out)' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
       const { data: tableData } = await supabase
         .from('poker_tables')
         .select('*')
@@ -396,7 +406,8 @@ serve(async (req) => {
         .limit(1)
         .maybeSingle();
 
-      const sortedPlayers = [...playersData].sort((a, b) => a.position - b.position);
+      // Use only active (not sitting out) players for game logic
+      const sortedPlayers = [...activePlayers].sort((a, b) => a.position - b.position);
       const numPlayers = sortedPlayers.length;
 
       let newDealerPosition: number;
@@ -429,22 +440,38 @@ serve(async (req) => {
       let deckIndex = 0;
 
       const playerCards: Record<string, string[]> = {};
-      for (const player of sortedPlayers) {
-        const holeCards = [
-          cardToString(deck[deckIndex++]),
-          cardToString(deck[deckIndex++])
-        ];
-        playerCards[player.user_id] = holeCards;
+      
+      // Deal cards only to active players, mark sitting out as folded
+      for (const player of playersData) {
+        if (player.is_sitting_out) {
+          // Sitting out players are auto-folded with no cards
+          await supabase
+            .from('table_players')
+            .update({
+              hole_cards: [],
+              current_bet: 0,
+              is_folded: true,
+              is_all_in: false
+            })
+            .eq('id', player.id);
+        } else {
+          // Active players get cards
+          const holeCards = [
+            cardToString(deck[deckIndex++]),
+            cardToString(deck[deckIndex++])
+          ];
+          playerCards[player.user_id] = holeCards;
 
-        await supabase
-          .from('table_players')
-          .update({
-            hole_cards: holeCards,
-            current_bet: 0,
-            is_folded: false,
-            is_all_in: false
-          })
-          .eq('id', player.id);
+          await supabase
+            .from('table_players')
+            .update({
+              hole_cards: holeCards,
+              current_bet: 0,
+              is_folded: false,
+              is_all_in: false
+            })
+            .eq('id', player.id);
+        }
       }
 
       const communityCards = [];
