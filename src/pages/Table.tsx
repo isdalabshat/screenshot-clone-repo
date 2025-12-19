@@ -229,25 +229,29 @@ export default function Table() {
 
   // Track previous player count for notifications
   const prevPlayerCount = useRef<number>(0);
+  const lastHandledGameId = useRef<string | null>(null);
 
-  // Auto-start game loop - single unified effect
+  // Auto-start game loop - simplified and reliable
   useEffect(() => {
     const activePlayerCount = players.length;
+    const gameId = game?.id || null;
     const gameStatus = game?.status || null;
     const isGameEnded = !game || gameStatus === 'complete' || gameStatus === 'showdown';
-    const isGameInProgress = gameStatus && !['complete', 'showdown'].includes(gameStatus);
+    const isGameInProgress = gameStatus && !['complete', 'showdown', 'waiting'].includes(gameStatus);
     
-    // Reset hasAutoStarted when a new hand is in progress
-    if (isGameInProgress) {
+    // Reset flags when a new hand starts
+    if (isGameInProgress && gameId && lastHandledGameId.current !== gameId) {
       hasAutoStarted.current = false;
+      lastHandledGameId.current = gameId;
     }
     
-    // Handle waiting for players state
+    // Handle waiting for players state - less than 2 players
     if (isJoined && activePlayerCount < 2) {
+      // Notify if player dropped during countdown
       if (autoStartCountdown !== null && prevPlayerCount.current >= 2) {
         toast({
           title: 'Game Paused',
-          description: 'A player left. Waiting for another player to join.',
+          description: 'Waiting for another player to join.',
           variant: 'default'
         });
       }
@@ -259,9 +263,16 @@ export default function Table() {
     }
     
     setIsWaitingForPlayers(false);
+    
+    // Check if 2+ players just joined
+    if (activePlayerCount >= 2 && prevPlayerCount.current < 2 && isGameEnded) {
+      // Reset to allow auto-start
+      hasAutoStarted.current = false;
+    }
+    
     prevPlayerCount.current = activePlayerCount;
     
-    // Auto-start conditions
+    // Conditions for auto-start
     const canAutoStart = isJoined && 
                          activePlayerCount >= 2 && 
                          isGameEnded &&
@@ -274,18 +285,23 @@ export default function Table() {
     if (canAutoStart) {
       hasAutoStarted.current = true;
       
-      // Start countdown after brief delay
+      // Delay before starting countdown (allow winner animation to finish)
       const delayTimer = setTimeout(() => {
+        // Double-check conditions before starting
         if (!isStartingHand.current && players.length >= 2 && !showWinner) {
           startAutoStartCountdown();
+        } else {
+          // Reset if conditions changed
+          hasAutoStarted.current = false;
         }
-      }, 800);
+      }, 1000);
       
       return () => clearTimeout(delayTimer);
     }
   }, [
     players.length, 
     isJoined, 
+    game?.id,
     game?.status,
     game,
     table?.handsPlayed, 
