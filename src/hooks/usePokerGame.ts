@@ -104,11 +104,23 @@ export function usePokerGame(tableId: string) {
   const currentPlayer = players.find(p => p.userId === user?.id);
   const isCurrentPlayerTurn = game?.currentPlayerPosition === currentPlayer?.position && !isActionPending;
 
-  // Turn timer effect
+  // Track if auto-fold has been triggered
+  const autoFoldTriggered = useRef(false);
+  const autoFoldGameId = useRef<string | null>(null);
+
+  // Turn timer effect with auto-fold
   useEffect(() => {
     if (!game?.turnExpiresAt || game.status === 'complete' || game.status === 'showdown') {
       setTurnTimeLeft(null);
+      autoFoldTriggered.current = false;
+      autoFoldGameId.current = null;
       return;
+    }
+
+    // Reset auto-fold flag when game or turn changes
+    if (autoFoldGameId.current !== game.id) {
+      autoFoldTriggered.current = false;
+      autoFoldGameId.current = game.id;
     }
 
     const updateTimer = () => {
@@ -117,23 +129,32 @@ export function usePokerGame(tableId: string) {
       const remaining = Math.max(0, Math.ceil((expiresAt - now) / 1000));
       setTurnTimeLeft(remaining);
 
-      if (remaining === 0 && isCurrentPlayerTurn) {
+      // Auto-fold when timer expires and it's current player's turn
+      if (remaining === 0 && isCurrentPlayerTurn && !autoFoldTriggered.current && !isActionPending) {
+        autoFoldTriggered.current = true;
         handleAutoFold();
       }
     };
 
     updateTimer();
-    const interval = setInterval(updateTimer, 1000);
+    const interval = setInterval(updateTimer, 500); // Check more frequently
     return () => clearInterval(interval);
-  }, [game?.turnExpiresAt, game?.status, isCurrentPlayerTurn]);
+  }, [game?.turnExpiresAt, game?.status, game?.id, isCurrentPlayerTurn, isActionPending]);
 
   const handleAutoFold = async () => {
-    if (!game) return;
+    if (!game || isActionPending) return;
+    
+    setIsActionPending(true);
     
     try {
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !sessionData?.session?.access_token) return;
+      if (sessionError || !sessionData?.session?.access_token) {
+        setIsActionPending(false);
+        return;
+      }
 
+      console.log('Auto-folding due to timer expiry');
+      
       await supabase.functions.invoke('poker-game', {
         body: {
           action: 'auto_fold',
@@ -141,8 +162,19 @@ export function usePokerGame(tableId: string) {
           gameId: game.id
         }
       });
+      
+      toast({
+        title: 'Time expired',
+        description: 'Your turn timed out - automatically folded.',
+        variant: 'default'
+      });
     } catch (error) {
       console.error('Auto-fold failed:', error);
+    } finally {
+      setTimeout(() => {
+        setIsActionPending(false);
+        autoFoldTriggered.current = false;
+      }, 500);
     }
   };
 
