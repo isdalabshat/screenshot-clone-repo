@@ -7,6 +7,13 @@ import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect, useRef } from 'react';
 
+interface PlayerEmoji {
+  id: string;
+  emoji: string;
+  username: string;
+  userId: string;
+}
+
 interface PokerTableProps {
   players: Player[];
   communityCards: Card[];
@@ -19,6 +26,7 @@ interface PokerTableProps {
   myCards?: Card[];
   winnerId?: string;
   sidePots?: SidePot[];
+  playerEmojis?: Map<string, string>;
 }
 
 const getVisibleCards = (status: Game['status'] | undefined): number => {
@@ -66,7 +74,8 @@ export default function PokerTableComponent({
   maxHands = 50,
   myCards = [],
   winnerId,
-  sidePots = []
+  sidePots = [],
+  playerEmojis = new Map()
 }: PokerTableProps) {
   const currentUserPlayer = players.find(p => p.userId === currentUserId);
   const userPosition = currentUserPlayer?.position ?? 0;
@@ -131,7 +140,7 @@ export default function PokerTableComponent({
   }, [gameStatus]);
 
   return (
-    <div className="relative w-full max-w-md mx-auto aspect-[3/4]">
+    <div className="relative w-full max-w-lg mx-auto aspect-[3/4]">
       {/* Ambient glow effect */}
       <div className="absolute inset-0 bg-gradient-radial from-emerald-900/20 via-transparent to-transparent pointer-events-none" />
       
@@ -349,6 +358,7 @@ export default function PokerTableComponent({
           myCards={player?.userId === currentUserId ? myCards : undefined}
           isWinner={winnerId ? player?.userId === winnerId : false}
           turnTimeLeft={player?.isCurrentPlayer ? turnTimeLeft : null}
+          activeEmoji={player ? playerEmojis.get(player.userId) || null : null}
         />
       ))}
     </div>

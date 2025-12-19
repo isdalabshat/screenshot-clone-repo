@@ -19,11 +19,11 @@ const EMOJIS: Emoji[] = [
   { id: '6', emoji: '🤔', name: 'Thinking', sound: 'thinking' },
 ];
 
-interface FloatingEmoji {
+interface PlayerEmoji {
   id: string;
   emoji: string;
   username: string;
-  position: { x: number; y: number };
+  userId: string;
 }
 
 interface EmojiReactionsProps {
@@ -31,11 +31,11 @@ interface EmojiReactionsProps {
   userId?: string;
   username?: string;
   isJoined: boolean;
+  onPlayerEmoji?: (emoji: PlayerEmoji) => void;
 }
 
-export default function EmojiReactions({ tableId, userId, username, isJoined }: EmojiReactionsProps) {
+export default function EmojiReactions({ tableId, userId, username, isJoined, onPlayerEmoji }: EmojiReactionsProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [floatingEmojis, setFloatingEmojis] = useState<FloatingEmoji[]>([]);
   const [cooldown, setCooldown] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
 
@@ -119,26 +119,17 @@ export default function EmojiReactions({ tableId, userId, username, isJoined }: 
     }
   }, [getContext]);
 
-  const addFloatingEmoji = useCallback((emoji: string, fromUsername: string) => {
+  const triggerPlayerEmoji = useCallback((emoji: string, fromUsername: string, fromUserId: string) => {
     const id = `${Date.now()}-${Math.random()}`;
-    const position = {
-      x: Math.random() * 200 - 100,
-      y: Math.random() * 50 - 25
-    };
-    setFloatingEmojis(prev => [...prev, { id, emoji, username: fromUsername, position }]);
-    
-    // Remove after animation
-    setTimeout(() => {
-      setFloatingEmojis(prev => prev.filter(e => e.id !== id));
-    }, 2000);
-  }, []);
+    onPlayerEmoji?.({ id, emoji, username: fromUsername, userId: fromUserId });
+  }, [onPlayerEmoji]);
 
   // Subscribe to realtime emoji broadcasts
   useEffect(() => {
     const channel = supabase.channel(`emoji-${tableId}`)
       .on('broadcast', { event: 'emoji' }, ({ payload }) => {
         if (payload.userId !== userId) {
-          addFloatingEmoji(payload.emoji, payload.username);
+          triggerPlayerEmoji(payload.emoji, payload.username, payload.userId);
           const emojiData = EMOJIS.find(e => e.emoji === payload.emoji);
           if (emojiData) {
             playEmojiSound(emojiData.sound);
@@ -150,7 +141,7 @@ export default function EmojiReactions({ tableId, userId, username, isJoined }: 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [tableId, userId, addFloatingEmoji, playEmojiSound]);
+  }, [tableId, userId, triggerPlayerEmoji, playEmojiSound]);
 
   const sendEmoji = async (emoji: Emoji) => {
     if (!userId || !username || cooldown) return;
@@ -161,8 +152,8 @@ export default function EmojiReactions({ tableId, userId, username, isJoined }: 
     // Play sound locally
     playEmojiSound(emoji.sound);
     
-    // Add floating emoji locally
-    addFloatingEmoji(emoji.emoji, username);
+    // Trigger emoji on own avatar
+    triggerPlayerEmoji(emoji.emoji, username, userId);
     
     // Broadcast to others
     await supabase.channel(`emoji-${tableId}`).send({
@@ -178,84 +169,46 @@ export default function EmojiReactions({ tableId, userId, username, isJoined }: 
   if (!isJoined) return null;
 
   return (
-    <>
-      {/* Floating Emojis */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-50">
-        <AnimatePresence>
-          {floatingEmojis.map(({ id, emoji, username: fromUser, position }) => (
-            <motion.div
-              key={id}
-              initial={{ 
-                x: '50%',
-                y: '50%',
-                scale: 0,
-                opacity: 0
-              }}
-              animate={{ 
-                x: `calc(50% + ${position.x}px)`,
-                y: `calc(40% + ${position.y}px)`,
-                scale: 1.5,
-                opacity: 1
-              }}
-              exit={{ 
-                y: `calc(20% + ${position.y}px)`,
-                scale: 2,
-                opacity: 0
-              }}
-              transition={{ duration: 0.5, ease: 'easeOut' }}
-              className="absolute flex flex-col items-center"
-            >
-              <span className="text-5xl drop-shadow-lg">{emoji}</span>
-              <span className="text-xs bg-black/70 text-white px-2 py-0.5 rounded-full mt-1">
-                {fromUser}
-              </span>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
+    <div className="fixed bottom-4 right-4 z-40">
+      <motion.button
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => setIsOpen(!isOpen)}
+        disabled={cooldown}
+        className={cn(
+          'w-12 h-12 rounded-full bg-gradient-to-br from-primary to-emerald-600 shadow-lg flex items-center justify-center border-2 border-primary/50 transition-all',
+          cooldown && 'opacity-50 cursor-not-allowed',
+          isOpen && 'ring-2 ring-primary ring-offset-2 ring-offset-background'
+        )}
+      >
+        <span className="text-2xl">{cooldown ? '⏳' : '😀'}</span>
+      </motion.button>
 
-      {/* Emoji Button */}
-      <div className="fixed bottom-24 right-4 z-40">
-        <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setIsOpen(!isOpen)}
-          disabled={cooldown}
-          className={cn(
-            'w-12 h-12 rounded-full bg-gradient-to-br from-primary to-emerald-600 shadow-lg flex items-center justify-center border-2 border-primary/50 transition-all',
-            cooldown && 'opacity-50 cursor-not-allowed',
-            isOpen && 'ring-2 ring-primary ring-offset-2 ring-offset-background'
-          )}
-        >
-          <span className="text-2xl">{cooldown ? '⏳' : '😀'}</span>
-        </motion.button>
-
-        {/* Emoji Picker */}
-        <AnimatePresence>
-          {isOpen && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.8, y: 10 }}
-              className="absolute bottom-16 right-0 bg-card/95 backdrop-blur-lg rounded-2xl p-3 shadow-xl border border-primary/30"
-            >
-              <div className="grid grid-cols-3 gap-2">
-                {EMOJIS.map((emoji) => (
-                  <motion.button
-                    key={emoji.id}
-                    whileHover={{ scale: 1.2 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => sendEmoji(emoji)}
-                    className="w-12 h-12 rounded-xl bg-slate-800/50 hover:bg-slate-700/50 flex items-center justify-center transition-colors"
-                  >
-                    <span className="text-2xl">{emoji.emoji}</span>
-                  </motion.button>
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    </>
+      {/* Emoji Picker - positioned to the left to avoid overlap */}
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8, x: 10 }}
+            animate={{ opacity: 1, scale: 1, x: 0 }}
+            exit={{ opacity: 0, scale: 0.8, x: 10 }}
+            className="absolute bottom-0 right-16 bg-card/95 backdrop-blur-lg rounded-2xl p-2 shadow-xl border border-primary/30"
+          >
+            <div className="flex gap-1.5">
+              {EMOJIS.map((emoji) => (
+                <motion.button
+                  key={emoji.id}
+                  whileHover={{ scale: 1.2 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => sendEmoji(emoji)}
+                  className="w-10 h-10 rounded-xl bg-slate-800/50 hover:bg-slate-700/50 flex items-center justify-center transition-colors"
+                >
+                  <span className="text-xl">{emoji.emoji}</span>
+                </motion.button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }

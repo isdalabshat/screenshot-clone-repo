@@ -4,6 +4,7 @@ import PlayingCard from './PlayingCard';
 import { Badge } from '@/components/ui/badge';
 import { evaluateHand } from '@/lib/poker/handEvaluator';
 import CountdownTimer from './CountdownTimer';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface PlayerSeatProps {
   player?: Player;
@@ -16,6 +17,7 @@ interface PlayerSeatProps {
   myCards?: Card[];
   isWinner?: boolean;
   turnTimeLeft?: number | null;
+  activeEmoji?: string | null;
 }
 
 // Optimized positions for better visual balance - current user always at bottom center
@@ -53,7 +55,8 @@ export default function PlayerSeat({
   gameStatus,
   myCards = [],
   isWinner = false,
-  turnTimeLeft = null
+  turnTimeLeft = null,
+  activeEmoji = null
 }: PlayerSeatProps) {
   if (!player) {
     return (
@@ -118,6 +121,22 @@ export default function PlayerSeat({
     <div className="flex flex-col items-center gap-0.5">
       {/* Avatar with enhanced turn indicator and countdown */}
       <div className="relative">
+        {/* Emoji above avatar */}
+        <AnimatePresence>
+          {activeEmoji && (
+            <motion.div
+              initial={{ scale: 0, opacity: 0, y: 10 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0, opacity: 0, y: -10 }}
+              className="absolute -top-8 left-1/2 -translate-x-1/2 z-30"
+            >
+              <div className="text-3xl drop-shadow-lg animate-bounce">
+                {activeEmoji}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        
         <div 
           className={cn(
             'w-10 h-10 rounded-full flex items-center justify-center shadow-lg border-3 transition-all relative',
