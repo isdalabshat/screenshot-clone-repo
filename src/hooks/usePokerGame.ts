@@ -129,7 +129,7 @@ export function usePokerGame(tableId: string) {
       const remaining = Math.max(0, Math.ceil((expiresAt - now) / 1000));
       setTurnTimeLeft(remaining);
 
-      // Auto-fold when timer expires and it's current player's turn
+      // Auto-fold when timer expires and it's current player's turn (client-side)
       if (remaining === 0 && isCurrentPlayerTurn && !autoFoldTriggered.current && !isActionPending) {
         autoFoldTriggered.current = true;
         handleAutoFold();
@@ -137,9 +137,61 @@ export function usePokerGame(tableId: string) {
     };
 
     updateTimer();
-    const interval = setInterval(updateTimer, 500); // Check more frequently
+    const interval = setInterval(updateTimer, 500);
     return () => clearInterval(interval);
   }, [game?.turnExpiresAt, game?.status, game?.id, isCurrentPlayerTurn, isActionPending]);
+
+  // Server-side turn timeout check - triggered by ANY player when timer expires
+  // This ensures disconnected players get auto-folded
+  const serverTimeoutCheckRef = useRef<NodeJS.Timeout | null>(null);
+  
+  useEffect(() => {
+    if (serverTimeoutCheckRef.current) {
+      clearInterval(serverTimeoutCheckRef.current);
+      serverTimeoutCheckRef.current = null;
+    }
+    
+    if (!game?.turnExpiresAt || game.status === 'complete' || game.status === 'showdown') {
+      return;
+    }
+
+    const checkServerTimeout = async () => {
+      const currentGame = gameRef.current;
+      if (!currentGame?.turnExpiresAt) return;
+      
+      const expiresAt = new Date(currentGame.turnExpiresAt).getTime();
+      const now = Date.now();
+      
+      // Only check server if turn has expired (with 2 second buffer)
+      if (now > expiresAt + 2000) {
+        try {
+          console.log('Checking server for turn timeout...');
+          const { data } = await supabase.functions.invoke('poker-game', {
+            body: {
+              action: 'check_turn_timeout',
+              tableId
+            }
+          });
+          
+          if (data?.expired && data?.autoFolded) {
+            console.log('Server auto-folded player:', data.autoFolded);
+          }
+        } catch (error) {
+          console.error('Server timeout check failed:', error);
+        }
+      }
+    };
+
+    // Check every 3 seconds after timer expires
+    serverTimeoutCheckRef.current = setInterval(checkServerTimeout, 3000);
+    
+    return () => {
+      if (serverTimeoutCheckRef.current) {
+        clearInterval(serverTimeoutCheckRef.current);
+        serverTimeoutCheckRef.current = null;
+      }
+    };
+  }, [game?.turnExpiresAt, game?.status, tableId]);
 
   const handleAutoFold = async () => {
     if (!game || isActionPending) return;

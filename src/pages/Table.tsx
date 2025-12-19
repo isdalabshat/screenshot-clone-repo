@@ -500,7 +500,7 @@ export default function Table() {
         isVisible={showWinner}
       />
 
-      {/* Emoji Reactions */}
+      {/* Emoji Reactions - visible to all, but only joined players can send */}
       <EmojiReactions
         tableId={tableId!}
         userId={user?.id}
@@ -509,13 +509,22 @@ export default function Table() {
         onPlayerEmoji={handlePlayerEmoji}
       />
 
-      {/* Table Chat */}
+      {/* Table Chat - only for joined players */}
       {isJoined && (
         <TableChat
           tableId={tableId!}
           userId={user?.id}
           username={profile?.username}
         />
+      )}
+
+      {/* Spectator badge */}
+      {!isJoined && !tableEnded && user && (
+        <div className="fixed bottom-20 left-4 z-30">
+          <div className="bg-card/90 backdrop-blur-lg rounded-lg px-3 py-2 border border-primary/30 text-xs text-muted-foreground">
+            👁️ Spectating
+          </div>
+        </div>
       )}
 
       {/* Bottom Action Area */}
