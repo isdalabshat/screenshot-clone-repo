@@ -446,10 +446,10 @@ export function usePokerGame(tableId: string) {
       // Reactivate existing seat - Reset ALL player state when rejoining
       // Player joins as folded if a hand is in progress, will play next hand
       const currentGame = gameRef.current;
-      const isHandInProgress = currentGame && 
+      const isHandInProgress = !!(currentGame && 
         currentGame.status !== 'complete' && 
         currentGame.status !== 'showdown' && 
-        currentGame.status !== 'waiting';
+        currentGame.status !== 'waiting');
 
       const { error } = await supabase
         .from('table_players')
@@ -457,9 +457,10 @@ export function usePokerGame(tableId: string) {
           is_active: true,
           stack: buyIn,
           current_bet: 0,
-          is_folded: isHandInProgress, // Auto-fold if hand is in progress
+          is_folded: isHandInProgress,
           is_all_in: false,
-          hole_cards: null  // No cards until next hand
+          is_sitting_out: false,
+          hole_cards: []
         })
         .eq('id', existingRecord.id);
 
@@ -527,10 +528,10 @@ export function usePokerGame(tableId: string) {
 
     // Check if a hand is in progress - new players join as folded
     const currentGame = gameRef.current;
-    const isHandInProgress = currentGame && 
+    const isHandInProgress = !!(currentGame && 
       currentGame.status !== 'complete' && 
       currentGame.status !== 'showdown' && 
-      currentGame.status !== 'waiting';
+      currentGame.status !== 'waiting');
 
     // Try to insert with retry logic for position conflicts
     const maxRetries = 5;
@@ -575,8 +576,12 @@ export function usePokerGame(tableId: string) {
           user_id: user.id,
           position: availablePosition,
           stack: buyIn,
-          is_folded: isHandInProgress, // Auto-fold if hand is in progress
-          hole_cards: null
+          current_bet: 0,
+          is_folded: isHandInProgress,
+          is_all_in: false,
+          is_active: true,
+          is_sitting_out: false,
+          hole_cards: []
         });
 
       if (!error) {
@@ -656,6 +661,54 @@ export function usePokerGame(tableId: string) {
     setMyCards([]);
     toast({
       title: 'Left table',
+      description: `${currentPlayer.stack} chips returned to your balance.`
+    });
+  };
+
+  // Stand up allows leaving at any time (auto-folds if in hand)
+  const standUp = async () => {
+    if (!currentPlayer) return;
+
+    const currentGame = gameRef.current;
+    
+    // Auto-fold if in an active hand
+    if (currentGame && 
+        currentGame.status !== 'complete' && 
+        currentGame.status !== 'showdown' &&
+        !currentPlayer.isFolded) {
+      try {
+        await supabase.functions.invoke('poker-game', {
+          body: {
+            action: 'perform_action',
+            tableId,
+            gameId: currentGame.id,
+            actionType: 'fold'
+          }
+        });
+      } catch (error) {
+        console.error('Auto-fold on stand up failed:', error);
+      }
+    }
+
+    // Return chips to profile
+    if (profile) {
+      await supabase
+        .from('profiles')
+        .update({ chips: profile.chips + currentPlayer.stack })
+        .eq('user_id', user?.id);
+    }
+
+    // Mark as inactive
+    await supabase
+      .from('table_players')
+      .update({ is_active: false })
+      .eq('id', currentPlayer.id);
+
+    await refreshProfile();
+    await fetchPlayers();
+    setMyCards([]);
+    toast({
+      title: 'Stood up',
       description: `${currentPlayer.stack} chips returned to your balance.`
     });
   };
@@ -1013,6 +1066,7 @@ export function usePokerGame(tableId: string) {
     sidePots,
     joinTable,
     leaveTable,
+    standUp,
     startHand,
     performAction,
     toggleSitOut
