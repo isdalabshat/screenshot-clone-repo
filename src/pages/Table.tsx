@@ -13,7 +13,7 @@ import EmojiReactions from '@/components/poker/EmojiReactions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { ArrowLeft, Play, LogOut, Coins, Volume2, VolumeX, Coffee } from 'lucide-react';
+import { ArrowLeft, Play, LogOut, Coins, Volume2, VolumeX, Coffee, UserMinus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -37,6 +37,7 @@ export default function Table() {
     sidePots,
     joinTable, 
     leaveTable, 
+    standUp,
     startHand,
     performAction,
     toggleSitOut
@@ -474,6 +475,16 @@ export default function Table() {
                 >
                   <LogOut className="h-3 w-3 mr-1" />
                   Leave
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  size="sm" 
+                  className="h-8 text-xs" 
+                  onClick={standUp}
+                  title="Stand up and leave table (auto-folds if in hand)"
+                >
+                  <UserMinus className="h-3 w-3 mr-1" />
+                  Stand Up
                 </Button>
               </>
             )}
