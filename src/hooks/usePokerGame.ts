@@ -930,19 +930,21 @@ export function usePokerGame(tableId: string) {
         }
       });
 
-      if (error) {
-        console.error('Action error:', error);
+      // Handle both network errors and API errors returned in data.error
+      if (error || data?.error) {
+        console.error('Action error:', error || data?.error);
         // Revert optimistic update on error
         await fetchGame();
         await fetchPlayers();
         
+        const errorMsg = error?.message || data?.error || 'Unknown error';
         let errorMessage = 'Please try again.';
-        if (error.message?.includes('401') || error.message?.includes('session') || error.message?.includes('expired')) {
+        if (errorMsg.includes('401') || errorMsg.includes('session') || errorMsg.includes('expired')) {
           errorMessage = 'Session expired. Please refresh the page.';
-        } else if (error.message?.includes('turn')) {
+        } else if (errorMsg.includes('turn')) {
           errorMessage = 'Not your turn.';
-        } else if (error.message) {
-          errorMessage = error.message;
+        } else {
+          errorMessage = errorMsg;
         }
         toast({
           title: 'Action failed',

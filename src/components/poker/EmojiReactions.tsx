@@ -218,7 +218,7 @@ export default function EmojiReactions({ tableId, userId, username, isJoined, on
   const canSendEmojis = isJoined && userId && username;
 
   return (
-    <div className="fixed bottom-4 right-4 z-40">
+    <div className="fixed bottom-4 right-4 z-50">
       {canSendEmojis && (
         <>
           <motion.button
@@ -235,26 +235,26 @@ export default function EmojiReactions({ tableId, userId, username, isJoined, on
             <span className="text-lg">{cooldown ? '⏳' : '😀'}</span>
           </motion.button>
 
-          {/* Emoji Picker - positioned above the button */}
+          {/* Emoji Picker - positioned above and to the left */}
           <AnimatePresence>
             {isOpen && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.8, y: 10 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.8, y: 10 }}
-                className="absolute bottom-14 right-0 bg-card/95 backdrop-blur-lg rounded-xl p-2 shadow-xl border border-primary/30"
+                className="absolute bottom-14 right-0 bg-card/95 backdrop-blur-lg rounded-xl p-3 shadow-xl border border-primary/30 min-w-[140px]"
               >
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className="grid grid-cols-3 gap-2">
                   {EMOJIS.map((emoji) => (
                     <motion.button
                       key={emoji.id}
-                      whileHover={{ scale: 1.1 }}
+                      whileHover={{ scale: 1.15 }}
                       whileTap={{ scale: 0.9 }}
                       onClick={() => sendEmoji(emoji)}
-                      className="w-9 h-9 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 flex items-center justify-center transition-colors"
+                      className="w-10 h-10 rounded-lg bg-slate-800/70 hover:bg-slate-700 flex items-center justify-center transition-colors"
                       title={emoji.name}
                     >
-                      <span className="text-lg">{emoji.emoji}</span>
+                      <span className="text-xl">{emoji.emoji}</span>
                     </motion.button>
                   ))}
                 </div>
