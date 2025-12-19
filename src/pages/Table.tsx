@@ -52,6 +52,7 @@ export default function Table() {
   const autoStartTimerRef = useRef<NodeJS.Timeout | null>(null);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isStartingHand = useRef(false);
+  const hasAutoStarted = useRef(false);
   
   const prevGameStatus = useRef<string | null>(null);
   const prevCurrentPlayerId = useRef<string | null>(null);
@@ -59,7 +60,6 @@ export default function Table() {
   const prevPot = useRef<number>(0);
   const prevPlayerStacks = useRef<Map<string, number>>(new Map());
   const lastWinnerGameId = useRef<string | null>(null);
-  const lastCompletedGameId = useRef<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -230,16 +230,20 @@ export default function Table() {
   // Track previous player count for notifications
   const prevPlayerCount = useRef<number>(0);
 
-  // Auto-start game loop - reliable trigger after game ends
+  // Auto-start game loop - single unified effect
   useEffect(() => {
     const activePlayerCount = players.length;
-    const gameId = game?.id || null;
     const gameStatus = game?.status || null;
-    const isGameEnded = gameStatus === 'complete' || gameStatus === 'showdown';
+    const isGameEnded = !game || gameStatus === 'complete' || gameStatus === 'showdown';
+    const isGameInProgress = gameStatus && !['complete', 'showdown'].includes(gameStatus);
+    
+    // Reset hasAutoStarted when a new hand is in progress
+    if (isGameInProgress) {
+      hasAutoStarted.current = false;
+    }
     
     // Handle waiting for players state
     if (isJoined && activePlayerCount < 2) {
-      // If countdown was active and player left, notify
       if (autoStartCountdown !== null && prevPlayerCount.current >= 2) {
         toast({
           title: 'Game Paused',
@@ -249,67 +253,49 @@ export default function Table() {
       }
       clearAutoStartTimers();
       setIsWaitingForPlayers(true);
+      hasAutoStarted.current = false;
       prevPlayerCount.current = activePlayerCount;
       return;
     }
     
     setIsWaitingForPlayers(false);
     prevPlayerCount.current = activePlayerCount;
-  }, [players.length, isJoined, autoStartCountdown, clearAutoStartTimers, toast]);
-
-  // Separate effect for auto-start trigger - fires when winner animation ends
-  useEffect(() => {
-    // Conditions for auto-start
-    const activePlayerCount = players.length;
-    const gameStatus = game?.status || null;
-    const gameId = game?.id || null;
-    const isGameEnded = gameStatus === 'complete' || gameStatus === 'showdown';
-    const noGameYet = !game && activePlayerCount >= 2;
     
+    // Auto-start conditions
     const canAutoStart = isJoined && 
                          activePlayerCount >= 2 && 
-                         (isGameEnded || noGameYet) &&
+                         isGameEnded &&
                          table && table.handsPlayed < table.maxHands &&
                          !isStartingHand.current &&
-                         !showWinner && // Wait for winner animation to finish
-                         autoStartCountdown === null;
+                         !showWinner &&
+                         autoStartCountdown === null &&
+                         !hasAutoStarted.current;
     
-    if (!canAutoStart) return;
-    
-    // Check if this is a new game end we haven't processed
-    const gameKey = gameId || 'no_game';
-    if (lastCompletedGameId.current === gameKey) return;
-    
-    lastCompletedGameId.current = gameKey;
-    
-    // Start countdown after a brief delay
-    const delayTimer = setTimeout(() => {
-      if (!isStartingHand.current && players.length >= 2 && !showWinner) {
-        startAutoStartCountdown();
-      }
-    }, 500);
-    
-    return () => clearTimeout(delayTimer);
+    if (canAutoStart) {
+      hasAutoStarted.current = true;
+      
+      // Start countdown after brief delay
+      const delayTimer = setTimeout(() => {
+        if (!isStartingHand.current && players.length >= 2 && !showWinner) {
+          startAutoStartCountdown();
+        }
+      }, 800);
+      
+      return () => clearTimeout(delayTimer);
+    }
   }, [
     players.length, 
     isJoined, 
     game?.status,
-    game?.id,
     game,
     table?.handsPlayed, 
     table?.maxHands,
     showWinner,
     autoStartCountdown,
     startAutoStartCountdown,
-    players
+    clearAutoStartTimers,
+    toast
   ]);
-
-  // Reset tracking when a new hand starts
-  useEffect(() => {
-    if (game?.status === 'preflop') {
-      lastCompletedGameId.current = null;
-    }
-  }, [game?.status]);
 
   // Clean up timers on unmount
   useEffect(() => {
@@ -535,10 +521,15 @@ export default function Table() {
                 <Button 
                   size="sm" 
                   className="bg-primary hover:bg-primary/90 w-full transition-all hover:scale-[1.02] active:scale-[0.98]"
+                  disabled={isStartingHand.current}
                   onClick={() => {
+                    if (isStartingHand.current) return;
+                    isStartingHand.current = true;
                     clearAutoStartTimers();
+                    hasAutoStarted.current = true;
                     if (soundEnabled) playSound('shuffle');
                     startHand();
+                    setTimeout(() => { isStartingHand.current = false; }, 1500);
                   }}
                 >
                   <Play className="h-4 w-4 mr-2" />

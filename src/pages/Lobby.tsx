@@ -25,6 +25,7 @@ export default function Lobby() {
   const [proofImage, setProofImage] = useState<File | null>(null);
   const [proofPreview, setProofPreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isSubmittingCashOut, setIsSubmittingCashOut] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -130,7 +131,15 @@ export default function Lobby() {
   const handleCashRequest = async (type: 'cash_in' | 'cash_out') => {
     if (!user || cashAmount <= 0) return;
     
-    setIsUploading(true);
+    // Prevent double submissions
+    if (type === 'cash_in' && isUploading) return;
+    if (type === 'cash_out' && isSubmittingCashOut) return;
+    
+    if (type === 'cash_in') {
+      setIsUploading(true);
+    } else {
+      setIsSubmittingCashOut(true);
+    }
     
     let proofUrl: string | null = null;
     if (type === 'cash_in' && proofImage) {
@@ -152,6 +161,7 @@ export default function Lobby() {
       });
 
     setIsUploading(false);
+    setIsSubmittingCashOut(false);
 
     if (error) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -235,27 +245,26 @@ export default function Lobby() {
                       onChange={handleImageSelect}
                       className="hidden"
                     />
-                    <div 
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full mt-2 border-dashed"
                       onClick={() => fileInputRef.current?.click()}
-                      className="mt-2 border-2 border-dashed border-muted-foreground/30 rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-colors"
                     >
-                      {proofPreview ? (
-                        <div className="relative">
-                          <img src={proofPreview} alt="Proof" className="max-h-40 mx-auto rounded" />
-                          <p className="text-xs text-muted-foreground mt-2">Click to change</p>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center gap-2">
-                          <Upload className="h-8 w-8 text-muted-foreground" />
-                          <p className="text-sm text-muted-foreground">Click to upload payment screenshot</p>
-                        </div>
-                      )}
-                    </div>
+                      <Upload className="h-4 w-4 mr-2" />
+                      {proofImage ? 'Change Image' : 'Upload Screenshot'}
+                    </Button>
+                    {proofPreview && (
+                      <div className="mt-3 relative">
+                        <img src={proofPreview} alt="Proof" className="max-h-40 mx-auto rounded border border-border" />
+                        <p className="text-xs text-muted-foreground mt-2 text-center">Payment proof uploaded</p>
+                      </div>
+                    )}
                   </div>
                   
                   <Button 
                     onClick={() => handleCashRequest('cash_in')} 
-                    className="w-full bg-green-600 hover:bg-green-700"
+                    className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50"
                     disabled={isUploading || !proofImage}
                   >
                     {isUploading ? 'Uploading...' : 'Submit Request'}
@@ -289,10 +298,10 @@ export default function Lobby() {
                   </div>
                   <Button 
                     onClick={() => handleCashRequest('cash_out')} 
-                    className="w-full bg-orange-600 hover:bg-orange-700"
-                    disabled={cashAmount > profile.chips}
+                    className="w-full bg-orange-600 hover:bg-orange-700 disabled:opacity-50"
+                    disabled={cashAmount > profile.chips || isSubmittingCashOut}
                   >
-                    Submit Request
+                    {isSubmittingCashOut ? 'Submitting...' : 'Submit Request'}
                   </Button>
                 </div>
               </DialogContent>
