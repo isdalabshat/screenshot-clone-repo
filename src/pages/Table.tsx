@@ -35,6 +35,7 @@ export default function Table() {
     turnTimeLeft,
     isActionPending,
     sidePots,
+    isPendingStandUp,
     joinTable, 
     leaveTable, 
     standUp,
@@ -481,10 +482,11 @@ export default function Table() {
                   size="sm" 
                   className="h-8 text-xs" 
                   onClick={standUp}
-                  title="Stand up and leave table (auto-folds if in hand)"
+                  disabled={isPendingStandUp}
+                  title={isPendingStandUp ? 'Waiting for hand to complete' : 'Stand up and leave table (waits for hand to complete)'}
                 >
                   <UserMinus className="h-3 w-3 mr-1" />
-                  Stand Up
+                  {isPendingStandUp ? 'Standing Up...' : 'Stand Up'}
                 </Button>
               </>
             )}

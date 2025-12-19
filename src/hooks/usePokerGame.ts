@@ -75,6 +75,7 @@ export function usePokerGame(tableId: string) {
   const [turnTimeLeft, setTurnTimeLeft] = useState<number | null>(null);
   const [isActionPending, setIsActionPending] = useState(false);
   const [sidePots, setSidePots] = useState<SidePot[]>([]);
+  const [isPendingStandUp, setIsPendingStandUp] = useState(false);
 
   // Use refs to avoid stale closures in realtime callbacks
   const gameRef = useRef<Game | null>(null);
@@ -665,32 +666,72 @@ export function usePokerGame(tableId: string) {
     });
   };
 
-  // Stand up allows leaving at any time (auto-folds if in hand)
+  // Effect to auto-leave when pending stand up and hand completes
+  useEffect(() => {
+    if (!isPendingStandUp || !currentPlayer) return;
+    
+    const currentGame = gameRef.current;
+    const isHandComplete = !currentGame || 
+      currentGame.status === 'complete' || 
+      currentGame.status === 'showdown';
+    
+    if (isHandComplete) {
+      // Hand is complete, now leave
+      const doStandUp = async () => {
+        if (profile) {
+          await supabase
+            .from('profiles')
+            .update({ chips: profile.chips + currentPlayer.stack })
+            .eq('user_id', user?.id);
+        }
+
+        await supabase
+          .from('table_players')
+          .update({ is_active: false })
+          .eq('id', currentPlayer.id);
+
+        await refreshProfile();
+        await fetchPlayers();
+        setMyCards([]);
+        setIsPendingStandUp(false);
+        toast({
+          title: 'Stood up',
+          description: `${currentPlayer.stack} chips returned to your balance.`
+        });
+      };
+      
+      doStandUp();
+    }
+  }, [isPendingStandUp, game?.status, currentPlayer, profile, user?.id, refreshProfile, fetchPlayers, toast]);
+
+  // Stand up queues player to leave after current hand ends
   const standUp = async () => {
-    if (!currentPlayer) return;
+    if (!currentPlayer || isPendingStandUp) return;
 
     const currentGame = gameRef.current;
+    const isHandInProgress = currentGame && 
+      currentGame.status !== 'complete' && 
+      currentGame.status !== 'showdown' &&
+      currentGame.status !== 'waiting';
     
-    // Auto-fold if in an active hand
-    if (currentGame && 
-        currentGame.status !== 'complete' && 
-        currentGame.status !== 'showdown' &&
-        !currentPlayer.isFolded) {
-      try {
-        await supabase.functions.invoke('poker-game', {
-          body: {
-            action: 'perform_action',
-            tableId,
-            gameId: currentGame.id,
-            actionType: 'fold'
-          }
-        });
-      } catch (error) {
-        console.error('Auto-fold on stand up failed:', error);
-      }
+    if (isHandInProgress) {
+      // Queue to stand up after hand - mark as sitting out
+      await supabase
+        .from('table_players')
+        .update({ is_sitting_out: true })
+        .eq('id', currentPlayer.id);
+      
+      setIsPendingStandUp(true);
+      
+      toast({
+        title: 'Standing up after this hand',
+        description: 'You will leave when the current hand completes.'
+      });
+      
+      return;
     }
 
-    // Return chips to profile
+    // No hand in progress - leave immediately
     if (profile) {
       await supabase
         .from('profiles')
@@ -698,7 +739,6 @@ export function usePokerGame(tableId: string) {
         .eq('user_id', user?.id);
     }
 
-    // Mark as inactive
     await supabase
       .from('table_players')
       .update({ is_active: false })
@@ -1064,6 +1104,7 @@ export function usePokerGame(tableId: string) {
     turnTimeLeft,
     isActionPending,
     sidePots,
+    isPendingStandUp,
     joinTable,
     leaveTable,
     standUp,

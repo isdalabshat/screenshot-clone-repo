@@ -218,7 +218,7 @@ export default function EmojiReactions({ tableId, userId, username, isJoined, on
   const canSendEmojis = isJoined && userId && username;
 
   return (
-    <div className="fixed bottom-4 right-4 z-30">
+    <div className="fixed bottom-4 right-4 z-40">
       {canSendEmojis && (
         <>
           <motion.button
@@ -235,14 +235,14 @@ export default function EmojiReactions({ tableId, userId, username, isJoined, on
             <span className="text-lg">{cooldown ? '⏳' : '😀'}</span>
           </motion.button>
 
-          {/* Emoji Picker - positioned to the left of button */}
+          {/* Emoji Picker - positioned above the button */}
           <AnimatePresence>
             {isOpen && (
               <motion.div
-                initial={{ opacity: 0, scale: 0.8, x: 10 }}
-                animate={{ opacity: 1, scale: 1, x: 0 }}
-                exit={{ opacity: 0, scale: 0.8, x: 10 }}
-                className="absolute bottom-0 right-14 bg-card/95 backdrop-blur-lg rounded-xl p-2 shadow-xl border border-primary/30"
+                initial={{ opacity: 0, scale: 0.8, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.8, y: 10 }}
+                className="absolute bottom-14 right-0 bg-card/95 backdrop-blur-lg rounded-xl p-2 shadow-xl border border-primary/30"
               >
                 <div className="grid grid-cols-3 gap-1.5">
                   {EMOJIS.map((emoji) => (
