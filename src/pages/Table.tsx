@@ -4,6 +4,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { usePokerGame } from '@/hooks/usePokerGame';
 import { useSoundEffects } from '@/hooks/useSoundEffects';
+import { evaluateHand } from '@/lib/poker/handEvaluator';
+import { Card, CardSuit, CardRank } from '@/types/poker';
 import PokerTableComponent from '@/components/poker/PokerTable';
 import ActionButtons from '@/components/poker/ActionButtons';
 import TableChat from '@/components/poker/TableChat';
@@ -49,7 +51,14 @@ export default function Table() {
   const [buyInAmount, setBuyInAmount] = useState(100);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [showWinner, setShowWinner] = useState(false);
-  const [winnerInfo, setWinnerInfo] = useState<{ name: string; amount: number; id: string } | null>(null);
+  const [winnerInfo, setWinnerInfo] = useState<{ 
+    name: string; 
+    amount: number; 
+    id: string;
+    handName?: string;
+    winningCards?: string[];
+    isShowdown?: boolean;
+  } | null>(null);
   const [playerEmojis, setPlayerEmojis] = useState<Map<string, string>>(new Map());
   
   // Auto-start countdown state
@@ -206,6 +215,24 @@ export default function Table() {
     }
   }, [game?.id, game?.status, game?.pot, players, soundEnabled, playSound, playDealSequence, user?.id, myCards.length]);
 
+  // Helper function to parse card string to Card object
+  const parseCardString = useCallback((cardStr: string): Card | null => {
+    if (!cardStr || cardStr.length < 2) return null;
+    
+    const suitMap: Record<string, CardSuit> = {
+      'h': 'hearts',
+      'd': 'diamonds',
+      'c': 'clubs',
+      's': 'spades'
+    };
+    
+    const suit = suitMap[cardStr.slice(-1).toLowerCase()];
+    const rank = cardStr.slice(0, -1) as CardRank;
+    
+    if (!suit) return null;
+    return { suit, rank };
+  }, []);
+
   // Winner detection - separate effect for reliability with extended showdown delay
   useEffect(() => {
     if (!game) return;
@@ -221,13 +248,18 @@ export default function Table() {
         let winnerId = '';
         let winnerName = '';
         let winAmount = prevPot.current;
+        let winnerHandName = '';
+        let winnerCards: string[] = [];
+        let isShowdown = false;
         
         if (nonFolded.length === 1) {
-          // Single winner (everyone else folded)
+          // Single winner (everyone else folded) - no showdown
           winnerId = nonFolded[0].userId;
           winnerName = nonFolded[0].username;
+          isShowdown = false;
         } else if (nonFolded.length > 0) {
           // Multiple players at showdown - find who gained the most
+          isShowdown = true;
           let maxGain = 0;
           for (const player of nonFolded) {
             const prevStack = prevPlayerStacks.current.get(player.userId) || 0;
@@ -237,6 +269,17 @@ export default function Table() {
               winnerId = player.userId;
               winnerName = player.username;
               winAmount = gain;
+              
+              // Get the winner's cards for display
+              // First, check if this player has visible hole cards
+              if (player.holeCards && player.holeCards.length > 0) {
+                // Convert Card objects to string format for display
+                winnerCards = player.holeCards.map(c => `${c.rank}${c.suit.charAt(0)}`);
+                
+                // Evaluate hand to get hand name
+                const handResult = evaluateHand(player.holeCards, game.communityCards);
+                winnerHandName = handResult.name;
+              }
             }
           }
         }
@@ -244,13 +287,20 @@ export default function Table() {
         // Show winner animation with extended delay for showdown
         if (winnerId && winnerName) {
           lastWinnerGameId.current = game.id;
-          setWinnerInfo({ name: winnerName, amount: winAmount, id: winnerId });
+          setWinnerInfo({ 
+            name: winnerName, 
+            amount: winAmount, 
+            id: winnerId,
+            handName: winnerHandName,
+            winningCards: winnerCards,
+            isShowdown
+          });
           setShowWinner(true);
           if (soundEnabled) playSound('win');
           
           // Longer delay (5 seconds) if it's a showdown so players can see the cards
           // Shorter delay (3 seconds) if winner by fold
-          const delayTime = game.status === 'showdown' && nonFolded.length > 1 ? 5000 : 3000;
+          const delayTime = isShowdown ? 5000 : 3000;
           
           setTimeout(() => {
             setShowWinner(false);
@@ -259,7 +309,7 @@ export default function Table() {
         }
       }
     }
-  }, [game?.id, game?.status, players, soundEnabled, playSound]);
+  }, [game?.id, game?.status, game?.communityCards, players, soundEnabled, playSound, parseCardString]);
 
   // Track player stacks for winner detection
   useEffect(() => {
@@ -554,6 +604,9 @@ export default function Table() {
         winnerName={winnerInfo?.name}
         amount={winnerInfo?.amount}
         isVisible={showWinner}
+        handName={winnerInfo?.handName}
+        winningCards={winnerInfo?.winningCards}
+        isShowdown={winnerInfo?.isShowdown}
       />
 
       {/* Emoji Reactions - visible to all, but only joined players can send */}
