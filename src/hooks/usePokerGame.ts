@@ -128,21 +128,32 @@ export function usePokerGame(tableId: string) {
     }
   }, [game?.currentPlayerPosition, currentPlayer?.position, currentPlayer?.isFolded, currentPlayer?.isAllIn, isActionPending, game?.status]);
 
-  // Reset action pending state when game or turn changes (failsafe)
+  // Reset action pending state when turn moves away from current player
   const prevGameId = useRef<string | null>(null);
   const prevTurnPosition = useRef<number | null>(null);
   
   useEffect(() => {
-    if (game?.id !== prevGameId.current || game?.currentPlayerPosition !== prevTurnPosition.current) {
-      // Game or turn changed, reset pending state
-      if (isActionPending) {
-        console.log('[Failsafe] Resetting isActionPending due to game/turn change');
+    const gameChanged = game?.id !== prevGameId.current;
+    const turnChanged = game?.currentPlayerPosition !== prevTurnPosition.current;
+    
+    // Only reset pending if turn moved away from the position where action was taken
+    if (isActionPending && (gameChanged || turnChanged)) {
+      // Check if turn moved away from our action position stored in window
+      const actionPosition = (window as any).__actionCompletedPosition;
+      if (actionPosition !== undefined && 
+          game?.currentPlayerPosition !== actionPosition) {
+        console.log('[Failsafe] Resetting isActionPending - turn moved from action position', {
+          actionPosition,
+          newPosition: game?.currentPlayerPosition
+        });
         setIsActionPending(false);
+        (window as any).__actionCompletedPosition = undefined;
       }
-      prevGameId.current = game?.id || null;
-      prevTurnPosition.current = game?.currentPlayerPosition ?? null;
     }
-  }, [game?.id, game?.currentPlayerPosition]);
+    
+    prevGameId.current = game?.id || null;
+    prevTurnPosition.current = game?.currentPlayerPosition ?? null;
+  }, [game?.id, game?.currentPlayerPosition, isActionPending]);
 
   // Track if auto-fold has been triggered
   const autoFoldTriggered = useRef(false);
@@ -929,8 +940,14 @@ export function usePokerGame(tableId: string) {
       return;
     }
 
-    // Set pending to prevent double-clicks
+    // Set pending to prevent double-clicks and track position
     setIsActionPending(true);
+    
+    // Store the position where action was taken for failsafe reset
+    // This is imported from the ref declared at the top
+    if (typeof window !== 'undefined') {
+      (window as any).__actionCompletedPosition = currentPlayer.position;
+    }
 
     // Optimistic UI update - immediately update local state
     const optimisticUpdates = () => {
@@ -1093,10 +1110,20 @@ export function usePokerGame(tableId: string) {
           ...p,
           isCurrentPlayer: p.position === data.nextPlayerPosition
         })));
+        
+        // Only clear pending if turn moved away from us
+        // The failsafe effect will handle this via the window variable
+        if (data.nextPlayerPosition !== currentPlayer.position) {
+          setIsActionPending(false);
+          (window as any).__actionCompletedPosition = undefined;
+        }
+      } else {
+        // No next position info, clear pending after a short delay
+        setTimeout(() => {
+          setIsActionPending(false);
+          (window as any).__actionCompletedPosition = undefined;
+        }, 300);
       }
-
-      // Clear pending after successful response
-      setIsActionPending(false);
       
     } catch (err: any) {
       console.error('Action exception:', err);

@@ -145,19 +145,37 @@ export default function Table() {
     }, 5000);
   }, [clearAutoStartTimers, soundEnabled, playSound, startHand]);
 
+  // Track if sound has been played for current game phase to prevent duplicates
+  const soundPlayedForPhase = useRef<string | null>(null);
+  const dealSoundPlayed = useRef(false);
+  
   // Sound effects based on game state changes
   useEffect(() => {
-    if (!game) return;
+    if (!game) {
+      // Reset tracking when no game
+      soundPlayedForPhase.current = null;
+      dealSoundPlayed.current = false;
+      prevMyCardsLength.current = 0;
+      return;
+    }
 
-    // Card deal sound when cards are dealt
-    if (soundEnabled && myCards.length > 0 && prevMyCardsLength.current === 0) {
+    // Card deal sound when cards are dealt - only once per hand
+    if (soundEnabled && myCards.length > 0 && prevMyCardsLength.current === 0 && !dealSoundPlayed.current) {
+      dealSoundPlayed.current = true;
       playDealSequence(2, 200);
     }
     prevMyCardsLength.current = myCards.length;
 
-    // New round sound
-    if (prevGameStatus.current !== game.status) {
+    // Reset deal sound tracker when game ends
+    if (game.status === 'complete' || game.status === 'showdown') {
+      dealSoundPlayed.current = false;
+    }
+
+    // New round sound - only play once per phase
+    const currentPhase = `${game.id}-${game.status}`;
+    if (prevGameStatus.current !== game.status && soundPlayedForPhase.current !== currentPhase) {
       if (soundEnabled && ['flop', 'turn', 'river'].includes(game.status)) {
+        soundPlayedForPhase.current = currentPhase;
         playSound('cardFlip');
         if (game.status === 'flop') {
           playDealSequence(3, 150);
@@ -185,7 +203,7 @@ export default function Table() {
     } else if (!newTurnPlayerId) {
       prevCurrentPlayerId.current = null;
     }
-  }, [game?.status, game?.pot, players, soundEnabled, playSound, playDealSequence, user?.id, myCards.length]);
+  }, [game?.id, game?.status, game?.pot, players, soundEnabled, playSound, playDealSequence, user?.id, myCards.length]);
 
   // Winner detection - separate effect for reliability
   useEffect(() => {

@@ -44,17 +44,17 @@ const getRotatedPosition = (actualPosition: number, userPosition: number): numbe
   return (actualPosition - offset + 9) % 9;
 };
 
-// Bet positions - moved closer to center, away from player seats
+// Bet positions - positioned just above/beside each player avatar
 const betPositions: Record<number, string> = {
-  0: 'bottom-[35%] left-1/2 -translate-x-1/2',
-  1: 'bottom-[38%] left-[25%]',
-  2: 'left-[25%] top-[45%]',
-  3: 'top-[32%] left-[28%]',
-  4: 'top-[28%] left-[42%]',
-  5: 'top-[28%] right-[42%]',
-  6: 'top-[32%] right-[28%]',
-  7: 'right-[25%] top-[45%]',
-  8: 'bottom-[38%] right-[25%]',
+  0: 'bottom-[12%] left-1/2 -translate-x-1/2',   // Above current user
+  1: 'bottom-[22%] left-[12%]',                   // Right of seat 1
+  2: 'left-[10%] top-[32%]',                      // Right of seat 2
+  3: 'top-[18%] left-[16%]',                      // Below seat 3
+  4: 'top-[10%] left-[38%]',                      // Below seat 4
+  5: 'top-[10%] right-[38%]',                     // Below seat 5
+  6: 'top-[18%] right-[16%]',                     // Below seat 6
+  7: 'right-[10%] top-[32%]',                     // Left of seat 7
+  8: 'bottom-[22%] right-[12%]',                  // Left of seat 8
 };
 
 interface ChipAnimationData {
