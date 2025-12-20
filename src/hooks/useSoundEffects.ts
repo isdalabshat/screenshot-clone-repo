@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';
 
-type SoundType = 'deal' | 'check' | 'bet' | 'fold' | 'win' | 'turn' | 'allIn' | 'chip' | 'cardFlip' | 'shuffle';
+type SoundType = 'deal' | 'check' | 'bet' | 'fold' | 'win' | 'turn' | 'allIn' | 'chip' | 'cardFlip' | 'shuffle' | 'potCollect';
 
 export function useSoundEffects() {
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -120,6 +120,17 @@ export function useSoundEffects() {
         // Single chip sound
         playTone(1000, 0.04, 'sine', 0.12);
         setTimeout(() => playTone(1200, 0.03, 'sine', 0.1), 25);
+        break;
+      case 'potCollect':
+        // Chips sliding to pot sound - multiple chips cascading
+        for (let i = 0; i < 5; i++) {
+          setTimeout(() => {
+            playTone(800 + i * 100, 0.06, 'sine', 0.15);
+            playNoise(0.03, 0.08);
+          }, i * 60);
+        }
+        // Final satisfying thud
+        setTimeout(() => playTone(300, 0.1, 'sine', 0.2), 350);
         break;
     }
   }, [playTone, playNoise]);

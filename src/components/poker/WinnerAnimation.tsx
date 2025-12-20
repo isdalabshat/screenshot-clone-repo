@@ -1,13 +1,46 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { Coins } from 'lucide-react';
+import PlayingCard from './PlayingCard';
+import { Card, CardSuit, CardRank } from '@/types/poker';
 
 interface WinnerAnimationProps {
   winnerName?: string;
   amount?: number;
   isVisible: boolean;
+  handName?: string;
+  winningCards?: string[];
+  isShowdown?: boolean;
 }
 
-export default function WinnerAnimation({ winnerName, amount, isVisible }: WinnerAnimationProps) {
+// Parse card string (e.g., "Ah" -> { suit: 'hearts', rank: 'A' })
+function parseCardString(cardStr: string): Card | null {
+  if (!cardStr || cardStr.length < 2) return null;
+  
+  const suitMap: Record<string, CardSuit> = {
+    'h': 'hearts',
+    'd': 'diamonds',
+    'c': 'clubs',
+    's': 'spades'
+  };
+  
+  const suit = suitMap[cardStr.slice(-1).toLowerCase()];
+  const rank = cardStr.slice(0, -1) as CardRank;
+  
+  if (!suit) return null;
+  return { suit, rank };
+}
+
+export default function WinnerAnimation({ 
+  winnerName, 
+  amount, 
+  isVisible,
+  handName,
+  winningCards,
+  isShowdown = false
+}: WinnerAnimationProps) {
+  // Parse winning card strings to Card objects
+  const parsedCards = winningCards?.map(parseCardString).filter((c): c is Card => c !== null) || [];
+  
   return (
     <AnimatePresence>
       {isVisible && (
@@ -77,11 +110,46 @@ export default function WinnerAnimation({ winnerName, amount, isVisible }: Winne
                 {winnerName || 'Winner'} Wins!
               </motion.h2>
               
+              {/* Show hand name only during showdown (not fold wins) */}
+              {isShowdown && handName && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.4 }}
+                  className="bg-slate-900/80 px-4 py-2 rounded-full mb-3"
+                >
+                  <span className="text-lg font-bold text-amber-300">
+                    {handName}
+                  </span>
+                </motion.div>
+              )}
+              
+              {/* Show winning cards only during showdown */}
+              {isShowdown && parsedCards.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 }}
+                  className="flex justify-center gap-1 mb-3"
+                >
+                  {parsedCards.map((card, idx) => (
+                    <motion.div
+                      key={`${card.rank}${card.suit}`}
+                      initial={{ opacity: 0, rotateY: 180 }}
+                      animate={{ opacity: 1, rotateY: 0 }}
+                      transition={{ delay: 0.6 + idx * 0.1, duration: 0.3 }}
+                    >
+                      <PlayingCard card={card} size="sm" />
+                    </motion.div>
+                  ))}
+                </motion.div>
+              )}
+              
               {amount !== undefined && amount > 0 && (
                 <motion.div
                   initial={{ opacity: 0, scale: 0 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.5, type: 'spring' }}
+                  transition={{ delay: isShowdown ? 0.8 : 0.5, type: 'spring' }}
                   className="flex items-center justify-center gap-2 bg-slate-900/90 px-4 py-2 rounded-full"
                 >
                   <Coins className="h-5 w-5 text-yellow-400" />

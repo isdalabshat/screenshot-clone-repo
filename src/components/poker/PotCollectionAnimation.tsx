@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect, useState } from 'react';
+import { useSoundEffects } from '@/hooks/useSoundEffects';
 
 interface PotCollectionAnimationProps {
   isCollecting: boolean;
@@ -26,17 +27,20 @@ export default function PotCollectionAnimation({
   onComplete 
 }: PotCollectionAnimationProps) {
   const [showAnimation, setShowAnimation] = useState(false);
+  const { playSound } = useSoundEffects();
 
   useEffect(() => {
     if (isCollecting && playerPositions.length > 0) {
       setShowAnimation(true);
+      // Play pot collection sound
+      playSound('potCollect');
       const timer = setTimeout(() => {
         setShowAnimation(false);
         onComplete?.();
       }, 800);
       return () => clearTimeout(timer);
     }
-  }, [isCollecting, playerPositions, onComplete]);
+  }, [isCollecting, playerPositions, onComplete, playSound]);
 
   return (
     <AnimatePresence>
