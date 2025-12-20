@@ -258,7 +258,7 @@ export default function Table() {
     
     // Only detect winner once per game
     if (isGameEnded && lastWinnerGameId.current !== game.id) {
-      // Add a small delay to ensure all player data has synced
+      // Add a longer delay to ensure all player data (including showdown cards) has synced
       const detectWinnerTimeout = setTimeout(() => {
         // Find winner - the non-folded player(s)
         if (prevPot.current > 0 && players.length > 0) {
@@ -288,17 +288,28 @@ export default function Table() {
             // Multiple players at showdown - evaluate all hands
             isShowdown = true;
             
+            // During showdown, all player cards should be visible in the `holeCards` field
             // Evaluate all non-folded players' hands
             const playersWithHands = nonFolded.map(player => {
               let handRank = 0;
               let handName = '';
               let winningCards: string[] = [];
               
-              if (player.holeCards && player.holeCards.length > 0 && game.communityCards.length > 0) {
-                const handResult = evaluateHand(player.holeCards, game.communityCards);
+              // Use visible hole cards - during showdown these should be populated for all non-folded players
+              const playerCards = player.holeCards || [];
+              
+              if (playerCards.length > 0 && game.communityCards.length >= 5) {
+                // All 5 community cards should be available during showdown
+                const handResult = evaluateHand(playerCards, game.communityCards);
                 handRank = handResult.rank;
                 handName = handResult.name;
-                winningCards = player.holeCards.map(c => `${c.rank}${c.suit.charAt(0)}`);
+                winningCards = playerCards.map(c => `${c.rank}${c.suit.charAt(0)}`);
+              } else if (playerCards.length > 0 && game.communityCards.length > 0) {
+                // Preflop all-in or partial community cards - still evaluate what we have
+                const handResult = evaluateHand(playerCards, game.communityCards);
+                handRank = handResult.rank;
+                handName = handResult.name;
+                winningCards = playerCards.map(c => `${c.rank}${c.suit.charAt(0)}`);
               }
               
               const prevStack = prevPlayerStacks.current.get(player.userId) || 0;
@@ -311,7 +322,8 @@ export default function Table() {
                 handRank,
                 handName,
                 winningCards,
-                gain
+                gain,
+                hasCards: playerCards.length > 0
               };
             });
             
@@ -324,7 +336,21 @@ export default function Table() {
             // Also include players who gained chips (winners based on stack changes)
             const gainers = playersWithHands.filter(p => p.gain > 0);
             
-            // If there are gainers, use them; otherwise fall back to best hands
+            console.log('[Winner Detection] Analysis:', {
+              nonFolded: nonFolded.length,
+              playersWithHands: playersWithHands.map(p => ({
+                name: p.name, 
+                handName: p.handName, 
+                handRank: p.handRank,
+                gain: p.gain,
+                hasCards: p.hasCards
+              })),
+              bestHandRank,
+              bestPlayers: bestPlayers.map(p => p.name),
+              gainers: gainers.map(p => p.name)
+            });
+            
+            // If there are gainers, use them as winners
             if (gainers.length > 0) {
               for (const player of gainers) {
                 winnersArray.push({
@@ -336,8 +362,8 @@ export default function Table() {
                   handRank: player.handRank
                 });
               }
-            } else if (bestPlayers.length > 0) {
-              // All-in scenario where stacks haven't updated yet - use best hands
+            } else if (bestPlayers.length > 0 && bestHandRank > 0) {
+              // Use hand evaluation - for all-in scenarios where stacks haven't updated yet
               const splitAmount = Math.floor(prevPot.current / bestPlayers.length);
               for (const player of bestPlayers) {
                 winnersArray.push({
@@ -359,7 +385,7 @@ export default function Table() {
             const isSplitPot = winnersArray.length > 1;
             
             console.log('[Winner Animation] Showing for all players:', {
-              winners: winnersArray.map(w => ({ name: w.name, handName: w.handName })),
+              winners: winnersArray.map(w => ({ name: w.name, handName: w.handName, amount: w.amount })),
               isShowdown,
               isSplitPot
             });
@@ -388,7 +414,7 @@ export default function Table() {
             }, delayTime);
           }
         }
-      }, 300); // Small delay to ensure data sync
+      }, 500); // Increased delay to ensure showdown data has synced
       
       return () => clearTimeout(detectWinnerTimeout);
     }

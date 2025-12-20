@@ -244,20 +244,43 @@ function calculateSidePots(players: any[], totalPot: number): SidePot[] {
 }
 
 // Distribute pot with side pots consideration
+interface DistributionResult {
+  distributions: { 
+    playerId: string; 
+    odUserId: string;
+    amount: number; 
+    handName: string;
+    handRank: number;
+    cards: string[];
+  }[];
+  fee: number;
+  isSplitPot: boolean;
+}
+
 function distributePotWithSidePots(
   players: any[],
   communityCards: string[],
   totalPot: number,
   bigBlind: number,
   gameStatus: string
-): { distributions: { playerId: string; amount: number }[]; fee: number } {
+): DistributionResult {
   const activePlayers = players.filter(p => !p.is_folded);
   
   if (activePlayers.length === 1) {
     const fee = calculateFee(totalPot, bigBlind, gameStatus);
+    const singlePlayer = activePlayers[0];
+    const hand = evaluateHand(singlePlayer.hole_cards || [], communityCards);
     return {
-      distributions: [{ playerId: activePlayers[0].id, amount: totalPot - fee }],
-      fee
+      distributions: [{ 
+        playerId: singlePlayer.id, 
+        odUserId: singlePlayer.user_id,
+        amount: totalPot - fee,
+        handName: hand.name,
+        handRank: hand.rank,
+        cards: singlePlayer.hole_cards || []
+      }],
+      fee,
+      isSplitPot: false
     };
   }
   
@@ -274,7 +297,7 @@ function distributePotWithSidePots(
   // Calculate side pots
   const sidePots = calculateSidePots(activePlayers, potAfterFee);
   
-  const distributions: Map<string, number> = new Map();
+  const distributions: Map<string, { playerId: string; odUserId: string; amount: number; handName: string; handRank: number; cards: string[] }> = new Map();
   
   for (const sidePot of sidePots) {
     // Find winners for this pot (only eligible players)
@@ -299,17 +322,28 @@ function distributePotWithSidePots(
     const winAmount = Math.floor(sidePot.amount / winners.length);
     
     for (const winner of winners) {
-      const current = distributions.get(winner.player.id) || 0;
-      distributions.set(winner.player.id, current + winAmount);
+      const existing = distributions.get(winner.player.id);
+      if (existing) {
+        existing.amount += winAmount;
+      } else {
+        distributions.set(winner.player.id, {
+          playerId: winner.player.id,
+          odUserId: winner.player.user_id,
+          amount: winAmount,
+          handName: winner.hand.name,
+          handRank: winner.hand.rank,
+          cards: winner.player.hole_cards || []
+        });
+      }
     }
   }
   
+  const distArray = Array.from(distributions.values());
+  
   return {
-    distributions: Array.from(distributions.entries()).map(([playerId, amount]) => ({
-      playerId,
-      amount
-    })),
-    fee
+    distributions: distArray,
+    fee,
+    isSplitPot: distArray.length > 1
   };
 }
 
@@ -488,6 +522,7 @@ serve(async (req) => {
             .from('table_players')
             .update({
               hole_cards: holeCards,
+              total_invested: 0, // Reset total invested for new hand
               current_bet: 0,
               is_folded: false,
               is_all_in: false
@@ -513,7 +548,8 @@ serve(async (req) => {
         .update({
           stack: sbPlayer.stack - sbAmount,
           current_bet: sbAmount,
-          is_all_in: sbAllIn
+          is_all_in: sbAllIn,
+          total_invested: sbAmount
         })
         .eq('id', sbPlayer.id);
       potTotal += sbAmount;
@@ -525,7 +561,8 @@ serve(async (req) => {
         .update({
           stack: bbPlayer.stack - bbAmount,
           current_bet: bbAmount,
-          is_all_in: bbAllIn
+          is_all_in: bbAllIn,
+          total_invested: bbAmount
         })
         .eq('id', bbPlayer.id);
       potTotal += bbAmount;
@@ -783,6 +820,10 @@ serve(async (req) => {
           });
       }
 
+      // Calculate total invested (current investment + new bet amount)
+      const additionalBet = newBet - currentPlayer.current_bet;
+      const newTotalInvested = (currentPlayer.total_invested || 0) + additionalBet;
+
       // Update player state atomically
       await supabase
         .from('table_players')
@@ -790,7 +831,8 @@ serve(async (req) => {
           stack: newStack,
           current_bet: newBet,
           is_folded: isFolded,
-          is_all_in: isAllIn
+          is_all_in: isAllIn,
+          total_invested: newTotalInvested
         })
         .eq('id', currentPlayer.id);
 
@@ -822,7 +864,7 @@ serve(async (req) => {
       // Update current player in the list with new values
       const playersWithUpdated = allPlayers.map(p => 
         p.id === currentPlayer.id 
-          ? { ...p, stack: newStack, current_bet: newBet, is_folded: isFolded, is_all_in: isAllIn }
+          ? { ...p, stack: newStack, current_bet: newBet, is_folded: isFolded, is_all_in: isAllIn, total_invested: (currentPlayer.total_invested || 0) + (newBet - currentPlayer.current_bet) }
           : p
       );
       
@@ -958,7 +1000,7 @@ serve(async (req) => {
           
           const communityCards = (game.community_cards || []) as string[];
           
-          const { distributions, fee } = distributePotWithSidePots(
+          const { distributions, fee, isSplitPot } = distributePotWithSidePots(
             playersWithUpdated,
             communityCards,
             newPot,
@@ -976,7 +1018,15 @@ serve(async (req) => {
             });
           }
           
-          const winnerIds: string[] = [];
+          // Get usernames for winners
+          const winnerUserIds = distributions.map(d => d.odUserId);
+          const { data: winnerProfiles } = await supabase
+            .from('profiles')
+            .select('user_id, username')
+            .in('user_id', winnerUserIds);
+          
+          const usernameMap = new Map((winnerProfiles || []).map(p => [p.user_id, p.username]));
+          
           for (const dist of distributions) {
             const player = playersWithUpdated.find(p => p.id === dist.playerId);
             if (player) {
@@ -985,7 +1035,6 @@ serve(async (req) => {
                 .from('table_players')
                 .update({ stack: playerStack + dist.amount, current_bet: 0 })
                 .eq('id', dist.playerId);
-              winnerIds.push(player.user_id);
             }
           }
 
@@ -1006,13 +1055,24 @@ serve(async (req) => {
             })
             .eq('id', game.id);
 
+          // Build detailed winners array for frontend
+          const winnersDetail = distributions.map(d => ({
+            id: d.odUserId,
+            name: usernameMap.get(d.odUserId) || 'Unknown',
+            amount: d.amount,
+            handName: d.handName,
+            handRank: d.handRank,
+            winningCards: d.cards
+          }));
+
           return new Response(JSON.stringify({
             success: true,
             status: 'showdown',
             pot: newPot,
             fee: fee,
-            winners: [...new Set(winnerIds)],
-            winningHand: playerHands[0]?.hand?.name,
+            winners: winnerUserIds,
+            winnersDetail,
+            isSplitPot,
             allIn: true,
             hands: playerHands.map(ph => ({
               userId: ph.userId,
@@ -1035,7 +1095,7 @@ serve(async (req) => {
         if (nextRound === 'showdown') {
           const communityCards = (game.community_cards || []) as string[];
           
-          const { distributions, fee } = distributePotWithSidePots(
+          const { distributions, fee, isSplitPot } = distributePotWithSidePots(
             playersWithUpdated,
             communityCards,
             newPot,
@@ -1053,7 +1113,15 @@ serve(async (req) => {
             });
           }
           
-          const winnerIds: string[] = [];
+          // Get usernames for winners
+          const winnerUserIds = distributions.map(d => d.odUserId);
+          const { data: winnerProfiles } = await supabase
+            .from('profiles')
+            .select('user_id, username')
+            .in('user_id', winnerUserIds);
+          
+          const usernameMap = new Map((winnerProfiles || []).map(p => [p.user_id, p.username]));
+          
           for (const dist of distributions) {
             const player = playersWithUpdated.find(p => p.id === dist.playerId);
             if (player) {
@@ -1062,7 +1130,6 @@ serve(async (req) => {
                 .from('table_players')
                 .update({ stack: playerStack + dist.amount, current_bet: 0 })
                 .eq('id', dist.playerId);
-              winnerIds.push(player.user_id);
             }
           }
 
@@ -1083,13 +1150,24 @@ serve(async (req) => {
             })
             .eq('id', game.id);
 
+          // Build detailed winners array for frontend
+          const winnersDetail = distributions.map(d => ({
+            id: d.odUserId,
+            name: usernameMap.get(d.odUserId) || 'Unknown',
+            amount: d.amount,
+            handName: d.handName,
+            handRank: d.handRank,
+            winningCards: d.cards
+          }));
+
           return new Response(JSON.stringify({
             success: true,
             status: 'showdown',
             pot: newPot,
             fee,
-            winners: [...new Set(winnerIds)],
-            winningHand: playerHands[0]?.hand?.name,
+            winners: winnerUserIds,
+            winnersDetail,
+            isSplitPot,
             hands: playerHands.map(ph => ({
               userId: ph.userId,
               hand: ph.hand?.name || 'Unknown',

@@ -300,6 +300,7 @@ export type Database = {
           position: number
           stack: number
           table_id: string
+          total_invested: number
           user_id: string
         }
         Insert: {
@@ -314,6 +315,7 @@ export type Database = {
           position: number
           stack?: number
           table_id: string
+          total_invested?: number
           user_id: string
         }
         Update: {
@@ -328,6 +330,7 @@ export type Database = {
           position?: number
           stack?: number
           table_id?: string
+          total_invested?: number
           user_id?: string
         }
         Relationships: [
