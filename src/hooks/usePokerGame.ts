@@ -104,57 +104,48 @@ export function usePokerGame(tableId: string) {
 
   const currentPlayer = players.find(p => p.userId === user?.id);
   
-  // Track when we've taken an action - use a strong lock that only releases when:
-  // 1. Turn definitively moves to a different player position (confirmed by server)
-  // 2. Game changes completely
-  // 3. Game status changes (e.g., preflop -> flop)
-  const hasActedThisRound = useRef(false);
-  const actedAtPosition = useRef<number | null>(null);
-  const actedInGameId = useRef<string | null>(null);
-  const actedInGameStatus = useRef<string | null>(null);
+  // Simple action lock: timestamp-based lock that holds for a minimum duration
+  // This prevents action buttons from flickering back due to realtime update race conditions
+  const actionLockUntil = useRef<number>(0);
+  const lastActionGameId = useRef<string | null>(null);
+  const lastActionGameStatus = useRef<string | null>(null);
   
-  // Reset lock when game ID changes (new hand)
+  // Check if currently locked
+  const isActionLocked = useCallback(() => {
+    return Date.now() < actionLockUntil.current;
+  }, []);
+  
+  // Reset lock when game changes (new hand) or status changes (new betting round)
   useEffect(() => {
-    if (game?.id && game.id !== actedInGameId.current) {
-      hasActedThisRound.current = false;
-      actedAtPosition.current = null;
-      actedInGameId.current = game.id;
-      actedInGameStatus.current = game.status;
+    const gameChanged = game?.id && game.id !== lastActionGameId.current;
+    const statusChanged = game?.status && game.status !== lastActionGameStatus.current;
+    
+    if (gameChanged || statusChanged) {
+      // Clear the lock - it's a new hand or new betting round
+      actionLockUntil.current = 0;
+      lastActionGameId.current = game?.id || null;
+      lastActionGameStatus.current = game?.status || null;
     }
   }, [game?.id, game?.status]);
   
-  // Reset lock when game status/phase changes (new betting round)
-  useEffect(() => {
-    if (game?.status && game.status !== actedInGameStatus.current && actedInGameId.current === game.id) {
-      hasActedThisRound.current = false;
-      actedAtPosition.current = null;
-      actedInGameStatus.current = game.status;
-    }
-  }, [game?.status, game?.id]);
-  
-  // Reset lock when turn definitively moves to a DIFFERENT position (server confirmed)
-  useEffect(() => {
-    // Only reset if we have acted and turn has moved to a different position
-    if (hasActedThisRound.current && 
-        actedAtPosition.current !== null && 
-        game?.currentPlayerPosition !== null &&
-        game?.currentPlayerPosition !== undefined &&
-        game.currentPlayerPosition !== actedAtPosition.current) {
-      // Turn has moved away from our position - safe to reset
-      hasActedThisRound.current = false;
-      actedAtPosition.current = null;
-    }
-  }, [game?.currentPlayerPosition]);
-  
+  // Determine if it's the current player's turn
+  // Only show action buttons if:
+  // 1. Game position matches player position
+  // 2. No action is currently pending
+  // 3. No time-based lock is active
+  // 4. Player hasn't folded or gone all-in
   const isCurrentPlayerTurn = !!(
     game?.currentPlayerPosition !== null && 
     game?.currentPlayerPosition !== undefined && 
     currentPlayer?.position !== undefined && 
     game.currentPlayerPosition === currentPlayer.position && 
     !isActionPending &&
-    !hasActedThisRound.current &&  // Don't show buttons if we already acted this round
+    !isActionLocked() &&
     !currentPlayer.isFolded &&
-    !currentPlayer.isAllIn
+    !currentPlayer.isAllIn &&
+    game.status !== 'complete' &&
+    game.status !== 'showdown' &&
+    game.status !== 'waiting'
   );
   
   // Debug logging for turn issues
@@ -166,11 +157,14 @@ export function usePokerGame(tableId: string) {
         isFolded: currentPlayer.isFolded,
         isAllIn: currentPlayer.isAllIn,
         isActionPending,
+        isLocked: isActionLocked(),
+        lockUntil: actionLockUntil.current,
+        now: Date.now(),
         isCurrentPlayerTurn,
         gameStatus: game.status
       });
     }
-  }, [game?.currentPlayerPosition, currentPlayer?.position, currentPlayer?.isFolded, currentPlayer?.isAllIn, isActionPending, game?.status]);
+  }, [game?.currentPlayerPosition, currentPlayer?.position, currentPlayer?.isFolded, currentPlayer?.isAllIn, isActionPending, game?.status, isActionLocked]);
 
   // Reset action pending state when turn moves away from current player
   const prevGameId = useRef<string | null>(null);
@@ -180,13 +174,12 @@ export function usePokerGame(tableId: string) {
     const gameChanged = game?.id !== prevGameId.current;
     const turnChanged = game?.currentPlayerPosition !== prevTurnPosition.current;
     
-    // Only reset pending if turn moved away from the position where action was taken
+    // Reset pending if game or turn position changed
     if (isActionPending && (gameChanged || turnChanged)) {
-      // Check if turn moved away from our action position
-      if (actedAtPosition.current !== null && 
-          game?.currentPlayerPosition !== actedAtPosition.current) {
-        console.log('[Failsafe] Resetting isActionPending - turn moved from action position', {
-          actedPosition: actedAtPosition.current,
+      // If turn moved to a different position, clear pending
+      if (currentPlayer && game?.currentPlayerPosition !== currentPlayer.position) {
+        console.log('[Failsafe] Resetting isActionPending - turn moved away', {
+          myPosition: currentPlayer.position,
           newPosition: game?.currentPlayerPosition
         });
         setIsActionPending(false);
@@ -195,7 +188,7 @@ export function usePokerGame(tableId: string) {
     
     prevGameId.current = game?.id || null;
     prevTurnPosition.current = game?.currentPlayerPosition ?? null;
-  }, [game?.id, game?.currentPlayerPosition, isActionPending]);
+  }, [game?.id, game?.currentPlayerPosition, isActionPending, currentPlayer]);
 
   // Track if auto-fold has been triggered
   const autoFoldTriggered = useRef(false);
@@ -982,10 +975,9 @@ export function usePokerGame(tableId: string) {
       return;
     }
 
-    // Set pending to prevent double-clicks and mark that we've acted this round
+    // Set pending and lock action buttons for 5 seconds to prevent race condition reappearance
     setIsActionPending(true);
-    hasActedThisRound.current = true;
-    actedAtPosition.current = currentPlayer.position;
+    actionLockUntil.current = Date.now() + 5000; // 5 second lock
 
     // Optimistic UI update - immediately update local state
     const optimisticUpdates = () => {
