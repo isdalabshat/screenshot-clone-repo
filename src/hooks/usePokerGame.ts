@@ -103,12 +103,35 @@ export function usePokerGame(tableId: string) {
   }, [user?.id]);
 
   const currentPlayer = players.find(p => p.userId === user?.id);
+  
+  // Track when we've taken an action this turn to prevent button flicker
+  const hasActedThisTurn = useRef(false);
+  const actedAtGamePosition = useRef<number | null>(null);
+  
+  // Reset acted flag when turn position changes away from where we acted
+  useEffect(() => {
+    if (hasActedThisTurn.current && actedAtGamePosition.current !== null) {
+      if (game?.currentPlayerPosition !== actedAtGamePosition.current) {
+        // Turn moved away from our action position
+        hasActedThisTurn.current = false;
+        actedAtGamePosition.current = null;
+      }
+    }
+  }, [game?.currentPlayerPosition]);
+  
+  // Reset acted flag when game changes
+  useEffect(() => {
+    hasActedThisTurn.current = false;
+    actedAtGamePosition.current = null;
+  }, [game?.id]);
+  
   const isCurrentPlayerTurn = !!(
     game?.currentPlayerPosition !== null && 
     game?.currentPlayerPosition !== undefined && 
     currentPlayer?.position !== undefined && 
     game.currentPlayerPosition === currentPlayer.position && 
     !isActionPending &&
+    !hasActedThisTurn.current &&  // Don't show buttons if we already acted this turn
     !currentPlayer.isFolded &&
     !currentPlayer.isAllIn
   );
@@ -940,11 +963,12 @@ export function usePokerGame(tableId: string) {
       return;
     }
 
-    // Set pending to prevent double-clicks and track position
+    // Set pending to prevent double-clicks and mark that we've acted
     setIsActionPending(true);
+    hasActedThisTurn.current = true;
+    actedAtGamePosition.current = currentPlayer.position;
     
     // Store the position where action was taken for failsafe reset
-    // This is imported from the ref declared at the top
     if (typeof window !== 'undefined') {
       (window as any).__actionCompletedPosition = currentPlayer.position;
     }
