@@ -14,7 +14,7 @@ import HandStrengthIndicator from '@/components/poker/HandStrengthIndicator';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { ArrowLeft, Play, LogOut, Coins, Volume2, VolumeX, Coffee, UserMinus } from 'lucide-react';
+import { ArrowLeft, LogOut, Coins, Volume2, VolumeX, Coffee, UserMinus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -611,25 +611,7 @@ export default function Table() {
                 playerCount={players.length}
               />
               
-              {/* Manual start button - only show if no countdown is active and game can start */}
-              {canStartHand && autoStartCountdown === null && !isWaitingForPlayers && !showWinner && (
-                <Button 
-                  size="sm" 
-                  className="bg-primary hover:bg-primary/90 w-full transition-all hover:scale-[1.02] active:scale-[0.98]"
-                  disabled={isStartingHand.current}
-                  onClick={() => {
-                    if (isStartingHand.current) return;
-                    isStartingHand.current = true;
-                    clearAutoStartTimers();
-                    if (soundEnabled) playSound('shuffle');
-                    startHand();
-                    setTimeout(() => { isStartingHand.current = false; }, 1500);
-                  }}
-                >
-                  <Play className="h-4 w-4 mr-2" />
-                  Start Now
-                </Button>
-              )}
+              {/* Game auto-starts - no manual button needed */}
             </>
           )}
 
