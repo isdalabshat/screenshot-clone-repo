@@ -104,26 +104,45 @@ export function usePokerGame(tableId: string) {
 
   const currentPlayer = players.find(p => p.userId === user?.id);
   
-  // Track when we've taken an action this turn to prevent button flicker
-  const hasActedThisTurn = useRef(false);
-  const actedAtGamePosition = useRef<number | null>(null);
+  // Track when we've taken an action - use timestamp-based locking to prevent flicker
+  const actionLockedUntil = useRef<number>(0);
+  const lockedAtPosition = useRef<number | null>(null);
+  const lastGameId = useRef<string | null>(null);
   
-  // Reset acted flag when turn position changes away from where we acted
+  // Check if we're still in the lock period after taking an action
+  const isActionLocked = useCallback(() => {
+    const now = Date.now();
+    // Lock for 3 seconds after taking an action at our position
+    if (now < actionLockedUntil.current && lockedAtPosition.current === currentPlayer?.position) {
+      return true;
+    }
+    return false;
+  }, [currentPlayer?.position]);
+  
+  // Reset lock when game changes
   useEffect(() => {
-    if (hasActedThisTurn.current && actedAtGamePosition.current !== null) {
-      if (game?.currentPlayerPosition !== actedAtGamePosition.current) {
-        // Turn moved away from our action position
-        hasActedThisTurn.current = false;
-        actedAtGamePosition.current = null;
-      }
+    if (game?.id && game.id !== lastGameId.current) {
+      actionLockedUntil.current = 0;
+      lockedAtPosition.current = null;
+      lastGameId.current = game.id;
+    }
+  }, [game?.id]);
+  
+  // Also reset lock when turn definitively moves to a different position for more than 1 second
+  useEffect(() => {
+    if (lockedAtPosition.current !== null && 
+        game?.currentPlayerPosition !== null && 
+        game?.currentPlayerPosition !== lockedAtPosition.current) {
+      // Turn moved away - clear lock after short delay to handle any race conditions
+      const timer = setTimeout(() => {
+        if (game?.currentPlayerPosition !== lockedAtPosition.current) {
+          actionLockedUntil.current = 0;
+          lockedAtPosition.current = null;
+        }
+      }, 500);
+      return () => clearTimeout(timer);
     }
   }, [game?.currentPlayerPosition]);
-  
-  // Reset acted flag when game changes
-  useEffect(() => {
-    hasActedThisTurn.current = false;
-    actedAtGamePosition.current = null;
-  }, [game?.id]);
   
   const isCurrentPlayerTurn = !!(
     game?.currentPlayerPosition !== null && 
@@ -131,7 +150,7 @@ export function usePokerGame(tableId: string) {
     currentPlayer?.position !== undefined && 
     game.currentPlayerPosition === currentPlayer.position && 
     !isActionPending &&
-    !hasActedThisTurn.current &&  // Don't show buttons if we already acted this turn
+    !isActionLocked() &&  // Don't show buttons if we're in lock period
     !currentPlayer.isFolded &&
     !currentPlayer.isAllIn
   );
@@ -161,16 +180,14 @@ export function usePokerGame(tableId: string) {
     
     // Only reset pending if turn moved away from the position where action was taken
     if (isActionPending && (gameChanged || turnChanged)) {
-      // Check if turn moved away from our action position stored in window
-      const actionPosition = (window as any).__actionCompletedPosition;
-      if (actionPosition !== undefined && 
-          game?.currentPlayerPosition !== actionPosition) {
+      // Check if turn moved away from our locked position
+      if (lockedAtPosition.current !== null && 
+          game?.currentPlayerPosition !== lockedAtPosition.current) {
         console.log('[Failsafe] Resetting isActionPending - turn moved from action position', {
-          actionPosition,
+          lockedPosition: lockedAtPosition.current,
           newPosition: game?.currentPlayerPosition
         });
         setIsActionPending(false);
-        (window as any).__actionCompletedPosition = undefined;
       }
     }
     
@@ -963,15 +980,10 @@ export function usePokerGame(tableId: string) {
       return;
     }
 
-    // Set pending to prevent double-clicks and mark that we've acted
+    // Set pending to prevent double-clicks and lock for 3 seconds
     setIsActionPending(true);
-    hasActedThisTurn.current = true;
-    actedAtGamePosition.current = currentPlayer.position;
-    
-    // Store the position where action was taken for failsafe reset
-    if (typeof window !== 'undefined') {
-      (window as any).__actionCompletedPosition = currentPlayer.position;
-    }
+    actionLockedUntil.current = Date.now() + 3000; // Lock for 3 seconds
+    lockedAtPosition.current = currentPlayer.position;
 
     // Optimistic UI update - immediately update local state
     const optimisticUpdates = () => {
