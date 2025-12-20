@@ -3,13 +3,19 @@ import { Coins } from 'lucide-react';
 import PlayingCard from './PlayingCard';
 import { Card, CardSuit, CardRank } from '@/types/poker';
 
-interface WinnerAnimationProps {
-  winnerName?: string;
-  amount?: number;
-  isVisible: boolean;
+interface WinnerInfo {
+  name: string;
+  amount: number;
+  id: string;
   handName?: string;
   winningCards?: string[];
+}
+
+interface WinnerAnimationProps {
+  winners: WinnerInfo[];
+  isVisible: boolean;
   isShowdown?: boolean;
+  isSplitPot?: boolean;
 }
 
 // Parse card string (e.g., "Ah" -> { suit: 'hearts', rank: 'A' })
@@ -31,15 +37,12 @@ function parseCardString(cardStr: string): Card | null {
 }
 
 export default function WinnerAnimation({ 
-  winnerName, 
-  amount, 
+  winners,
   isVisible,
-  handName,
-  winningCards,
-  isShowdown = false
+  isShowdown = false,
+  isSplitPot = false
 }: WinnerAnimationProps) {
-  // Parse winning card strings to Card objects
-  const parsedCards = winningCards?.map(parseCardString).filter((c): c is Card => c !== null) || [];
+  if (winners.length === 0) return null;
   
   return (
     <AnimatePresence>
@@ -98,66 +101,101 @@ export default function WinnerAnimation({
                 transition={{ duration: 0.5, delay: 0.2 }}
                 className="text-5xl mb-3"
               >
-                🏆
+                {isSplitPot ? '🤝' : '🏆'}
               </motion.div>
               
+              {/* Split pot indicator */}
+              {isSplitPot && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.25 }}
+                  className="bg-slate-900/80 px-3 py-1 rounded-full mb-2 inline-block"
+                >
+                  <span className="text-sm font-bold text-amber-300">Split Pot!</span>
+                </motion.div>
+              )}
+              
+              {/* Winner names */}
               <motion.h2
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
                 className="text-2xl font-bold text-slate-900 mb-2"
               >
-                {winnerName || 'Winner'} Wins!
+                {winners.map(w => w.name).join(' & ')} {isSplitPot ? 'Win!' : 'Wins!'}
               </motion.h2>
               
-              {/* Show hand name only during showdown (not fold wins) */}
-              {isShowdown && handName && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.4 }}
-                  className="bg-slate-900/80 px-4 py-2 rounded-full mb-3"
-                >
-                  <span className="text-lg font-bold text-amber-300">
-                    {handName}
-                  </span>
-                </motion.div>
-              )}
-              
-              {/* Show winning cards only during showdown */}
-              {isShowdown && parsedCards.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 }}
-                  className="flex justify-center gap-1 mb-3"
-                >
-                  {parsedCards.map((card, idx) => (
-                    <motion.div
-                      key={`${card.rank}${card.suit}`}
-                      initial={{ opacity: 0, rotateY: 180 }}
-                      animate={{ opacity: 1, rotateY: 0 }}
-                      transition={{ delay: 0.6 + idx * 0.1, duration: 0.3 }}
-                    >
-                      <PlayingCard card={card} size="sm" />
-                    </motion.div>
-                  ))}
-                </motion.div>
-              )}
-              
-              {amount !== undefined && amount > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: isShowdown ? 0.8 : 0.5, type: 'spring' }}
-                  className="flex items-center justify-center gap-2 bg-slate-900/90 px-4 py-2 rounded-full"
-                >
-                  <Coins className="h-5 w-5 text-yellow-400" />
-                  <span className="text-xl font-bold text-yellow-400">
-                    +{amount.toLocaleString()}
-                  </span>
-                </motion.div>
-              )}
+              {/* Show each winner's details */}
+              {winners.map((winner, winnerIdx) => {
+                const parsedCards = winner.winningCards?.map(parseCardString).filter((c): c is Card => c !== null) || [];
+                
+                return (
+                  <motion.div
+                    key={winner.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 + winnerIdx * 0.15 }}
+                    className={isSplitPot ? 'mb-3 pb-3 border-b border-slate-900/20 last:border-0' : ''}
+                  >
+                    {/* Winner name for split pot */}
+                    {isSplitPot && (
+                      <div className="text-sm font-semibold text-slate-800 mb-1">
+                        {winner.name}
+                      </div>
+                    )}
+                    
+                    {/* Show hand name only during showdown (not fold wins) */}
+                    {isShowdown && winner.handName && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.45 + winnerIdx * 0.15 }}
+                        className="bg-slate-900/80 px-4 py-2 rounded-full mb-2 inline-block"
+                      >
+                        <span className="text-lg font-bold text-amber-300">
+                          {winner.handName}
+                        </span>
+                      </motion.div>
+                    )}
+                    
+                    {/* Show winning cards only during showdown */}
+                    {isShowdown && parsedCards.length > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.5 + winnerIdx * 0.15 }}
+                        className="flex justify-center gap-1 mb-2"
+                      >
+                        {parsedCards.map((card, idx) => (
+                          <motion.div
+                            key={`${winner.id}-${card.rank}${card.suit}`}
+                            initial={{ opacity: 0, rotateY: 180 }}
+                            animate={{ opacity: 1, rotateY: 0 }}
+                            transition={{ delay: 0.6 + winnerIdx * 0.15 + idx * 0.1, duration: 0.3 }}
+                          >
+                            <PlayingCard card={card} size="sm" />
+                          </motion.div>
+                        ))}
+                      </motion.div>
+                    )}
+                    
+                    {winner.amount > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: isShowdown ? 0.7 + winnerIdx * 0.15 : 0.5 + winnerIdx * 0.15, type: 'spring' }}
+                        className="flex items-center justify-center gap-2 bg-slate-900/90 px-4 py-2 rounded-full inline-flex"
+                      >
+                        <Coins className="h-5 w-5 text-yellow-400" />
+                        <span className="text-xl font-bold text-yellow-400">
+                          +{winner.amount.toLocaleString()}
+                        </span>
+                      </motion.div>
+                    )}
+                  </motion.div>
+                );
+              })}
             </div>
           </motion.div>
         </motion.div>

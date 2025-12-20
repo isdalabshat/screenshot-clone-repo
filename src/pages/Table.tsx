@@ -52,12 +52,15 @@ export default function Table() {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [showWinner, setShowWinner] = useState(false);
   const [winnerInfo, setWinnerInfo] = useState<{ 
-    name: string; 
-    amount: number; 
-    id: string;
-    handName?: string;
-    winningCards?: string[];
-    isShowdown?: boolean;
+    winners: Array<{
+      name: string; 
+      amount: number; 
+      id: string;
+      handName?: string;
+      winningCards?: string[];
+    }>;
+    isShowdown: boolean;
+    isSplitPot: boolean;
   } | null>(null);
   const [playerEmojis, setPlayerEmojis] = useState<Map<string, string>>(new Map());
   
@@ -245,66 +248,110 @@ export default function Table() {
       if (prevPot.current > 0 && players.length > 0) {
         const nonFolded = players.filter(p => !p.isFolded);
         
-        let winnerId = '';
-        let winnerName = '';
-        let winAmount = prevPot.current;
-        let winnerHandName = '';
-        let winnerCards: string[] = [];
         let isShowdown = false;
+        const winnersArray: Array<{
+          name: string;
+          amount: number;
+          id: string;
+          handName?: string;
+          winningCards?: string[];
+          handRank: number;
+        }> = [];
         
         if (nonFolded.length === 1) {
           // Single winner (everyone else folded) - no showdown
-          winnerId = nonFolded[0].userId;
-          winnerName = nonFolded[0].username;
+          const winner = nonFolded[0];
+          winnersArray.push({
+            id: winner.userId,
+            name: winner.username,
+            amount: prevPot.current,
+            handRank: 0
+          });
           isShowdown = false;
         } else if (nonFolded.length > 0) {
-          // Multiple players at showdown - find who gained the most
+          // Multiple players at showdown - evaluate all hands
           isShowdown = true;
-          let maxGain = -Infinity; // Changed from 0 to handle cases where no gain yet
-          let bestHandRank = -1;
           
-          for (const player of nonFolded) {
+          // Evaluate all non-folded players' hands
+          const playersWithHands = nonFolded.map(player => {
+            let handRank = 0;
+            let handName = '';
+            let winningCards: string[] = [];
+            
+            if (player.holeCards && player.holeCards.length > 0 && game.communityCards.length > 0) {
+              const handResult = evaluateHand(player.holeCards, game.communityCards);
+              handRank = handResult.rank;
+              handName = handResult.name;
+              winningCards = player.holeCards.map(c => `${c.rank}${c.suit.charAt(0)}`);
+            }
+            
             const prevStack = prevPlayerStacks.current.get(player.userId) || 0;
             const gain = player.stack - prevStack;
             
-            // Primary: player with highest gain wins
-            // Fallback: if gains are equal/zero (all-in before stacks update), use hand evaluation
-            let playerHandRank = 0;
-            if (player.holeCards && player.holeCards.length > 0 && game.communityCards.length > 0) {
-              const handResult = evaluateHand(player.holeCards, game.communityCards);
-              playerHandRank = handResult.rank;
+            return {
+              id: player.userId,
+              name: player.username,
+              amount: gain > 0 ? gain : 0,
+              handRank,
+              handName,
+              winningCards,
+              gain
+            };
+          });
+          
+          // Find the best hand rank
+          const bestHandRank = Math.max(...playersWithHands.map(p => p.handRank));
+          
+          // Get all players with the best hand (for split pot)
+          const bestPlayers = playersWithHands.filter(p => p.handRank === bestHandRank);
+          
+          // Also include players who gained chips (winners based on stack changes)
+          const gainers = playersWithHands.filter(p => p.gain > 0);
+          
+          // If there are gainers, use them; otherwise fall back to best hands
+          if (gainers.length > 0) {
+            for (const player of gainers) {
+              winnersArray.push({
+                id: player.id,
+                name: player.name,
+                amount: player.amount,
+                handName: player.handName,
+                winningCards: player.winningCards,
+                handRank: player.handRank
+              });
             }
-            
-            // Winner determination: prefer gain, fallback to hand rank
-            const shouldUpdate = gain > maxGain || (gain === maxGain && playerHandRank > bestHandRank);
-            
-            if (shouldUpdate) {
-              maxGain = gain;
-              bestHandRank = playerHandRank;
-              winnerId = player.userId;
-              winnerName = player.username;
-              winAmount = gain > 0 ? gain : prevPot.current;
-              
-              // Get the winner's cards for display
-              if (player.holeCards && player.holeCards.length > 0) {
-                winnerCards = player.holeCards.map(c => `${c.rank}${c.suit.charAt(0)}`);
-                const handResult = evaluateHand(player.holeCards, game.communityCards);
-                winnerHandName = handResult.name;
-              }
+          } else if (bestPlayers.length > 0) {
+            // All-in scenario where stacks haven't updated yet - use best hands
+            const splitAmount = Math.floor(prevPot.current / bestPlayers.length);
+            for (const player of bestPlayers) {
+              winnersArray.push({
+                id: player.id,
+                name: player.name,
+                amount: splitAmount,
+                handName: player.handName,
+                winningCards: player.winningCards,
+                handRank: player.handRank
+              });
             }
           }
         }
         
         // Show winner animation with extended delay for showdown
-        if (winnerId && winnerName) {
+        if (winnersArray.length > 0) {
           lastWinnerGameId.current = game.id;
+          
+          const isSplitPot = winnersArray.length > 1;
+          
           setWinnerInfo({ 
-            name: winnerName, 
-            amount: winAmount, 
-            id: winnerId,
-            handName: winnerHandName,
-            winningCards: winnerCards,
-            isShowdown
+            winners: winnersArray.map(w => ({
+              name: w.name,
+              amount: w.amount,
+              id: w.id,
+              handName: w.handName,
+              winningCards: w.winningCards
+            })),
+            isShowdown,
+            isSplitPot
           });
           setShowWinner(true);
           if (soundEnabled) playSound('win');
@@ -603,7 +650,7 @@ export default function Table() {
             handsPlayed={table.handsPlayed}
             maxHands={table.maxHands}
             myCards={myCards}
-            winnerId={winnerInfo?.id}
+            winnerId={winnerInfo?.winners?.[0]?.id}
             sidePots={sidePots}
             playerEmojis={playerEmojis}
           />
@@ -612,12 +659,10 @@ export default function Table() {
 
       {/* Winner Animation */}
       <WinnerAnimation
-        winnerName={winnerInfo?.name}
-        amount={winnerInfo?.amount}
+        winners={winnerInfo?.winners || []}
         isVisible={showWinner}
-        handName={winnerInfo?.handName}
-        winningCards={winnerInfo?.winningCards}
         isShowdown={winnerInfo?.isShowdown}
+        isSplitPot={winnerInfo?.isSplitPot}
       />
 
       {/* Emoji Reactions - visible to all, but only joined players can send */}
