@@ -3,6 +3,7 @@ import PlayerSeat from './PlayerSeat';
 import PlayingCard from './PlayingCard';
 import SidePotDisplay, { SidePot } from './SidePotDisplay';
 import ChipAnimation from './ChipAnimation';
+import PotCollectionAnimation from './PotCollectionAnimation';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect, useRef } from 'react';
@@ -45,9 +46,9 @@ const getRotatedPosition = (actualPosition: number, userPosition: number): numbe
 };
 
 // Bet positions - carefully positioned to avoid overlap with avatars and cards
-// Position 0 (user) is placed ABOVE the user's cards area (centered, higher up)
+// Position 0 (user) is placed lower, just above the user's cards but not overlapping community cards
 const betPositions: Record<number, string> = {
-  0: 'bottom-[32%] left-1/2 -translate-x-1/2',    // Centered above user's cards
+  0: 'bottom-[22%] left-1/2 -translate-x-1/2',    // Lower - above user's cards, below community cards
   1: 'bottom-[30%] left-[20%]',                   // Above-right of seat 1
   2: 'left-[18%] top-[40%]',                      // Right of seat 2
   3: 'top-[22%] left-[24%]',                      // Below-right seat 3
@@ -96,6 +97,11 @@ export default function PokerTableComponent({
   // Track previous bets for chip animations
   const prevBetsRef = useRef<Map<string, number>>(new Map());
   const [chipAnimations, setChipAnimations] = useState<ChipAnimationData[]>([]);
+  
+  // Track previous game status for pot collection animation
+  const prevGameStatusRef = useRef<Game['status'] | undefined>(undefined);
+  const [isCollectingPot, setIsCollectingPot] = useState(false);
+  const [collectingPositions, setCollectingPositions] = useState<number[]>([]);
 
   // Detect bet changes and trigger animations
   useEffect(() => {
@@ -129,6 +135,27 @@ export default function PokerTableComponent({
   const removeChipAnimation = (id: string) => {
     setChipAnimations(prev => prev.filter(a => a.id !== id));
   };
+
+  // Trigger pot collection animation when betting round ends
+  useEffect(() => {
+    const phases: Game['status'][] = ['flop', 'turn', 'river', 'showdown'];
+    const prevStatus = prevGameStatusRef.current;
+    
+    // Detect transition from one phase to next (betting round ended)
+    if (prevStatus && gameStatus && phases.includes(gameStatus) && prevStatus !== gameStatus) {
+      // Get positions of players who had bets
+      const positionsWithBets = players
+        .filter(p => !p.isFolded)
+        .map(p => getRotatedPosition(p.position, userPosition));
+      
+      if (positionsWithBets.length > 0) {
+        setCollectingPositions(positionsWithBets);
+        setIsCollectingPot(true);
+      }
+    }
+    
+    prevGameStatusRef.current = gameStatus;
+  }, [gameStatus, players, userPosition]);
 
   // Reset bets tracking when game changes phase
   useEffect(() => {
@@ -315,6 +342,16 @@ export default function PokerTableComponent({
           />
         ))}
       </AnimatePresence>
+
+      {/* Pot Collection Animation */}
+      <PotCollectionAnimation
+        isCollecting={isCollectingPot}
+        playerPositions={collectingPositions}
+        onComplete={() => {
+          setIsCollectingPot(false);
+          setCollectingPositions([]);
+        }}
+      />
 
       {/* Player Bets on the Table - Enhanced and repositioned */}
       <AnimatePresence>
