@@ -44,18 +44,18 @@ const getRotatedPosition = (actualPosition: number, userPosition: number): numbe
   return (actualPosition - offset + 9) % 9;
 };
 
-// Bet positions - positioned near each player but not overlapping cards/avatar
-// Position 0 (user) is placed ABOVE the cards display area to avoid overlap on mobile
+// Bet positions - carefully positioned to avoid overlap with avatars and cards
+// Position 0 (user) is placed to the LEFT of the user's avatar/cards area
 const betPositions: Record<number, string> = {
-  0: 'bottom-[28%] left-1/2 -translate-x-1/2',    // Well above user's cards (higher up)
-  1: 'bottom-[22%] left-[18%]',                   // Near seat 1
-  2: 'left-[14%] top-[32%]',                      // Near seat 2
-  3: 'top-[18%] left-[20%]',                      // Near seat 3
-  4: 'top-[10%] left-[38%]',                      // Near seat 4
-  5: 'top-[10%] right-[38%]',                     // Near seat 5
-  6: 'top-[18%] right-[20%]',                     // Near seat 6
-  7: 'right-[14%] top-[32%]',                     // Near seat 7
-  8: 'bottom-[22%] right-[18%]',                  // Near seat 8
+  0: 'bottom-[6%] right-[58%]',                   // Left side of user area (not overlapping)
+  1: 'bottom-[25%] left-[16%]',                   // Above-right of seat 1
+  2: 'left-[16%] top-[35%]',                      // Right of seat 2
+  3: 'top-[20%] left-[22%]',                      // Below-right seat 3
+  4: 'top-[12%] left-[38%]',                      // Below seat 4
+  5: 'top-[12%] right-[38%]',                     // Below seat 5
+  6: 'top-[20%] right-[22%]',                     // Below-left seat 6
+  7: 'right-[16%] top-[35%]',                     // Left of seat 7
+  8: 'bottom-[25%] right-[16%]',                  // Above-left of seat 8
 };
 
 interface ChipAnimationData {
