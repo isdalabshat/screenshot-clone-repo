@@ -10,6 +10,7 @@ import TableChat from '@/components/poker/TableChat';
 import WinnerAnimation from '@/components/poker/WinnerAnimation';
 import AutoStartCountdown from '@/components/poker/AutoStartCountdown';
 import EmojiReactions from '@/components/poker/EmojiReactions';
+import HandStrengthIndicator from '@/components/poker/HandStrengthIndicator';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -636,7 +637,17 @@ export default function Table() {
             <p className="text-muted-foreground text-xs text-center">Join the table to play!</p>
           )}
 
-          {game?.status === 'showdown' && !showWinner && (
+          {/* Hand Strength Indicator during showdown */}
+          {isJoined && currentPlayer && game?.status === 'showdown' && (
+            <HandStrengthIndicator
+              myCards={myCards}
+              communityCards={game.communityCards}
+              isShowdown={true}
+              isFolded={currentPlayer.isFolded}
+            />
+          )}
+
+          {game?.status === 'showdown' && !showWinner && !currentPlayer?.isFolded && (
             <motion.p 
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
