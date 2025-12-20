@@ -42,9 +42,12 @@ export default function ActionButtons({
       <motion.div 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="text-muted-foreground text-xs text-center py-2"
+        className="text-muted-foreground text-xs text-center py-2 px-4 bg-card/50 rounded-lg"
       >
-        Waiting for your turn...
+        <span className="flex items-center justify-center gap-2">
+          <span className="animate-pulse">⏳</span>
+          Waiting for your turn...
+        </span>
       </motion.div>
     );
   }

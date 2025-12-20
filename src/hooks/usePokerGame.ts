@@ -103,7 +103,46 @@ export function usePokerGame(tableId: string) {
   }, [user?.id]);
 
   const currentPlayer = players.find(p => p.userId === user?.id);
-  const isCurrentPlayerTurn = game?.currentPlayerPosition === currentPlayer?.position && !isActionPending;
+  const isCurrentPlayerTurn = !!(
+    game?.currentPlayerPosition !== null && 
+    game?.currentPlayerPosition !== undefined && 
+    currentPlayer?.position !== undefined && 
+    game.currentPlayerPosition === currentPlayer.position && 
+    !isActionPending &&
+    !currentPlayer.isFolded &&
+    !currentPlayer.isAllIn
+  );
+  
+  // Debug logging for turn issues
+  useEffect(() => {
+    if (game && currentPlayer) {
+      console.log('[Turn Debug]', {
+        gamePosition: game.currentPlayerPosition,
+        myPosition: currentPlayer.position,
+        isFolded: currentPlayer.isFolded,
+        isAllIn: currentPlayer.isAllIn,
+        isActionPending,
+        isCurrentPlayerTurn,
+        gameStatus: game.status
+      });
+    }
+  }, [game?.currentPlayerPosition, currentPlayer?.position, currentPlayer?.isFolded, currentPlayer?.isAllIn, isActionPending, game?.status]);
+
+  // Reset action pending state when game or turn changes (failsafe)
+  const prevGameId = useRef<string | null>(null);
+  const prevTurnPosition = useRef<number | null>(null);
+  
+  useEffect(() => {
+    if (game?.id !== prevGameId.current || game?.currentPlayerPosition !== prevTurnPosition.current) {
+      // Game or turn changed, reset pending state
+      if (isActionPending) {
+        console.log('[Failsafe] Resetting isActionPending due to game/turn change');
+        setIsActionPending(false);
+      }
+      prevGameId.current = game?.id || null;
+      prevTurnPosition.current = game?.currentPlayerPosition ?? null;
+    }
+  }, [game?.id, game?.currentPlayerPosition]);
 
   // Track if auto-fold has been triggered
   const autoFoldTriggered = useRef(false);
@@ -805,11 +844,13 @@ export function usePokerGame(tableId: string) {
         }
       });
 
-      if (error) {
-        console.error('Start hand error:', error);
+      // Handle both network errors and API errors returned in data.error
+      if (error || data?.error) {
+        console.error('Start hand error:', error || data?.error);
+        const errorMsg = error?.message || data?.error || 'Unknown error';
         toast({
           title: 'Failed to start hand',
-          description: error.message,
+          description: errorMsg,
           variant: 'destructive'
         });
         return;
@@ -819,10 +860,12 @@ export function usePokerGame(tableId: string) {
         setMyCards(data.yourCards.map((c: string) => stringToCard(c)));
       }
 
-      // Optimistic update for turn indicator
-      if (data?.currentPlayerPosition !== undefined) {
-        setGame(prev => prev ? { ...prev, currentPlayerPosition: data.currentPlayerPosition } : prev);
-      }
+      // Fetch fresh player/game state after hand starts
+      await fetchGame();
+      await fetchPlayers();
+      
+      // Also fetch my cards explicitly in case they weren't returned
+      await fetchMyCards();
 
       toast({
         title: 'New hand started!',
@@ -841,7 +884,50 @@ export function usePokerGame(tableId: string) {
   // Perform action with optimistic UI updates
   const performAction = async (action: ActionType, amount?: number) => {
     const currentGame = gameRef.current;
-    if (!currentGame || !currentPlayer || !isCurrentPlayerTurn || isActionPending) return;
+    
+    // Debug logging
+    console.log('[performAction] Called with:', { 
+      action, 
+      amount,
+      hasGame: !!currentGame,
+      hasCurrentPlayer: !!currentPlayer,
+      isCurrentPlayerTurn,
+      isActionPending,
+      currentPlayerPosition: currentGame?.currentPlayerPosition,
+      myPosition: currentPlayer?.position
+    });
+    
+    if (!currentGame) {
+      toast({
+        title: 'No active game',
+        description: 'Please wait for the hand to start.',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    if (!currentPlayer) {
+      toast({
+        title: 'Not seated',
+        description: 'Please join the table first.',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    if (isActionPending) {
+      console.log('[performAction] Blocked - action already pending');
+      return;
+    }
+    
+    if (!isCurrentPlayerTurn) {
+      toast({
+        title: 'Not your turn',
+        description: `Waiting for position ${currentGame.currentPlayerPosition} (you are at ${currentPlayer.position})`,
+        variant: 'destructive'
+      });
+      return;
+    }
 
     // Set pending to prevent double-clicks
     setIsActionPending(true);

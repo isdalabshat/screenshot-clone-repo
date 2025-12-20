@@ -362,21 +362,39 @@ serve(async (req) => {
     console.log(`Action: ${action}, TableId: ${tableId}, UserId: ${user.id}`);
 
     if (action === 'start_hand') {
+      console.log(`Starting hand for table ${tableId}, initiated by user ${user.id}`);
+      
       const { data: playersData, error: playersError } = await supabase
         .from('table_players')
         .select('*')
         .eq('table_id', tableId)
         .eq('is_active', true);
 
-      if (playersError || !playersData || playersData.length < 2) {
-        return new Response(JSON.stringify({ error: 'Need at least 2 players' }), {
+      if (playersError) {
+        console.error('Error fetching players:', playersError);
+        return new Response(JSON.stringify({ error: 'Failed to fetch players' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      console.log(`Found ${playersData?.length || 0} active players at table`);
+      
+      if (!playersData || playersData.length < 2) {
+        return new Response(JSON.stringify({ error: 'Need at least 2 players to start a hand' }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
+      // Log all players for debugging
+      for (const p of playersData) {
+        console.log(`Player: userId=${p.user_id}, position=${p.position}, stack=${p.stack}, is_sitting_out=${p.is_sitting_out}, is_folded=${p.is_folded}`);
+      }
+
       // Filter out sitting out players for active hand participation
       const activePlayers = playersData.filter(p => !p.is_sitting_out);
+      console.log(`Active players (not sitting out): ${activePlayers.length}`);
       
       if (activePlayers.length < 2) {
         return new Response(JSON.stringify({ error: 'Need at least 2 active players (not sitting out)' }), {
@@ -435,6 +453,10 @@ serve(async (req) => {
       }
 
       const firstToActPosition = sortedPlayers[firstToActIdx].position;
+      const firstToActPlayer = sortedPlayers[firstToActIdx];
+      
+      console.log(`Game positions: dealer=${newDealerPosition} (idx=${dealerIdx}), SB=${sortedPlayers[sbIdx].position}, BB=${sortedPlayers[bbIdx].position}`);
+      console.log(`First to act: position=${firstToActPosition}, userId=${firstToActPlayer.user_id}, stack=${firstToActPlayer.stack}`);
 
       const deck = shuffleDeck(createDeck());
       let deckIndex = 0;
@@ -601,15 +623,19 @@ serve(async (req) => {
         .maybeSingle();
 
       if (!currentPlayer) {
-        return new Response(JSON.stringify({ error: 'Player not found at table' }), {
+        console.log(`Player not found: userId=${user.id}, tableId=${tableId}`);
+        return new Response(JSON.stringify({ error: 'You are not seated at this table. Please join or refresh the page.' }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
+      console.log(`Player found: userId=${user.id}, position=${currentPlayer.position}, gamePosition=${game.current_player_position}, is_folded=${currentPlayer.is_folded}, is_sitting_out=${currentPlayer.is_sitting_out}`);
+
       if (currentPlayer.position !== game.current_player_position) {
+        console.log(`Not player's turn: playerPos=${currentPlayer.position}, currentPos=${game.current_player_position}`);
         return new Response(JSON.stringify({ 
-          error: 'Not your turn', 
+          error: `It's not your turn. You are at position ${currentPlayer.position}, waiting for position ${game.current_player_position}.`, 
           yourPosition: currentPlayer.position, 
           currentPosition: game.current_player_position 
         }), {
