@@ -116,14 +116,14 @@ export default function WinnerAnimation({
                 </motion.div>
               )}
               
-              {/* Winner names */}
+              {/* Winner names - show individually for clarity */}
               <motion.h2
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
-                className="text-2xl font-bold text-slate-900 mb-2"
+                className="text-2xl font-bold text-slate-900 mb-3"
               >
-                {winners.map(w => w.name).join(' & ')} {isSplitPot ? 'Win!' : 'Wins!'}
+                {isSplitPot ? 'Split Pot!' : `${winners[0]?.name} Wins!`}
               </motion.h2>
               
               {/* Show each winner's details */}
@@ -189,7 +189,7 @@ export default function WinnerAnimation({
                       >
                         <Coins className="h-5 w-5 text-yellow-400" />
                         <span className="text-xl font-bold text-yellow-400">
-                          +{winner.amount.toLocaleString()}
+                          +₱{winner.amount.toLocaleString()}
                         </span>
                       </motion.div>
                     )}

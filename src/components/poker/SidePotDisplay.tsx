@@ -32,7 +32,7 @@ export default function SidePotDisplay({ sidePots }: SidePotDisplayProps) {
             <div className="flex items-center gap-1.5">
               <span className="text-[10px] text-yellow-500/70 uppercase font-medium">{pot.label}</span>
               <span className="text-yellow-400 font-bold text-sm">
-                {pot.amount.toLocaleString()}
+                ₱{pot.amount.toLocaleString()}
               </span>
               <span className="text-[9px] text-muted-foreground">
                 ({pot.eligibleCount} players)

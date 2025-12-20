@@ -201,7 +201,7 @@ export default function Lobby() {
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2 bg-black/50 px-4 py-2 rounded-lg border border-yellow-500/30">
               <Coins className="h-5 w-5 text-yellow-400" />
-              <span className="font-bold text-yellow-400">{profile.chips.toLocaleString()}</span>
+              <span className="font-bold text-yellow-400">₱{profile.chips.toLocaleString()}</span>
             </div>
             
             {/* Cash In/Out Buttons */}
