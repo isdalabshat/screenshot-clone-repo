@@ -453,6 +453,10 @@ export function usePokerGame(tableId: string) {
 
       const isMe = p.user_id === currentUserId;
       const hasCards = p.hole_cards && p.hole_cards.length > 0;
+      const isShowdown = currentGame?.status === 'showdown';
+      
+      // Show cards if: it's me, or it's showdown and player hasn't folded
+      const shouldShowCards = hasCards && (isMe || (isShowdown && !p.is_folded));
 
       return {
         id: p.id,
@@ -460,8 +464,8 @@ export function usePokerGame(tableId: string) {
         username: profilesMap.get(p.user_id) || 'Unknown',
         position: p.position,
         stack: p.stack,
-        holeCards: isMe && hasCards ? p.hole_cards.map((c: string) => stringToCard(c)) : [],
-        hasHiddenCards: !isMe && hasCards && !p.is_folded,
+        holeCards: shouldShowCards ? p.hole_cards.map((c: string) => stringToCard(c)) : [],
+        hasHiddenCards: !isMe && hasCards && !p.is_folded && !isShowdown,
         currentBet: p.current_bet,
         isFolded: p.is_folded,
         isAllIn: p.is_all_in,

@@ -30,15 +30,19 @@ export default function PotCollectionAnimation({
   const { playSound } = useSoundEffects();
 
   useEffect(() => {
+    // Only show animation and play sound if there are actual positions with bets
     if (isCollecting && playerPositions.length > 0) {
       setShowAnimation(true);
-      // Play pot collection sound
+      // Play pot collection sound only when collecting actual bets
       playSound('potCollect');
       const timer = setTimeout(() => {
         setShowAnimation(false);
         onComplete?.();
       }, 800);
       return () => clearTimeout(timer);
+    } else if (isCollecting) {
+      // No positions to animate - complete immediately
+      onComplete?.();
     }
   }, [isCollecting, playerPositions, onComplete, playSound]);
 
