@@ -206,7 +206,7 @@ export default function Table() {
     }
   }, [game?.id, game?.status, game?.pot, players, soundEnabled, playSound, playDealSequence, user?.id, myCards.length]);
 
-  // Winner detection - separate effect for reliability
+  // Winner detection - separate effect for reliability with extended showdown delay
   useEffect(() => {
     if (!game) return;
     
@@ -241,18 +241,21 @@ export default function Table() {
           }
         }
         
-        // Show winner animation
+        // Show winner animation with extended delay for showdown
         if (winnerId && winnerName) {
           lastWinnerGameId.current = game.id;
           setWinnerInfo({ name: winnerName, amount: winAmount, id: winnerId });
           setShowWinner(true);
           if (soundEnabled) playSound('win');
           
-          // Hide winner after 3 seconds
+          // Longer delay (5 seconds) if it's a showdown so players can see the cards
+          // Shorter delay (3 seconds) if winner by fold
+          const delayTime = game.status === 'showdown' && nonFolded.length > 1 ? 5000 : 3000;
+          
           setTimeout(() => {
             setShowWinner(false);
             setWinnerInfo(null);
-          }, 3000);
+          }, delayTime);
         }
       }
     }
