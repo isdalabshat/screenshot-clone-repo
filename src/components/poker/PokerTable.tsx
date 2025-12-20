@@ -6,7 +6,7 @@ import ChipAnimation from './ChipAnimation';
 import PotCollectionAnimation from './PotCollectionAnimation';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 
 interface PlayerEmoji {
   id: string;
@@ -102,6 +102,11 @@ export default function PokerTableComponent({
   const prevGameStatusRef = useRef<Game['status'] | undefined>(undefined);
   const [isCollectingPot, setIsCollectingPot] = useState(false);
   const [collectingPositions, setCollectingPositions] = useState<number[]>([]);
+  const [hasBetsToCollect, setHasBetsToCollect] = useState(false);
+  
+  // Track which cards have been revealed (for flip animation)
+  const [revealedCardCount, setRevealedCardCount] = useState(0);
+  const prevVisibleCardCount = useRef(0);
 
   // Detect bet changes and trigger animations
   useEffect(() => {
@@ -136,26 +141,55 @@ export default function PokerTableComponent({
     setChipAnimations(prev => prev.filter(a => a.id !== id));
   };
 
-  // Trigger pot collection animation when betting round ends
+  // Trigger pot collection animation when betting round ends - only if there were actual bets
   useEffect(() => {
     const phases: Game['status'][] = ['flop', 'turn', 'river', 'showdown'];
     const prevStatus = prevGameStatusRef.current;
     
     // Detect transition from one phase to next (betting round ended)
     if (prevStatus && gameStatus && phases.includes(gameStatus) && prevStatus !== gameStatus) {
-      // Get positions of players who had bets
-      const positionsWithBets = players
-        .filter(p => !p.isFolded)
-        .map(p => getRotatedPosition(p.position, userPosition));
-      
-      if (positionsWithBets.length > 0) {
-        setCollectingPositions(positionsWithBets);
-        setIsCollectingPot(true);
+      // Only trigger if there were actual bets to collect
+      if (hasBetsToCollect) {
+        // Get positions of players who had bets
+        const positionsWithBets = players
+          .filter(p => !p.isFolded && p.currentBet > 0)
+          .map(p => getRotatedPosition(p.position, userPosition));
+        
+        if (positionsWithBets.length > 0) {
+          setCollectingPositions(positionsWithBets);
+          setIsCollectingPot(true);
+        }
+        setHasBetsToCollect(false);
       }
     }
     
     prevGameStatusRef.current = gameStatus;
-  }, [gameStatus, players, userPosition]);
+  }, [gameStatus, players, userPosition, hasBetsToCollect]);
+
+  // Track when there are bets to collect
+  useEffect(() => {
+    const totalBets = players.reduce((sum, p) => sum + p.currentBet, 0);
+    if (totalBets > 0) {
+      setHasBetsToCollect(true);
+    }
+  }, [players]);
+  
+  // Track card reveals for flip animation
+  useEffect(() => {
+    if (visibleCardCount > prevVisibleCardCount.current) {
+      // New cards revealed - update with a small delay for animation
+      setRevealedCardCount(prevVisibleCardCount.current);
+      const timer = setTimeout(() => {
+        setRevealedCardCount(visibleCardCount);
+      }, 50);
+      prevVisibleCardCount.current = visibleCardCount;
+      return () => clearTimeout(timer);
+    } else if (visibleCardCount < prevVisibleCardCount.current) {
+      // New hand started - reset
+      setRevealedCardCount(0);
+      prevVisibleCardCount.current = visibleCardCount;
+    }
+  }, [visibleCardCount]);
 
   // Reset bets tracking when game changes phase
   useEffect(() => {
@@ -280,37 +314,41 @@ export default function PokerTableComponent({
           {/* Side pots display */}
           <SidePotDisplay sidePots={sidePots} />
 
-          {/* Community Cards - Enhanced container */}
+          {/* Community Cards - Enhanced container with flip animations */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
             className="flex gap-1 sm:gap-1.5 flex-wrap justify-center max-w-[200px] sm:max-w-[240px] min-h-[50px] sm:min-h-[60px] bg-black/40 rounded-lg sm:rounded-xl p-2 sm:p-2.5 border border-emerald-500/20 shadow-inner backdrop-blur-sm"
           >
-            {[0, 1, 2, 3, 4].map((i) => (
-              <motion.div 
-                key={i}
-                initial={{ rotateY: 180, opacity: 0, y: -30, scale: 0.8 }}
-                animate={{ 
-                  rotateY: i < visibleCardCount && communityCards[i] ? 0 : 180,
-                  opacity: i < visibleCardCount && communityCards[i] ? 1 : 0.2,
-                  y: 0,
-                  scale: 1
-                }}
-                transition={{ 
-                  duration: 0.4, 
-                  delay: i * 0.12, 
-                  type: 'spring',
-                  stiffness: 200
-                }}
-              >
-                {i < visibleCardCount && communityCards[i] ? (
-                  <PlayingCard card={communityCards[i]} size="sm" />
-                ) : (
-                  <div className="w-8 h-12 sm:w-9 sm:h-13 rounded-md border border-dashed border-emerald-500/20 bg-black/20" />
-                )}
-              </motion.div>
-            ))}
+            {[0, 1, 2, 3, 4].map((i) => {
+              const isNewlyRevealed = i >= revealedCardCount && i < visibleCardCount;
+              const isVisible = i < visibleCardCount && communityCards[i];
+              
+              // Calculate flip delay based on card position in the reveal
+              // Flop: 0, 1, 2 (delays 0, 0.15, 0.3)
+              // Turn: 3 (delay 0)
+              // River: 4 (delay 0)
+              let flipDelay = 0;
+              if (revealedCardCount === 0 && i < 3) {
+                flipDelay = i * 0.15; // Flop cards stagger
+              }
+              
+              return (
+                <div key={i} className="relative">
+                  {isVisible ? (
+                    <PlayingCard 
+                      card={communityCards[i]} 
+                      size="sm" 
+                      animate={isNewlyRevealed}
+                      flipDelay={flipDelay}
+                    />
+                  ) : (
+                    <div className="w-8 h-11 sm:w-8 sm:h-11 rounded-md border border-dashed border-emerald-500/20 bg-black/20" />
+                  )}
+                </div>
+              );
+            })}
           </motion.div>
 
           {/* Game status indicator - Enhanced */}
