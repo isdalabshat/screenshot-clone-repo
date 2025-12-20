@@ -308,7 +308,7 @@ export default function PokerTableComponent({
                   >
                     💰
                   </motion.span>
-                  <span className="font-mono">{pot.toLocaleString()}</span>
+                  <span className="font-mono">₱{pot.toLocaleString()}</span>
                 </span>
               </div>
             </div>
@@ -411,7 +411,7 @@ export default function PokerTableComponent({
             >
               <div className="flex items-center gap-1 bg-gradient-to-br from-amber-500 to-yellow-600 text-black px-2 py-0.5 rounded-full shadow-lg shadow-amber-500/50 border border-yellow-300/60">
                 <span className="text-xs">🪙</span>
-                <span className="font-bold text-[10px] drop-shadow-sm">{player.currentBet.toLocaleString()}</span>
+                <span className="font-bold text-[10px] drop-shadow-sm">₱{player.currentBet.toLocaleString()}</span>
               </div>
             </motion.div>
           );

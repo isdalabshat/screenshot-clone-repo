@@ -185,7 +185,7 @@ export default function PlayerSeat({
           {isCurrentUser ? 'You' : player.username}
         </div>
         <div className="text-[8px] sm:text-[9px] text-yellow-400 font-mono font-bold">
-          {player.stack.toLocaleString()}
+          ₱{player.stack.toLocaleString()}
         </div>
       </div>
 
