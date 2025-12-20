@@ -4,6 +4,7 @@ import PlayingCard from './PlayingCard';
 import SidePotDisplay, { SidePot } from './SidePotDisplay';
 import ChipAnimation from './ChipAnimation';
 import PotCollectionAnimation from './PotCollectionAnimation';
+import CardDealAnimation from './CardDealAnimation';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -107,6 +108,11 @@ export default function PokerTableComponent({
   // Track which cards have been revealed (for flip animation)
   const [revealedCardCount, setRevealedCardCount] = useState(0);
   const prevVisibleCardCount = useRef(0);
+  
+  // Track card dealing animation
+  const [isDealingCards, setIsDealingCards] = useState(false);
+  const [dealingPlayerPositions, setDealingPlayerPositions] = useState<number[]>([]);
+  const prevGameStatusForDeal = useRef<Game['status'] | undefined>(undefined);
 
   // Detect bet changes and trigger animations
   useEffect(() => {
@@ -200,6 +206,22 @@ export default function PokerTableComponent({
       }
     }
   }, [gameStatus]);
+
+  // Trigger card dealing animation when game transitions to preflop
+  useEffect(() => {
+    if (gameStatus === 'preflop' && prevGameStatusForDeal.current !== 'preflop') {
+      // Game just started - trigger deal animation
+      const activePlayerPositions = players
+        .filter(p => !p.isFolded && p.isActive)
+        .map(p => getRotatedPosition(p.position, userPosition));
+      
+      if (activePlayerPositions.length > 0) {
+        setDealingPlayerPositions(activePlayerPositions);
+        setIsDealingCards(true);
+      }
+    }
+    prevGameStatusForDeal.current = gameStatus;
+  }, [gameStatus, players, userPosition]);
 
   return (
     <div className="relative w-full max-w-xl mx-auto aspect-[3/4]">
@@ -388,6 +410,16 @@ export default function PokerTableComponent({
         onComplete={() => {
           setIsCollectingPot(false);
           setCollectingPositions([]);
+        }}
+      />
+
+      {/* Card Deal Animation */}
+      <CardDealAnimation
+        isDealing={isDealingCards}
+        playerPositions={dealingPlayerPositions}
+        onComplete={() => {
+          setIsDealingCards(false);
+          setDealingPlayerPositions([]);
         }}
       />
 

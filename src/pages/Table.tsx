@@ -260,23 +260,34 @@ export default function Table() {
         } else if (nonFolded.length > 0) {
           // Multiple players at showdown - find who gained the most
           isShowdown = true;
-          let maxGain = 0;
+          let maxGain = -Infinity; // Changed from 0 to handle cases where no gain yet
+          let bestHandRank = -1;
+          
           for (const player of nonFolded) {
             const prevStack = prevPlayerStacks.current.get(player.userId) || 0;
             const gain = player.stack - prevStack;
-            if (gain > maxGain) {
+            
+            // Primary: player with highest gain wins
+            // Fallback: if gains are equal/zero (all-in before stacks update), use hand evaluation
+            let playerHandRank = 0;
+            if (player.holeCards && player.holeCards.length > 0 && game.communityCards.length > 0) {
+              const handResult = evaluateHand(player.holeCards, game.communityCards);
+              playerHandRank = handResult.rank;
+            }
+            
+            // Winner determination: prefer gain, fallback to hand rank
+            const shouldUpdate = gain > maxGain || (gain === maxGain && playerHandRank > bestHandRank);
+            
+            if (shouldUpdate) {
               maxGain = gain;
+              bestHandRank = playerHandRank;
               winnerId = player.userId;
               winnerName = player.username;
-              winAmount = gain;
+              winAmount = gain > 0 ? gain : prevPot.current;
               
               // Get the winner's cards for display
-              // First, check if this player has visible hole cards
               if (player.holeCards && player.holeCards.length > 0) {
-                // Convert Card objects to string format for display
                 winnerCards = player.holeCards.map(c => `${c.rank}${c.suit.charAt(0)}`);
-                
-                // Evaluate hand to get hand name
                 const handResult = evaluateHand(player.holeCards, game.communityCards);
                 winnerHandName = handResult.name;
               }
