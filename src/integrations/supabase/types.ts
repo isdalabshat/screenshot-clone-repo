@@ -221,6 +221,149 @@ export type Database = {
           },
         ]
       }
+      lucky9_games: {
+        Row: {
+          created_at: string
+          current_player_position: number | null
+          dealer_cards: string[] | null
+          dealer_hidden_card: string | null
+          id: string
+          status: string
+          table_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_player_position?: number | null
+          dealer_cards?: string[] | null
+          dealer_hidden_card?: string | null
+          id?: string
+          status?: string
+          table_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_player_position?: number | null
+          dealer_cards?: string[] | null
+          dealer_hidden_card?: string | null
+          id?: string
+          status?: string
+          table_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lucky9_games_table_id_fkey"
+            columns: ["table_id"]
+            isOneToOne: false
+            referencedRelation: "lucky9_tables"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lucky9_players: {
+        Row: {
+          cards: string[] | null
+          current_bet: number
+          game_id: string | null
+          has_acted: boolean
+          has_stood: boolean
+          id: string
+          is_active: boolean
+          is_natural: boolean
+          joined_at: string
+          position: number
+          result: string | null
+          stack: number
+          table_id: string
+          user_id: string
+          username: string
+          winnings: number
+        }
+        Insert: {
+          cards?: string[] | null
+          current_bet?: number
+          game_id?: string | null
+          has_acted?: boolean
+          has_stood?: boolean
+          id?: string
+          is_active?: boolean
+          is_natural?: boolean
+          joined_at?: string
+          position: number
+          result?: string | null
+          stack?: number
+          table_id: string
+          user_id: string
+          username: string
+          winnings?: number
+        }
+        Update: {
+          cards?: string[] | null
+          current_bet?: number
+          game_id?: string | null
+          has_acted?: boolean
+          has_stood?: boolean
+          id?: string
+          is_active?: boolean
+          is_natural?: boolean
+          joined_at?: string
+          position?: number
+          result?: string | null
+          stack?: number
+          table_id?: string
+          user_id?: string
+          username?: string
+          winnings?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lucky9_players_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "lucky9_games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lucky9_players_table_id_fkey"
+            columns: ["table_id"]
+            isOneToOne: false
+            referencedRelation: "lucky9_tables"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lucky9_tables: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          max_bet: number
+          max_players: number
+          min_bet: number
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          max_bet?: number
+          max_players?: number
+          min_bet?: number
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          max_bet?: number
+          max_players?: number
+          min_bet?: number
+          name?: string
+        }
+        Relationships: []
+      }
       poker_tables: {
         Row: {
           big_blind: number
