@@ -172,14 +172,23 @@ export default function Lucky9TablePage() {
   const leaveTable = async () => {
     if (!myPlayer) return;
 
-    if (profile && myPlayer.stack > 0) {
-      await supabase
-        .from('profiles')
-        .update({ chips: profile.chips + myPlayer.stack })
-        .eq('user_id', user?.id);
+    // Handle mid-game leave with proper payouts
+    if (game && game.status !== 'finished') {
+      const action = myPlayer.isBanker ? 'banker_leave' : 'player_leave';
+      await supabase.functions.invoke('lucky9-game', {
+        body: { action, playerId: myPlayer.id, gameId: game.id, tableId }
+      });
+    } else {
+      // No active game - just return chips and delete
+      if (profile && myPlayer.stack > 0) {
+        await supabase
+          .from('profiles')
+          .update({ chips: profile.chips + myPlayer.stack })
+          .eq('user_id', user?.id);
+      }
+      await supabase.from('lucky9_players').delete().eq('id', myPlayer.id);
     }
-
-    await supabase.from('lucky9_players').delete().eq('id', myPlayer.id);
+    
     navigate('/lucky9');
   };
 
@@ -290,13 +299,24 @@ export default function Lucky9TablePage() {
 
   const banker = players.find(p => p.isBanker);
   const nonBankerPlayers = players.filter(p => !p.isBanker);
-  const isMyTurn = game?.status === 'player_turns' && myPlayer && !myPlayer.isBanker && game.currentPlayerPosition === myPlayer.position && !myPlayer.hasActed;
-  const isBankerTurn = game?.status === 'banker_turn' && myPlayer?.isBanker && !myPlayer.hasActed;
+  
+  // Game can only proceed if there's a banker
+  const hasActiveBanker = !!banker;
+  
+  // Action conditions - only when there's a banker
+  const isMyTurn = hasActiveBanker && game?.status === 'player_turns' && myPlayer && !myPlayer.isBanker && game.currentPlayerPosition === myPlayer.position && !myPlayer.hasActed;
+  const isBankerTurn = hasActiveBanker && game?.status === 'banker_turn' && myPlayer?.isBanker && !myPlayer.hasActed;
   const allPlayersHaveBet = nonBankerPlayers.length > 0 && nonBankerPlayers.every(p => p.currentBet > 0);
+  
+  // Banker can start betting only when there are players and no active game
   const canStartBetting = !game && myPlayer?.isBanker && nonBankerPlayers.length >= 1;
   const canDealCards = game?.status === 'betting' && myPlayer?.isBanker && allPlayersHaveBet;
-  const showBetPanel = game?.status === 'betting' && myPlayer && !myPlayer.isBanker && myPlayer.currentBet === 0;
-  const showActionButtons = isMyTurn || isBankerTurn;
+  
+  // Show bet panel only when there's a banker and betting phase
+  const showBetPanel = hasActiveBanker && game?.status === 'betting' && myPlayer && !myPlayer.isBanker && myPlayer.currentBet === 0;
+  
+  // Action buttons only visible when banker exists and it's player's turn
+  const showActionButtons = hasActiveBanker && (isMyTurn || isBankerTurn);
 
   if (!table) {
     return (
@@ -334,13 +354,14 @@ export default function Lucky9TablePage() {
       <main className="px-3 py-4 space-y-4">
         {/* Game status */}
         <Lucky9GameStatus 
-          status={game?.status || 'betting'} 
+          status={hasActiveBanker ? (game?.status || 'waiting') : 'waiting_banker'} 
           currentPlayerName={players.find(p => p.position === game?.currentPlayerPosition)?.username}
           bankerName={banker?.username}
+          message={!hasActiveBanker ? 'Waiting for a banker to join...' : undefined}
         />
 
         {/* Betting timer */}
-        {game?.bettingEndsAt && game.status === 'betting' && (
+        {hasActiveBanker && game?.bettingEndsAt && game.status === 'betting' && (
           <div className="max-w-xs mx-auto">
             <Lucky9BettingTimer bettingEndsAt={game.bettingEndsAt} />
           </div>
@@ -350,7 +371,7 @@ export default function Lucky9TablePage() {
         <Lucky9GamblingTable players={players} banker={banker || null} game={game} currentUserId={user?.id} />
 
         {/* Banker controls */}
-        {(canStartBetting || canDealCards) && (
+        {hasActiveBanker && (canStartBetting || canDealCards) && (
           <div className="flex justify-center gap-3 pt-2">
             {canStartBetting && (
               <Button 
@@ -374,9 +395,16 @@ export default function Lucky9TablePage() {
             )}
           </div>
         )}
+
+        {/* Waiting for banker message for players */}
+        {!hasActiveBanker && myPlayer && !myPlayer.isBanker && (
+          <div className="text-center py-4">
+            <p className="text-amber-400/70 text-sm">Waiting for a banker to start the game...</p>
+          </div>
+        )}
       </main>
 
-      {/* Fixed bottom panels */}
+      {/* Fixed bottom panels - only when banker exists */}
       {showBetPanel && (
         <Lucky9BetPanel 
           minBet={table.minBet} 
