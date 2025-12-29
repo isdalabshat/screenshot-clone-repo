@@ -2,8 +2,9 @@ import { Lucky9Player } from '@/types/lucky9';
 import { Lucky9Card } from './Lucky9Card';
 import { calculateLucky9Value, isNatural9 } from '@/lib/lucky9/deck';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
-import { User } from 'lucide-react';
+import { User, Check, X, Clock } from 'lucide-react';
 
 interface Lucky9PlayerSeatProps {
   player: Lucky9Player;
@@ -11,21 +12,42 @@ interface Lucky9PlayerSeatProps {
   showCards: boolean;
   gameStatus: string;
   isMe?: boolean;
+  isBankerView?: boolean;
+  onAcceptBet?: (playerId: string) => void;
+  onRejectBet?: (playerId: string) => void;
+  isProcessing?: boolean;
 }
 
-export function Lucky9PlayerSeat({ player, isCurrentTurn, showCards, gameStatus, isMe }: Lucky9PlayerSeatProps) {
+export function Lucky9PlayerSeat({ 
+  player, 
+  isCurrentTurn, 
+  showCards, 
+  gameStatus, 
+  isMe,
+  isBankerView,
+  onAcceptBet,
+  onRejectBet,
+  isProcessing
+}: Lucky9PlayerSeatProps) {
   const cards = player.cards || [];
   const handValue = cards.length > 0 ? calculateLucky9Value(cards) : null;
   const isNatural = cards.length === 2 && isNatural9(cards);
+  
+  // Show banker bet controls during betting phase if player has bet pending
+  const showBetControls = isBankerView && gameStatus === 'betting' && player.currentBet > 0 && player.betAccepted === null;
 
   return (
     <motion.div 
-      className={`relative bg-slate-900/95 backdrop-blur rounded-xl p-2 min-w-[100px] border-2 transition-all ${
+      className={`relative bg-slate-900/95 backdrop-blur rounded-xl p-2 min-w-[110px] border-2 transition-all ${
         isCurrentTurn 
           ? 'border-green-400 shadow-lg shadow-green-500/40' 
           : isMe 
             ? 'border-blue-500/70' 
-            : 'border-slate-700'
+            : player.betAccepted === true 
+              ? 'border-green-500/50'
+              : player.betAccepted === false
+                ? 'border-red-500/50'
+                : 'border-slate-700'
       }`}
       animate={isCurrentTurn ? { scale: [1, 1.02, 1] } : {}}
       transition={{ repeat: isCurrentTurn ? Infinity : 0, duration: 1.5 }}
@@ -43,9 +65,57 @@ export function Lucky9PlayerSeat({ player, isCurrentTurn, showCards, gameStatus,
       <div className="flex items-center justify-between text-[10px] mb-1.5">
         <span className="text-yellow-400 font-mono">₱{player.stack}</span>
         {player.currentBet > 0 && (
-          <span className="text-green-400 font-mono">Bet: ₱{player.currentBet}</span>
+          <div className="flex items-center gap-1">
+            <span className="text-green-400 font-mono">₱{player.currentBet}</span>
+            {player.betAccepted === true && <Check className="h-3 w-3 text-green-400" />}
+            {player.betAccepted === false && <X className="h-3 w-3 text-red-400" />}
+            {player.betAccepted === null && <Clock className="h-3 w-3 text-yellow-400 animate-pulse" />}
+          </div>
         )}
       </div>
+
+      {/* Banker bet acceptance controls */}
+      {showBetControls && onAcceptBet && onRejectBet && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="flex gap-1 mb-1.5"
+        >
+          <Button
+            size="sm"
+            onClick={() => onAcceptBet(player.id)}
+            disabled={isProcessing}
+            className="flex-1 h-7 px-2 bg-green-600 hover:bg-green-500 text-white text-[10px]"
+          >
+            <Check className="h-3 w-3 mr-1" />
+            Accept
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => onRejectBet(player.id)}
+            disabled={isProcessing}
+            className="flex-1 h-7 px-2 bg-red-600 hover:bg-red-500 text-white text-[10px]"
+          >
+            <X className="h-3 w-3 mr-1" />
+            Reject
+          </Button>
+        </motion.div>
+      )}
+
+      {/* Bet status indicator for non-banker view */}
+      {!isBankerView && player.currentBet > 0 && gameStatus === 'betting' && (
+        <div className="text-center mb-1">
+          {player.betAccepted === null && (
+            <Badge className="bg-yellow-600 text-[8px]">Pending</Badge>
+          )}
+          {player.betAccepted === true && (
+            <Badge className="bg-green-600 text-[8px]">Accepted</Badge>
+          )}
+          {player.betAccepted === false && (
+            <Badge className="bg-red-600 text-[8px]">Rejected</Badge>
+          )}
+        </div>
+      )}
 
       {/* Cards */}
       {cards.length > 0 && (

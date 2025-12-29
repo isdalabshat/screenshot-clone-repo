@@ -11,9 +11,22 @@ interface Lucky9GamblingTableProps {
   banker: Lucky9Player | null;
   game: Lucky9Game | null;
   currentUserId: string | undefined;
+  isBankerView?: boolean;
+  onAcceptBet?: (playerId: string) => void;
+  onRejectBet?: (playerId: string) => void;
+  isProcessing?: boolean;
 }
 
-export function Lucky9GamblingTable({ players, banker, game, currentUserId }: Lucky9GamblingTableProps) {
+export function Lucky9GamblingTable({ 
+  players, 
+  banker, 
+  game, 
+  currentUserId,
+  isBankerView,
+  onAcceptBet,
+  onRejectBet,
+  isProcessing
+}: Lucky9GamblingTableProps) {
   const nonBankerPlayers = players.filter(p => !p.isBanker);
   const showAllCards = game?.status === 'showdown' || game?.status === 'finished';
   
@@ -80,12 +93,12 @@ export function Lucky9GamblingTable({ players, banker, game, currentUserId }: Lu
               <span className="text-yellow-400 font-mono text-sm">₱{banker.stack.toLocaleString()}</span>
             </div>
 
-            {/* Banker Cards */}
+            {/* Banker Cards - HIDDEN FROM OTHER PLAYERS UNTIL SHOWDOWN */}
             {bankerCards.length > 0 && (
               <div className="flex gap-1.5 justify-center mb-2">
                 {bankerCards.map((card, i) => {
-                  // Hide second card unless showdown or if current user is banker
-                  const shouldHide = !showAllCards && i === 1 && !isCurrentUserBanker;
+                  // Hide ALL cards from non-banker players until showdown
+                  const shouldHide = !showAllCards && !isCurrentUserBanker;
                   return (
                     <Lucky9Card 
                       key={i} 
@@ -178,6 +191,10 @@ export function Lucky9GamblingTable({ players, banker, game, currentUserId }: Lu
               showCards={isMe || showAllCards}
               gameStatus={game?.status || 'betting'}
               isMe={isMe}
+              isBankerView={isBankerView}
+              onAcceptBet={onAcceptBet}
+              onRejectBet={onRejectBet}
+              isProcessing={isProcessing}
             />
           </motion.div>
         );

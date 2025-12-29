@@ -57,7 +57,7 @@ export default function Lucky9TablePage() {
       .from('lucky9_games')
       .select('*')
       .eq('table_id', tableId)
-      .in('status', ['betting', 'dealing', 'player_turns', 'banker_turn', 'showdown'])
+      .in('status', ['betting', 'accepting_bets', 'dealing', 'player_turns', 'banker_turn', 'showdown'])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -104,7 +104,8 @@ export default function Lucky9TablePage() {
         result: p.result as Lucky9Player['result'],
         winnings: p.winnings,
         isActive: p.is_active,
-        isBanker: p.is_banker
+        isBanker: p.is_banker,
+        betAccepted: p.bet_accepted
       }));
       setPlayers(mapped);
       setHasBanker(mapped.some(p => p.isBanker));
@@ -144,7 +145,8 @@ export default function Lucky9TablePage() {
         result: existing.result as Lucky9Player['result'],
         winnings: existing.winnings,
         isActive: existing.is_active,
-        isBanker: existing.is_banker
+        isBanker: existing.is_banker,
+        betAccepted: existing.bet_accepted
       });
       return true;
     }
@@ -152,18 +154,20 @@ export default function Lucky9TablePage() {
   }, [user, tableId]);
 
   const joinTable = async (role: 'banker' | 'player') => {
-    if (!user || !tableId) return;
+    if (!user || !tableId || !profile) return;
     setIsProcessing(true);
     setShowRoleDialog(false);
 
     const { data, error } = await supabase.functions.invoke('lucky9-game', {
-      body: { action: 'join_table', tableId, userId: user.id, role }
+      body: { action: 'join_table', tableId, userId: user.id, username: profile.username, role, stack: profile.chips }
     });
 
     if (error || data?.error) {
       toast({ title: 'Error', description: data?.error || error?.message, variant: 'destructive' });
     } else {
       toast({ title: 'Joined!', description: `You joined as ${role}` });
+      // Deduct chips from profile
+      await supabase.from('profiles').update({ chips: 0 }).eq('user_id', user.id);
       fetchPlayers();
     }
     setIsProcessing(false);
@@ -176,7 +180,7 @@ export default function Lucky9TablePage() {
     if (game && game.status !== 'finished') {
       const action = myPlayer.isBanker ? 'banker_leave' : 'player_leave';
       await supabase.functions.invoke('lucky9-game', {
-        body: { action, playerId: myPlayer.id, gameId: game.id, tableId }
+        body: { action, tableId, userId: user?.id }
       });
     } else {
       // No active game - just return chips and delete
@@ -197,11 +201,45 @@ export default function Lucky9TablePage() {
     setIsProcessing(true);
 
     const { data, error } = await supabase.functions.invoke('lucky9-game', {
-      body: { action: 'place_bet', tableId, playerId: myPlayer.id, betAmount: amount }
+      body: { action: 'place_bet', tableId, playerId: myPlayer.id, amount }
     });
 
     if (error || data?.error) {
       toast({ title: 'Error', description: data?.error || error?.message, variant: 'destructive' });
+    } else {
+      toast({ title: 'Bet Placed', description: `Waiting for banker to accept your bet` });
+    }
+    setIsProcessing(false);
+  };
+
+  const handleAcceptBet = async (playerId: string) => {
+    if (!myPlayer?.isBanker || !user) return;
+    setIsProcessing(true);
+
+    const { data, error } = await supabase.functions.invoke('lucky9-game', {
+      body: { action: 'accept_bet', tableId, playerId, userId: user.id }
+    });
+
+    if (error || data?.error) {
+      toast({ title: 'Error', description: data?.error || error?.message, variant: 'destructive' });
+    } else {
+      toast({ title: 'Bet Accepted' });
+    }
+    setIsProcessing(false);
+  };
+
+  const handleRejectBet = async (playerId: string) => {
+    if (!myPlayer?.isBanker || !user) return;
+    setIsProcessing(true);
+
+    const { data, error } = await supabase.functions.invoke('lucky9-game', {
+      body: { action: 'reject_bet', tableId, playerId, userId: user.id }
+    });
+
+    if (error || data?.error) {
+      toast({ title: 'Error', description: data?.error || error?.message, variant: 'destructive' });
+    } else {
+      toast({ title: 'Bet Rejected', description: 'Player\'s bet has been returned' });
     }
     setIsProcessing(false);
   };
@@ -242,7 +280,7 @@ export default function Lucky9TablePage() {
 
     const action = myPlayer.isBanker ? 'banker_action' : 'player_action';
     const { data, error } = await supabase.functions.invoke('lucky9-game', {
-      body: { action, playerId: myPlayer.id, gameId: game.id, playerAction, remainingDeck }
+      body: { action, tableId, playerId: myPlayer.id, gameId: game.id, actionType: playerAction, userId: user?.id }
     });
 
     if (error || data?.error) {
@@ -306,17 +344,25 @@ export default function Lucky9TablePage() {
   // Action conditions - only when there's a banker
   const isMyTurn = hasActiveBanker && game?.status === 'player_turns' && myPlayer && !myPlayer.isBanker && game.currentPlayerPosition === myPlayer.position && !myPlayer.hasActed;
   const isBankerTurn = hasActiveBanker && game?.status === 'banker_turn' && myPlayer?.isBanker && !myPlayer.hasActed;
-  const allPlayersHaveBet = nonBankerPlayers.length > 0 && nonBankerPlayers.every(p => p.currentBet > 0);
+  
+  // Check if any players have placed bets that need acceptance
+  const playersWithPendingBets = nonBankerPlayers.filter(p => p.currentBet > 0 && p.betAccepted === null);
+  const playersWithAcceptedBets = nonBankerPlayers.filter(p => p.currentBet > 0 && p.betAccepted === true);
   
   // Banker can start betting only when there are players and no active game
   const canStartBetting = !game && myPlayer?.isBanker && nonBankerPlayers.length >= 1;
-  const canDealCards = game?.status === 'betting' && myPlayer?.isBanker && allPlayersHaveBet;
   
-  // Show bet panel only when there's a banker and betting phase
+  // Banker can deal cards when all pending bets are decided and at least one bet is accepted
+  const canDealCards = game?.status === 'betting' && myPlayer?.isBanker && playersWithPendingBets.length === 0 && playersWithAcceptedBets.length > 0;
+  
+  // Show bet panel only when there's a banker and betting phase and player hasn't bet yet
   const showBetPanel = hasActiveBanker && game?.status === 'betting' && myPlayer && !myPlayer.isBanker && myPlayer.currentBet === 0;
   
   // Action buttons only visible when banker exists and it's player's turn
   const showActionButtons = hasActiveBanker && (isMyTurn || isBankerTurn);
+
+  // Is current user the banker
+  const iAmBanker = myPlayer?.isBanker;
 
   if (!table) {
     return (
@@ -368,7 +414,16 @@ export default function Lucky9TablePage() {
         )}
 
         {/* Gambling table */}
-        <Lucky9GamblingTable players={players} banker={banker || null} game={game} currentUserId={user?.id} />
+        <Lucky9GamblingTable 
+          players={players} 
+          banker={banker || null} 
+          game={game} 
+          currentUserId={user?.id}
+          isBankerView={iAmBanker}
+          onAcceptBet={handleAcceptBet}
+          onRejectBet={handleRejectBet}
+          isProcessing={isProcessing}
+        />
 
         {/* Banker controls */}
         {hasActiveBanker && (canStartBetting || canDealCards) && (
@@ -396,10 +451,34 @@ export default function Lucky9TablePage() {
           </div>
         )}
 
+        {/* Pending bets info for banker */}
+        {iAmBanker && game?.status === 'betting' && playersWithPendingBets.length > 0 && (
+          <div className="text-center py-2">
+            <p className="text-amber-400 text-sm">
+              {playersWithPendingBets.length} player(s) waiting for bet acceptance
+            </p>
+          </div>
+        )}
+
         {/* Waiting for banker message for players */}
         {!hasActiveBanker && myPlayer && !myPlayer.isBanker && (
           <div className="text-center py-4">
             <p className="text-amber-400/70 text-sm">Waiting for a banker to start the game...</p>
+          </div>
+        )}
+
+        {/* Player bet status */}
+        {myPlayer && !myPlayer.isBanker && myPlayer.currentBet > 0 && game?.status === 'betting' && (
+          <div className="text-center py-2">
+            {myPlayer.betAccepted === null && (
+              <p className="text-yellow-400 text-sm animate-pulse">Waiting for banker to accept your bet...</p>
+            )}
+            {myPlayer.betAccepted === true && (
+              <p className="text-green-400 text-sm">✓ Your bet of ₱{myPlayer.currentBet} has been accepted!</p>
+            )}
+            {myPlayer.betAccepted === false && (
+              <p className="text-red-400 text-sm">✗ Your bet was rejected. Your chips have been returned.</p>
+            )}
           </div>
         )}
       </main>
