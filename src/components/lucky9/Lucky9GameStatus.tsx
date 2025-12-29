@@ -1,43 +1,57 @@
 import { motion } from 'framer-motion';
+import { Crown, Clock, Users } from 'lucide-react';
 
 interface Lucky9GameStatusProps {
   status: string;
   currentPlayerName?: string;
+  bankerName?: string;
   message?: string;
 }
 
-export function Lucky9GameStatus({ status, currentPlayerName, message }: Lucky9GameStatusProps) {
+export function Lucky9GameStatus({ status, currentPlayerName, bankerName, message }: Lucky9GameStatusProps) {
   const getStatusMessage = () => {
     if (message) return message;
     
     switch (status) {
       case 'betting':
-        return 'Waiting for all players to place their bets...';
+        return 'Place your bets!';
       case 'dealing':
         return 'Dealing cards...';
       case 'player_turns':
         return currentPlayerName 
-          ? `It is now ${currentPlayerName}'s turn.`
-          : 'Waiting for player action...';
-      case 'dealer_turn':
-        return 'All players have finished. Dealer is now playing...';
+          ? `${currentPlayerName}'s turn`
+          : 'Waiting for player...';
+      case 'banker_turn':
+        return bankerName ? `${bankerName} (Banker) is playing...` : 'Banker is playing...';
       case 'showdown':
-        return 'Comparing hands against the dealer...';
+        return 'Showdown!';
       case 'finished':
-        return 'Round complete! Starting new round...';
+        return 'Round complete!';
       default:
         return 'Waiting...';
+    }
+  };
+
+  const getIcon = () => {
+    switch (status) {
+      case 'betting':
+        return <Clock className="h-4 w-4 text-yellow-400" />;
+      case 'banker_turn':
+        return <Crown className="h-4 w-4 text-amber-400" />;
+      default:
+        return <Users className="h-4 w-4 text-green-400" />;
     }
   };
 
   return (
     <motion.div
       key={status}
-      initial={{ opacity: 0, y: -10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="text-center py-3 px-6 bg-slate-800/90 backdrop-blur rounded-lg border border-slate-600"
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="flex items-center justify-center gap-2 py-2 px-4 bg-slate-900/90 backdrop-blur rounded-full border border-slate-700 mx-auto w-fit"
     >
-      <p className="text-lg font-medium text-white">{getStatusMessage()}</p>
+      {getIcon()}
+      <p className="text-sm font-medium text-white">{getStatusMessage()}</p>
     </motion.div>
   );
 }

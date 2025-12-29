@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Coins } from 'lucide-react';
+import { ArrowLeft, Coins, Play, Layers } from 'lucide-react';
 import { Lucky9Table, Lucky9Game, Lucky9Player } from '@/types/lucky9';
 import { Lucky9BetPanel } from '@/components/lucky9/Lucky9BetPanel';
 import { Lucky9ActionButtons } from '@/components/lucky9/Lucky9ActionButtons';
@@ -187,12 +187,12 @@ export default function Lucky9TablePage() {
     if (!myPlayer) return;
     setIsProcessing(true);
 
-    const { error } = await supabase.functions.invoke('lucky9-game', {
+    const { data, error } = await supabase.functions.invoke('lucky9-game', {
       body: { action: 'place_bet', tableId, playerId: myPlayer.id, betAmount: amount }
     });
 
-    if (error) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    if (error || data?.error) {
+      toast({ title: 'Error', description: data?.error || error?.message, variant: 'destructive' });
     }
     setIsProcessing(false);
   };
@@ -201,12 +201,12 @@ export default function Lucky9TablePage() {
     if (!tableId) return;
     setIsProcessing(true);
 
-    const { error } = await supabase.functions.invoke('lucky9-game', {
+    const { data, error } = await supabase.functions.invoke('lucky9-game', {
       body: { action: 'start_betting', tableId }
     });
 
-    if (error) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    if (error || data?.error) {
+      toast({ title: 'Error', description: data?.error || error?.message, variant: 'destructive' });
     }
     setIsProcessing(false);
   };
@@ -219,8 +219,8 @@ export default function Lucky9TablePage() {
       body: { action: 'start_round', tableId, gameId: game.id }
     });
 
-    if (error) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    if (error || data?.error) {
+      toast({ title: 'Error', description: data?.error || error?.message, variant: 'destructive' });
     } else if (data?.remainingDeck) {
       setRemainingDeck(data.remainingDeck);
     }
@@ -236,8 +236,8 @@ export default function Lucky9TablePage() {
       body: { action, playerId: myPlayer.id, gameId: game.id, playerAction, remainingDeck }
     });
 
-    if (error) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    if (error || data?.error) {
+      toast({ title: 'Error', description: data?.error || error?.message, variant: 'destructive' });
     } else if (data?.remainingDeck) {
       setRemainingDeck(data.remainingDeck);
     }
@@ -295,56 +295,106 @@ export default function Lucky9TablePage() {
   const allPlayersHaveBet = nonBankerPlayers.length > 0 && nonBankerPlayers.every(p => p.currentBet > 0);
   const canStartBetting = !game && myPlayer?.isBanker && nonBankerPlayers.length >= 1;
   const canDealCards = game?.status === 'betting' && myPlayer?.isBanker && allPlayersHaveBet;
+  const showBetPanel = game?.status === 'betting' && myPlayer && !myPlayer.isBanker && myPlayer.currentBet === 0;
+  const showActionButtons = isMyTurn || isBankerTurn;
 
   if (!table) {
-    return <div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-pulse text-xl">Loading table...</div></div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-950 via-slate-900 to-green-950">
+        <div className="animate-pulse text-xl text-green-400">Loading table...</div>
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-950 via-slate-900 to-green-950">
+    <div className="min-h-screen bg-gradient-to-br from-green-950 via-slate-900 to-green-950 pb-24">
       <Lucky9RoleDialog open={showRoleDialog} hasBanker={hasBanker} onSelectRole={joinTable} onCancel={() => navigate('/lucky9')} />
 
-      <header className="border-b border-green-500/30 bg-slate-900/80 backdrop-blur sticky top-0 z-20">
-        <div className="container mx-auto px-4 py-3 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={leaveTable}><ArrowLeft className="h-5 w-5" /></Button>
-            <span className="text-2xl">🎴</span>
+      {/* Compact header for mobile */}
+      <header className="border-b border-green-500/30 bg-slate-900/90 backdrop-blur sticky top-0 z-20">
+        <div className="flex justify-between items-center px-3 py-2">
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={leaveTable} className="h-8 w-8">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
             <div>
-              <h1 className="text-xl font-bold text-green-400">{table.name}</h1>
-              <p className="text-xs text-muted-foreground">Bet: ₱{table.minBet} - ₱{table.maxBet}</p>
+              <h1 className="text-sm font-bold text-green-400">{table.name}</h1>
+              <p className="text-[10px] text-muted-foreground">₱{table.minBet} - ₱{table.maxBet}</p>
             </div>
           </div>
           {myPlayer && (
-            <div className="flex items-center gap-2 bg-black/50 px-4 py-2 rounded-lg border border-yellow-500/30">
-              <Coins className="h-5 w-5 text-yellow-400" />
-              <span className="font-bold text-yellow-400">₱{myPlayer.stack.toLocaleString()}</span>
+            <div className="flex items-center gap-1.5 bg-black/50 px-3 py-1.5 rounded-lg border border-yellow-500/30">
+              <Coins className="h-4 w-4 text-yellow-400" />
+              <span className="text-sm font-bold text-yellow-400">₱{myPlayer.stack.toLocaleString()}</span>
             </div>
           )}
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-6 space-y-6">
-        <Lucky9GameStatus status={game?.status || 'betting'} currentPlayerName={players.find(p => p.position === game?.currentPlayerPosition)?.username} />
+      <main className="px-3 py-4 space-y-4">
+        {/* Game status */}
+        <Lucky9GameStatus 
+          status={game?.status || 'betting'} 
+          currentPlayerName={players.find(p => p.position === game?.currentPlayerPosition)?.username}
+          bankerName={banker?.username}
+        />
 
+        {/* Betting timer */}
         {game?.bettingEndsAt && game.status === 'betting' && (
-          <div className="max-w-md mx-auto"><Lucky9BettingTimer bettingEndsAt={game.bettingEndsAt} /></div>
+          <div className="max-w-xs mx-auto">
+            <Lucky9BettingTimer bettingEndsAt={game.bettingEndsAt} />
+          </div>
         )}
 
+        {/* Gambling table */}
         <Lucky9GamblingTable players={players} banker={banker || null} game={game} currentUserId={user?.id} />
 
-        <div className="flex justify-center flex-wrap gap-4">
-          {canStartBetting && <Button onClick={startBetting} disabled={isProcessing} className="bg-green-600 hover:bg-green-700 px-8 py-6 text-lg">🎲 Start Betting</Button>}
-          {canDealCards && <Button onClick={startRound} disabled={isProcessing} className="bg-green-600 hover:bg-green-700 px-8 py-6 text-lg">🎴 Deal Cards</Button>}
-          
-          {game?.status === 'betting' && myPlayer && !myPlayer.isBanker && myPlayer.currentBet === 0 && (
-            <Lucky9BetPanel minBet={table.minBet} maxBet={table.maxBet} playerStack={myPlayer.stack} onPlaceBet={placeBet} disabled={isProcessing} />
-          )}
-
-          {(isMyTurn || isBankerTurn) && (
-            <Lucky9ActionButtons onDraw={() => handlePlayerAction('draw')} onStand={() => handlePlayerAction('stand')} canDraw={(myPlayer?.cards.length || 0) < 3} disabled={isProcessing} />
-          )}
-        </div>
+        {/* Banker controls */}
+        {(canStartBetting || canDealCards) && (
+          <div className="flex justify-center gap-3 pt-2">
+            {canStartBetting && (
+              <Button 
+                onClick={startBetting} 
+                disabled={isProcessing} 
+                className="bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 px-6 py-5 text-base font-bold rounded-xl shadow-lg shadow-green-500/30"
+              >
+                <Play className="h-5 w-5 mr-2" />
+                Start Betting
+              </Button>
+            )}
+            {canDealCards && (
+              <Button 
+                onClick={startRound} 
+                disabled={isProcessing} 
+                className="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 px-6 py-5 text-base font-bold rounded-xl shadow-lg shadow-amber-500/30"
+              >
+                <Layers className="h-5 w-5 mr-2" />
+                Deal Cards
+              </Button>
+            )}
+          </div>
+        )}
       </main>
+
+      {/* Fixed bottom panels */}
+      {showBetPanel && (
+        <Lucky9BetPanel 
+          minBet={table.minBet} 
+          maxBet={table.maxBet} 
+          playerStack={myPlayer!.stack} 
+          onPlaceBet={placeBet} 
+          disabled={isProcessing} 
+        />
+      )}
+
+      {showActionButtons && (
+        <Lucky9ActionButtons 
+          onDraw={() => handlePlayerAction('draw')} 
+          onStand={() => handlePlayerAction('stand')} 
+          canDraw={(myPlayer?.cards.length || 0) < 3} 
+          disabled={isProcessing} 
+        />
+      )}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { Lucky9Player, Lucky9Game } from '@/types/lucky9';
 import { Lucky9PlayerSeat } from './Lucky9PlayerSeat';
 import { Lucky9Card } from './Lucky9Card';
-import { calculateLucky9Value } from '@/lib/lucky9/deck';
+import { calculateLucky9Value, isNatural9 } from '@/lib/lucky9/deck';
 import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 import { Crown } from 'lucide-react';
@@ -16,42 +16,43 @@ interface Lucky9GamblingTableProps {
 export function Lucky9GamblingTable({ players, banker, game, currentUserId }: Lucky9GamblingTableProps) {
   const nonBankerPlayers = players.filter(p => !p.isBanker);
   const showAllCards = game?.status === 'showdown' || game?.status === 'finished';
-  const showBankerCards = game?.status === 'banker_turn' || showAllCards;
   
-  // Calculate positions around an oval table
-  const getPlayerPosition = (index: number, total: number) => {
-    // Distribute players in a semi-circle at the bottom
-    const angleStart = 200; // degrees
-    const angleEnd = 340; // degrees
-    const angleRange = angleEnd - angleStart;
-    const angle = angleStart + (index / Math.max(1, total - 1)) * angleRange;
-    const radian = (angle * Math.PI) / 180;
-    
-    const radiusX = 42;
-    const radiusY = 35;
-    
-    return {
-      left: `${50 + radiusX * Math.cos(radian)}%`,
-      top: `${50 + radiusY * Math.sin(radian)}%`,
-    };
-  };
-
   const bankerCards = banker?.cards || [];
   const bankerValue = bankerCards.length > 0 ? calculateLucky9Value(bankerCards) : null;
+  const bankerIsNatural = bankerCards.length === 2 && isNatural9(bankerCards);
+  const isBankerTurn = game?.status === 'banker_turn';
+  const isCurrentUserBanker = banker?.userId === currentUserId;
+
+  // Portrait layout positions for mobile - semi-circle at bottom
+  const getPlayerPosition = (index: number, total: number) => {
+    if (total === 1) {
+      return { left: '50%', bottom: '8%' };
+    }
+    
+    // Spread players in an arc at the bottom
+    const positions = [
+      { left: '15%', bottom: '20%' },
+      { left: '50%', bottom: '5%' },
+      { left: '85%', bottom: '20%' },
+      { left: '8%', bottom: '40%' },
+      { left: '92%', bottom: '40%' },
+    ];
+    
+    return positions[index] || { left: '50%', bottom: '10%' };
+  };
 
   return (
-    <div className="relative w-full max-w-4xl mx-auto aspect-[16/10]">
-      {/* Table felt */}
-      <div className="absolute inset-0 rounded-[50%] bg-gradient-to-b from-green-800 to-green-900 border-8 border-amber-900 shadow-2xl shadow-black/50">
-        {/* Inner border */}
-        <div className="absolute inset-3 rounded-[50%] border-2 border-amber-700/50" />
-        
-        {/* Table pattern */}
-        <div className="absolute inset-6 rounded-[50%] border border-green-700/30" />
+    <div className="relative w-full aspect-[3/4] max-w-md mx-auto">
+      {/* Table felt - portrait oval */}
+      <div className="absolute inset-0 rounded-[45%] bg-gradient-to-b from-green-700 to-green-900 border-[6px] border-amber-800 shadow-2xl shadow-black/60">
+        {/* Inner decorative borders */}
+        <div className="absolute inset-2 rounded-[45%] border-2 border-amber-700/40" />
+        <div className="absolute inset-4 rounded-[45%] border border-green-600/30" />
         
         {/* Center logo */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-green-700/30 text-6xl font-bold">
-          LUCKY 9
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
+          <div className="text-green-600/25 text-3xl font-bold tracking-wider">LUCKY</div>
+          <div className="text-green-600/25 text-5xl font-bold">9</div>
         </div>
       </div>
 
@@ -59,31 +60,32 @@ export function Lucky9GamblingTable({ players, banker, game, currentUserId }: Lu
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="absolute top-2 left-1/2 -translate-x-1/2 z-10"
+        className="absolute top-[8%] left-1/2 -translate-x-1/2 z-10 w-[85%]"
       >
         {banker ? (
-          <div className={`bg-slate-900/90 backdrop-blur rounded-xl p-3 border-2 ${
-            game?.status === 'banker_turn' 
-              ? 'border-yellow-400 shadow-lg shadow-yellow-500/30' 
+          <div className={`bg-slate-900/95 backdrop-blur rounded-xl p-3 border-2 transition-all ${
+            isBankerTurn 
+              ? 'border-yellow-400 shadow-lg shadow-yellow-500/40 animate-pulse' 
               : 'border-amber-600'
           }`}>
-            <div className="flex items-center gap-2 mb-2">
-              <Crown className="h-5 w-5 text-amber-400" />
-              <span className="font-bold text-amber-400">{banker.username}</span>
-              {banker.userId === currentUserId && (
-                <Badge className="bg-purple-500 text-xs">You</Badge>
-              )}
-            </div>
-            
-            <div className="text-center mb-2">
-              <span className="text-yellow-400 font-mono">₱{banker.stack.toLocaleString()}</span>
+            {/* Banker header */}
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Crown className="h-4 w-4 text-amber-400" />
+                <span className="font-bold text-amber-400 text-sm">{banker.username}</span>
+                {isCurrentUserBanker && (
+                  <Badge className="bg-purple-500 text-[10px] px-1.5">YOU</Badge>
+                )}
+              </div>
+              <span className="text-yellow-400 font-mono text-sm">₱{banker.stack.toLocaleString()}</span>
             </div>
 
             {/* Banker Cards */}
             {bankerCards.length > 0 && (
-              <div className="flex gap-1 justify-center">
+              <div className="flex gap-1.5 justify-center mb-2">
                 {bankerCards.map((card, i) => {
-                  const shouldHide = !showAllCards && i === 1 && banker.userId !== currentUserId;
+                  // Hide second card unless showdown or if current user is banker
+                  const shouldHide = !showAllCards && i === 1 && !isCurrentUserBanker;
                   return (
                     <Lucky9Card 
                       key={i} 
@@ -97,27 +99,30 @@ export function Lucky9GamblingTable({ players, banker, game, currentUserId }: Lu
               </div>
             )}
 
-            {/* Banker value - only show to banker or at showdown */}
-            {bankerCards.length > 0 && (showAllCards || banker.userId === currentUserId) && bankerValue !== null && (
+            {/* Banker value - visible to banker or at showdown */}
+            {bankerCards.length > 0 && (showAllCards || isCurrentUserBanker) && bankerValue !== null && (
               <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="mt-2 text-center"
+                className="text-center"
               >
-                <span className={`text-lg font-bold ${bankerValue === 9 ? 'text-amber-400' : 'text-white'}`}>
-                  Value: {bankerValue}
-                </span>
+                {bankerIsNatural && (
+                  <Badge className="bg-amber-500 text-black text-[10px] mb-1">Natural 9!</Badge>
+                )}
+                <div className={`text-lg font-bold ${bankerValue === 9 ? 'text-amber-400' : 'text-white'}`}>
+                  {bankerValue}
+                </div>
               </motion.div>
             )}
 
-            {/* Banker turn indicator */}
-            {game?.status === 'banker_turn' && banker.userId === currentUserId && !banker.hasActed && (
+            {/* Turn indicator for banker */}
+            {isBankerTurn && isCurrentUserBanker && !banker.hasActed && (
               <motion.div
-                animate={{ scale: [1, 1.1, 1] }}
-                transition={{ repeat: Infinity, duration: 1.5 }}
-                className="mt-2"
+                animate={{ scale: [1, 1.05, 1] }}
+                transition={{ repeat: Infinity, duration: 1 }}
+                className="mt-1"
               >
-                <Badge className="bg-yellow-500 text-black w-full justify-center">Your Turn!</Badge>
+                <Badge className="bg-yellow-500 text-black w-full justify-center text-xs">Your Turn!</Badge>
               </motion.div>
             )}
 
@@ -128,14 +133,14 @@ export function Lucky9GamblingTable({ players, banker, game, currentUserId }: Lu
                 animate={{ opacity: 1, scale: 1 }}
                 className="mt-2 text-center"
               >
-                <Badge className={
+                <Badge className={`text-xs ${
                   banker.result === 'win' ? 'bg-green-500' : 
                   banker.result === 'lose' ? 'bg-red-500' : 'bg-slate-500'
-                }>
+                }`}>
                   {banker.result === 'win' ? '✓ Won' : banker.result === 'lose' ? '✗ Lost' : '↔ Push'}
                 </Badge>
                 {banker.winnings !== 0 && (
-                  <div className={`font-bold ${banker.winnings > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  <div className={`text-sm font-bold ${banker.winnings > 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {banker.winnings > 0 ? '+' : ''}₱{banker.winnings.toLocaleString()}
                   </div>
                 )}
@@ -143,16 +148,16 @@ export function Lucky9GamblingTable({ players, banker, game, currentUserId }: Lu
             )}
           </div>
         ) : (
-          <div className="bg-slate-900/50 backdrop-blur rounded-xl p-4 border-2 border-dashed border-amber-500/50">
-            <div className="flex items-center gap-2 text-amber-400/70">
-              <Crown className="h-5 w-5" />
-              <span>Waiting for Banker...</span>
+          <div className="bg-slate-900/50 backdrop-blur rounded-xl p-4 border-2 border-dashed border-amber-500/50 text-center">
+            <div className="flex items-center justify-center gap-2 text-amber-400/70">
+              <Crown className="h-4 w-4" />
+              <span className="text-sm">Waiting for Banker...</span>
             </div>
           </div>
         )}
       </motion.div>
 
-      {/* Player Positions */}
+      {/* Player Positions - around bottom arc */}
       {nonBankerPlayers.map((player, index) => {
         const position = getPlayerPosition(index, nonBankerPlayers.length);
         const isCurrentTurn = game?.status === 'player_turns' && game.currentPlayerPosition === player.position;
@@ -164,8 +169,8 @@ export function Lucky9GamblingTable({ players, banker, game, currentUserId }: Lu
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: index * 0.1 }}
-            className="absolute -translate-x-1/2 -translate-y-1/2 z-10"
-            style={{ left: position.left, top: position.top }}
+            className="absolute -translate-x-1/2 translate-y-1/2 z-10"
+            style={{ left: position.left, bottom: position.bottom }}
           >
             <Lucky9PlayerSeat
               player={player}
@@ -178,10 +183,10 @@ export function Lucky9GamblingTable({ players, banker, game, currentUserId }: Lu
         );
       })}
 
-      {/* Empty seats */}
+      {/* Empty state */}
       {nonBankerPlayers.length === 0 && (
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-green-600/50 text-lg">
-          Waiting for players to join...
+        <div className="absolute bottom-1/4 left-1/2 -translate-x-1/2 text-green-500/40 text-sm text-center">
+          Waiting for<br />players to join...
         </div>
       )}
     </div>

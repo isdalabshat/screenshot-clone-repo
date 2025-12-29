@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
+import { Hand, Square } from 'lucide-react';
 
 interface Lucky9ActionButtonsProps {
   onDraw: () => void;
@@ -11,24 +12,33 @@ interface Lucky9ActionButtonsProps {
 export function Lucky9ActionButtons({ onDraw, onStand, canDraw, disabled }: Lucky9ActionButtonsProps) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 50 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex gap-4 justify-center"
+      className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-slate-900 via-slate-900/98 to-transparent backdrop-blur-xl p-4 z-30"
     >
-      <Button
-        onClick={onDraw}
-        disabled={disabled || !canDraw}
-        className="bg-blue-600 hover:bg-blue-700 px-8 py-6 text-lg"
-      >
-        🎴 Draw Card
-      </Button>
-      <Button
-        onClick={onStand}
-        disabled={disabled}
-        className="bg-orange-600 hover:bg-orange-700 px-8 py-6 text-lg"
-      >
-        ✋ Stand
-      </Button>
+      <div className="flex gap-3 max-w-md mx-auto">
+        <Button
+          onClick={onDraw}
+          disabled={disabled || !canDraw}
+          className="flex-1 h-16 text-lg font-bold bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 rounded-xl shadow-lg shadow-blue-500/30 disabled:opacity-50"
+        >
+          <Hand className="h-6 w-6 mr-2" />
+          Draw
+        </Button>
+        
+        <Button
+          onClick={onStand}
+          disabled={disabled}
+          className="flex-1 h-16 text-lg font-bold bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 rounded-xl shadow-lg shadow-amber-500/30"
+        >
+          <Square className="h-6 w-6 mr-2" />
+          Stand
+        </Button>
+      </div>
+      
+      {!canDraw && (
+        <p className="text-center text-xs text-slate-400 mt-2">Maximum 3 cards reached</p>
+      )}
     </motion.div>
   );
 }
