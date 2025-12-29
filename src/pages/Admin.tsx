@@ -17,6 +17,7 @@ import { motion } from 'framer-motion';
 interface UserProfile { id: string; userId: string; username: string; chips: number; }
 interface PokerTableData { id: string; name: string; smallBlind: number; bigBlind: number; handsPlayed: number; maxHands: number; isActive: boolean; }
 interface CashRequest { id: string; userId: string; username: string; requestType: string; amount: number; status: string; createdAt: string; proofImageUrl?: string; }
+interface Lucky9TableData { id: string; name: string; minBet: number; maxBet: number; maxPlayers: number; isActive: boolean; }
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -24,10 +25,12 @@ export default function Admin() {
   const { toast } = useToast();
   
   const [tables, setTables] = useState<PokerTableData[]>([]);
+  const [lucky9Tables, setLucky9Tables] = useState<Lucky9TableData[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [cashRequests, setCashRequests] = useState<CashRequest[]>([]);
   const [totalFees, setTotalFees] = useState(0);
   const [newTable, setNewTable] = useState({ name: '', smallBlind: 10, bigBlind: 20, maxHands: 50 });
+  const [newLucky9Table, setNewLucky9Table] = useState({ name: '', minBet: 10, maxBet: 1000 });
   const [editingTable, setEditingTable] = useState<PokerTableData | null>(null);
   const [chipAdjustment, setChipAdjustment] = useState<{ userId: string; amount: number } | null>(null);
 
@@ -36,8 +39,28 @@ export default function Admin() {
   }, [profile, isLoading, navigate]);
 
   useEffect(() => {
-    if (profile?.isAdmin) { fetchTables(); fetchUsers(); fetchCashRequests(); fetchTotalFees(); }
+    if (profile?.isAdmin) { fetchTables(); fetchLucky9Tables(); fetchUsers(); fetchCashRequests(); fetchTotalFees(); }
   }, [profile?.isAdmin]);
+
+  const fetchLucky9Tables = async () => {
+    const { data } = await supabase.from('lucky9_tables').select('*').order('created_at', { ascending: false });
+    if (data) setLucky9Tables(data.map(t => ({ id: t.id, name: t.name, minBet: t.min_bet, maxBet: t.max_bet, maxPlayers: t.max_players, isActive: t.is_active })));
+  };
+
+  const createLucky9Table = async () => {
+    if (!newLucky9Table.name.trim()) { toast({ title: 'Error', description: 'Table name required', variant: 'destructive' }); return; }
+    const { error } = await supabase.from('lucky9_tables').insert({ name: newLucky9Table.name, min_bet: newLucky9Table.minBet, max_bet: newLucky9Table.maxBet });
+    if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    else { toast({ title: 'Success', description: 'Lucky 9 table created!' }); setNewLucky9Table({ name: '', minBet: 10, maxBet: 1000 }); fetchLucky9Tables(); }
+  };
+
+  const deleteLucky9Table = async (tableId: string) => {
+    await supabase.from('lucky9_players').delete().eq('table_id', tableId);
+    await supabase.from('lucky9_games').delete().eq('table_id', tableId);
+    const { error } = await supabase.from('lucky9_tables').delete().eq('id', tableId);
+    if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    else { toast({ title: 'Success', description: 'Lucky 9 table deleted!' }); fetchLucky9Tables(); }
+  };
 
   const fetchTables = async () => {
     const { data } = await supabase.from('poker_tables').select('*').order('created_at', { ascending: false });
@@ -131,7 +154,7 @@ export default function Admin() {
 
       <main className="container mx-auto px-4 py-8">
         <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4"><TabsTrigger value="dashboard">Dashboard</TabsTrigger><TabsTrigger value="tables">Tables</TabsTrigger><TabsTrigger value="users">Users</TabsTrigger><TabsTrigger value="requests">Cash Requests</TabsTrigger></TabsList>
+          <TabsList className="grid w-full grid-cols-5"><TabsTrigger value="dashboard">Dashboard</TabsTrigger><TabsTrigger value="tables">Poker</TabsTrigger><TabsTrigger value="lucky9">Lucky 9</TabsTrigger><TabsTrigger value="users">Users</TabsTrigger><TabsTrigger value="requests">Cash Requests</TabsTrigger></TabsList>
 
           <TabsContent value="dashboard">
             <div className="grid gap-6 md:grid-cols-3">
@@ -149,6 +172,18 @@ export default function Admin() {
               </CardHeader>
               <CardContent>
                 <Table><TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Blinds</TableHead><TableHead>Hands</TableHead><TableHead>Status</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader><TableBody>{tables.map((table) => (<TableRow key={table.id}><TableCell>{table.name}</TableCell><TableCell>{table.smallBlind}/{table.bigBlind}</TableCell><TableCell>{table.handsPlayed}/{table.maxHands}</TableCell><TableCell><span className={table.isActive ? 'text-green-400' : 'text-red-400'}>{table.isActive ? 'Active' : 'Inactive'}</span></TableCell><TableCell><div className="flex gap-1"><Button variant="ghost" size="sm" onClick={() => resetTableHands(table.id)}>🔄</Button><Button variant="ghost" size="sm" className="text-red-400" onClick={() => deleteTable(table.id)}><Trash2 className="h-4 w-4" /></Button></div></TableCell></TableRow>))}</TableBody></Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="lucky9">
+            <Card className="border-purple-700/30">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div><CardTitle className="text-purple-400">Lucky 9 Tables</CardTitle><CardDescription>Create and manage Lucky 9 tables</CardDescription></div>
+                <Dialog><DialogTrigger asChild><Button className="bg-purple-600 hover:bg-purple-700"><Plus className="h-4 w-4 mr-2" />New Lucky 9 Table</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>Create Lucky 9 Table</DialogTitle></DialogHeader><div className="space-y-4"><div><Label>Name</Label><Input value={newLucky9Table.name} onChange={(e) => setNewLucky9Table({ ...newLucky9Table, name: e.target.value })} /></div><div className="grid grid-cols-2 gap-4"><div><Label>Min Bet</Label><Input type="number" value={newLucky9Table.minBet} onChange={(e) => setNewLucky9Table({ ...newLucky9Table, minBet: parseInt(e.target.value) || 10 })} /></div><div><Label>Max Bet</Label><Input type="number" value={newLucky9Table.maxBet} onChange={(e) => setNewLucky9Table({ ...newLucky9Table, maxBet: parseInt(e.target.value) || 1000 })} /></div></div><Button onClick={createLucky9Table} className="w-full bg-purple-600 hover:bg-purple-700">Create</Button></div></DialogContent></Dialog>
+              </CardHeader>
+              <CardContent>
+                <Table><TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Bet Range</TableHead><TableHead>Max Players</TableHead><TableHead>Status</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader><TableBody>{lucky9Tables.map((table) => (<TableRow key={table.id}><TableCell>{table.name}</TableCell><TableCell>₱{table.minBet} - ₱{table.maxBet}</TableCell><TableCell>{table.maxPlayers}</TableCell><TableCell><span className={table.isActive ? 'text-green-400' : 'text-red-400'}>{table.isActive ? 'Active' : 'Inactive'}</span></TableCell><TableCell><Button variant="ghost" size="sm" className="text-red-400" onClick={() => deleteLucky9Table(table.id)}><Trash2 className="h-4 w-4" /></Button></TableCell></TableRow>))}</TableBody></Table>
               </CardContent>
             </Card>
           </TabsContent>

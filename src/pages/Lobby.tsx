@@ -335,7 +335,16 @@ export default function Lobby() {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <h2 className="text-3xl font-bold mb-2">Game Lobby</h2>
+          <div className="flex items-center gap-4 mb-2">
+            <h2 className="text-3xl font-bold">Texas Hold'em</h2>
+            <Button
+              variant="outline"
+              onClick={() => navigate('/lucky9')}
+              className="border-purple-500/50 text-purple-400 hover:bg-purple-500/10"
+            >
+              🎴 Play Lucky 9
+            </Button>
+          </div>
           <p className="text-muted-foreground">Choose a table to join and start playing!</p>
         </motion.div>
 
