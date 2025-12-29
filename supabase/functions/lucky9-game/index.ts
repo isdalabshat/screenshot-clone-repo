@@ -586,6 +586,141 @@ serve(async (req) => {
         });
       }
 
+      case 'banker_leave': {
+        // When banker leaves mid-game, all players win their bets
+        const { gameId } = body;
+        console.log('Banker leaving game:', gameId);
+
+        if (gameId) {
+          // Get active game
+          const { data: game } = await supabase
+            .from('lucky9_games')
+            .select('*')
+            .eq('id', gameId)
+            .single();
+
+          if (game && game.status !== 'finished') {
+            // Get all players with bets
+            const { data: players } = await supabase
+              .from('lucky9_players')
+              .select('*')
+              .eq('game_id', gameId)
+              .eq('is_active', true)
+              .eq('is_banker', false);
+
+            // All players win - return their bet + winnings (2x bet)
+            for (const player of players || []) {
+              if (player.current_bet > 0) {
+                const winnings = player.current_bet * 2;
+                await supabase
+                  .from('lucky9_players')
+                  .update({ 
+                    result: 'win',
+                    winnings,
+                    stack: player.stack + winnings
+                  })
+                  .eq('id', player.id);
+              }
+            }
+
+            // Mark game as finished
+            await supabase
+              .from('lucky9_games')
+              .update({ status: 'finished' })
+              .eq('id', gameId);
+          }
+        }
+
+        // Delete the banker
+        await supabase
+          .from('lucky9_players')
+          .delete()
+          .eq('id', playerId);
+
+        return new Response(JSON.stringify({ success: true, bankerLeft: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      case 'player_leave': {
+        // When a player leaves mid-game, banker wins their bet
+        const { gameId } = body;
+        console.log('Player leaving game:', gameId);
+
+        // Get the player
+        const { data: player } = await supabase
+          .from('lucky9_players')
+          .select('*')
+          .eq('id', playerId)
+          .single();
+
+        if (player && gameId && player.current_bet > 0) {
+          // Get the game
+          const { data: game } = await supabase
+            .from('lucky9_games')
+            .select('*')
+            .eq('id', gameId)
+            .single();
+
+          if (game && game.status !== 'finished' && game.banker_id) {
+            // Get the banker
+            const { data: banker } = await supabase
+              .from('lucky9_players')
+              .select('*')
+              .eq('id', game.banker_id)
+              .single();
+
+            if (banker) {
+              // Banker wins the player's bet
+              await supabase
+                .from('lucky9_players')
+                .update({ 
+                  stack: banker.stack + player.current_bet
+                })
+                .eq('id', banker.id);
+            }
+          }
+
+          // Check if this was the current player's turn - advance to next
+          if (game?.current_player_position === player.position && game?.status === 'player_turns') {
+            // Get remaining players
+            const { data: remainingPlayers } = await supabase
+              .from('lucky9_players')
+              .select('*')
+              .eq('game_id', gameId)
+              .eq('is_active', true)
+              .eq('is_banker', false)
+              .neq('id', playerId)
+              .order('position');
+
+            const nextPlayer = remainingPlayers?.find(p => p.position > player.position && !p.has_acted);
+            
+            if (nextPlayer) {
+              await supabase
+                .from('lucky9_games')
+                .update({ current_player_position: nextPlayer.position })
+                .eq('id', gameId);
+            } else {
+              // No more players, move to banker turn
+              await supabase
+                .from('lucky9_games')
+                .update({ status: 'banker_turn', current_player_position: null })
+                .eq('id', gameId);
+            }
+          }
+        }
+
+        // Delete the player
+        await supabase
+          .from('lucky9_players')
+          .delete()
+          .eq('id', playerId);
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
       default:
         return new Response(JSON.stringify({ error: 'Unknown action' }), {
           status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }

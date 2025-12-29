@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Crown, Clock, Users } from 'lucide-react';
+import { Crown, Clock, Users, UserX } from 'lucide-react';
 
 interface Lucky9GameStatusProps {
   status: string;
@@ -13,6 +13,10 @@ export function Lucky9GameStatus({ status, currentPlayerName, bankerName, messag
     if (message) return message;
     
     switch (status) {
+      case 'waiting_banker':
+        return 'Waiting for a banker...';
+      case 'waiting':
+        return 'Waiting to start...';
       case 'betting':
         return 'Place your bets!';
       case 'dealing':
@@ -34,6 +38,8 @@ export function Lucky9GameStatus({ status, currentPlayerName, bankerName, messag
 
   const getIcon = () => {
     switch (status) {
+      case 'waiting_banker':
+        return <UserX className="h-4 w-4 text-amber-400 animate-pulse" />;
       case 'betting':
         return <Clock className="h-4 w-4 text-yellow-400" />;
       case 'banker_turn':
