@@ -14,6 +14,7 @@ export default function Lucky9Lobby() {
   const { user, profile, signOut, isLoading } = useAuth();
   const [tables, setTables] = useState<Lucky9Table[]>([]);
   const [playerCounts, setPlayerCounts] = useState<Record<string, number>>({});
+  const [bankerStatus, setBankerStatus] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -49,7 +50,8 @@ export default function Lucky9Lobby() {
         minBet: t.min_bet,
         maxBet: t.max_bet,
         maxPlayers: t.max_players,
-        isActive: t.is_active
+        isActive: t.is_active,
+        betTimerSeconds: t.bet_timer_seconds
       })));
       fetchPlayerCounts();
     }
@@ -58,15 +60,20 @@ export default function Lucky9Lobby() {
   const fetchPlayerCounts = async () => {
     const { data } = await supabase
       .from('lucky9_players')
-      .select('table_id')
+      .select('table_id, is_banker')
       .eq('is_active', true);
 
     if (data) {
       const counts: Record<string, number> = {};
+      const bankers: Record<string, boolean> = {};
       data.forEach(p => {
         counts[p.table_id] = (counts[p.table_id] || 0) + 1;
+        if (p.is_banker) {
+          bankers[p.table_id] = true;
+        }
       });
       setPlayerCounts(counts);
+      setBankerStatus(bankers);
     }
   };
 
@@ -99,7 +106,7 @@ export default function Lucky9Lobby() {
             <span className="text-4xl">🎴</span>
             <div>
               <h1 className="text-2xl font-bold text-purple-400">Lucky 9</h1>
-              <p className="text-xs text-muted-foreground">Beat the Dealer!</p>
+              <p className="text-xs text-muted-foreground">Beat the Banker!</p>
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
@@ -159,10 +166,21 @@ export default function Lucky9Lobby() {
                         Bet: ₱{table.minBet} - ₱{table.maxBet}
                       </CardDescription>
                     </div>
-                    <Badge variant="secondary" className="bg-purple-500/20 text-purple-400">
-                      <Users className="h-3 w-3 mr-1" />
-                      {playerCounts[table.id] || 0}/{table.maxPlayers}
-                    </Badge>
+                    <div className="flex flex-col gap-1 items-end">
+                      <Badge variant="secondary" className="bg-purple-500/20 text-purple-400">
+                        <Users className="h-3 w-3 mr-1" />
+                        {playerCounts[table.id] || 0}/{table.maxPlayers}
+                      </Badge>
+                      {bankerStatus[table.id] ? (
+                        <Badge variant="outline" className="border-green-500/50 text-green-400 text-xs">
+                          Has Banker
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="border-amber-500/50 text-amber-400 text-xs">
+                          Needs Banker
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -170,6 +188,7 @@ export default function Lucky9Lobby() {
                     <div className="text-sm text-muted-foreground">
                       <p>🎴 40-card deck (No J, Q, K)</p>
                       <p>🎯 Natural 9 pays 2:1</p>
+                      <p>⏱️ {table.betTimerSeconds}s betting timer</p>
                     </div>
                     <Button 
                       className="w-full bg-purple-600 hover:bg-purple-700 transition-all hover:scale-[1.02] active:scale-[0.98]"

@@ -9,16 +9,17 @@ interface Lucky9PlayerSeatProps {
   isCurrentTurn: boolean;
   showCards: boolean;
   gameStatus: string;
+  isMe?: boolean;
 }
 
-export function Lucky9PlayerSeat({ player, isCurrentTurn, showCards, gameStatus }: Lucky9PlayerSeatProps) {
+export function Lucky9PlayerSeat({ player, isCurrentTurn, showCards, gameStatus, isMe }: Lucky9PlayerSeatProps) {
   const handValue = player.cards.length > 0 ? calculateLucky9Value(player.cards) : null;
   
   const getResultBadge = () => {
     if (!player.result) return null;
     
     const variants: Record<string, { bg: string; text: string }> = {
-      'natural_win': { bg: 'bg-amber-500', text: '🎉 Natural 9 Win!' },
+      'natural_win': { bg: 'bg-amber-500', text: '🎉 Natural 9!' },
       'win': { bg: 'bg-green-500', text: '✓ Win' },
       'lose': { bg: 'bg-red-500', text: '✗ Lose' },
       'push': { bg: 'bg-slate-500', text: '↔ Push' }
@@ -32,20 +33,21 @@ export function Lucky9PlayerSeat({ player, isCurrentTurn, showCards, gameStatus 
     <motion.div
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
-      className={`relative p-3 rounded-xl border-2 transition-all duration-300 ${
+      className={`relative p-3 rounded-xl border-2 transition-all duration-300 min-w-[140px] ${
         isCurrentTurn 
           ? 'border-yellow-400 bg-yellow-500/20 shadow-lg shadow-yellow-500/30' 
-          : 'border-slate-600/50 bg-slate-800/50'
+          : 'border-slate-600/50 bg-slate-800/90'
       }`}
     >
       {/* Player Info */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-bold text-white truncate max-w-[100px]">
+      <div className="flex items-center justify-between mb-2 gap-2">
+        <div className="flex items-center gap-1">
+          <span className="text-sm font-bold text-white truncate max-w-[80px]">
             {player.username}
           </span>
-          {player.isNatural && (
-            <Badge className="bg-amber-500 text-xs">Natural 9!</Badge>
+          {isMe && <Badge className="bg-purple-500 text-xs">You</Badge>}
+          {player.isNatural && showCards && (
+            <Badge className="bg-amber-500 text-xs">9!</Badge>
           )}
         </div>
         <div className="text-yellow-400 font-mono text-sm">
@@ -62,9 +64,15 @@ export function Lucky9PlayerSeat({ player, isCurrentTurn, showCards, gameStatus 
       )}
 
       {/* Cards */}
-      <div className="flex gap-1 justify-center min-h-[60px]">
+      <div className="flex gap-1 justify-center min-h-[50px]">
         {player.cards.map((card, i) => (
-          <Lucky9Card key={i} card={card} delay={i * 0.1} small />
+          <Lucky9Card 
+            key={i} 
+            card={showCards ? card : ''} 
+            hidden={!showCards}
+            delay={i * 0.1} 
+            small 
+          />
         ))}
       </div>
 
@@ -98,7 +106,7 @@ export function Lucky9PlayerSeat({ player, isCurrentTurn, showCards, gameStatus 
       )}
 
       {/* Turn Indicator */}
-      {isCurrentTurn && gameStatus === 'player_turns' && (
+      {isCurrentTurn && gameStatus === 'player_turns' && isMe && (
         <motion.div
           animate={{ scale: [1, 1.1, 1] }}
           transition={{ repeat: Infinity, duration: 1.5 }}

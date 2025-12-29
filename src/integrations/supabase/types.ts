@@ -223,6 +223,8 @@ export type Database = {
       }
       lucky9_games: {
         Row: {
+          banker_id: string | null
+          betting_ends_at: string | null
           created_at: string
           current_player_position: number | null
           dealer_cards: string[] | null
@@ -233,6 +235,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          banker_id?: string | null
+          betting_ends_at?: string | null
           created_at?: string
           current_player_position?: number | null
           dealer_cards?: string[] | null
@@ -243,6 +247,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          banker_id?: string | null
+          betting_ends_at?: string | null
           created_at?: string
           current_player_position?: number | null
           dealer_cards?: string[] | null
@@ -253,6 +259,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "lucky9_games_banker_id_fkey"
+            columns: ["banker_id"]
+            isOneToOne: false
+            referencedRelation: "lucky9_players"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "lucky9_games_table_id_fkey"
             columns: ["table_id"]
@@ -271,6 +284,7 @@ export type Database = {
           has_stood: boolean
           id: string
           is_active: boolean
+          is_banker: boolean
           is_natural: boolean
           joined_at: string
           position: number
@@ -289,6 +303,7 @@ export type Database = {
           has_stood?: boolean
           id?: string
           is_active?: boolean
+          is_banker?: boolean
           is_natural?: boolean
           joined_at?: string
           position: number
@@ -307,6 +322,7 @@ export type Database = {
           has_stood?: boolean
           id?: string
           is_active?: boolean
+          is_banker?: boolean
           is_natural?: boolean
           joined_at?: string
           position?: number
@@ -336,6 +352,7 @@ export type Database = {
       }
       lucky9_tables: {
         Row: {
+          bet_timer_seconds: number
           created_at: string
           id: string
           is_active: boolean
@@ -345,6 +362,7 @@ export type Database = {
           name: string
         }
         Insert: {
+          bet_timer_seconds?: number
           created_at?: string
           id?: string
           is_active?: boolean
@@ -354,6 +372,7 @@ export type Database = {
           name: string
         }
         Update: {
+          bet_timer_seconds?: number
           created_at?: string
           id?: string
           is_active?: boolean

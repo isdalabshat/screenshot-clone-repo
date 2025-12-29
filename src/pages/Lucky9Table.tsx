@@ -5,13 +5,13 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Coins } from 'lucide-react';
-import { motion } from 'framer-motion';
 import { Lucky9Table, Lucky9Game, Lucky9Player } from '@/types/lucky9';
-import { Lucky9PlayerSeat } from '@/components/lucky9/Lucky9PlayerSeat';
-import { Lucky9Dealer } from '@/components/lucky9/Lucky9Dealer';
 import { Lucky9BetPanel } from '@/components/lucky9/Lucky9BetPanel';
 import { Lucky9ActionButtons } from '@/components/lucky9/Lucky9ActionButtons';
 import { Lucky9GameStatus } from '@/components/lucky9/Lucky9GameStatus';
+import { Lucky9RoleDialog } from '@/components/lucky9/Lucky9RoleDialog';
+import { Lucky9BettingTimer } from '@/components/lucky9/Lucky9BettingTimer';
+import { Lucky9GamblingTable } from '@/components/lucky9/Lucky9GamblingTable';
 
 export default function Lucky9TablePage() {
   const { tableId } = useParams<{ tableId: string }>();
@@ -25,10 +25,11 @@ export default function Lucky9TablePage() {
   const [myPlayer, setMyPlayer] = useState<Lucky9Player | null>(null);
   const [remainingDeck, setRemainingDeck] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showRoleDialog, setShowRoleDialog] = useState(false);
+  const [hasBanker, setHasBanker] = useState(false);
 
   const hasJoined = useRef(false);
 
-  // Fetch table data
   const fetchTable = useCallback(async () => {
     if (!tableId) return;
     const { data } = await supabase
@@ -44,19 +45,19 @@ export default function Lucky9TablePage() {
         minBet: data.min_bet,
         maxBet: data.max_bet,
         maxPlayers: data.max_players,
-        isActive: data.is_active
+        isActive: data.is_active,
+        betTimerSeconds: data.bet_timer_seconds
       });
     }
   }, [tableId]);
 
-  // Fetch current game
   const fetchGame = useCallback(async () => {
     if (!tableId) return;
     const { data } = await supabase
       .from('lucky9_games')
       .select('*')
       .eq('table_id', tableId)
-      .in('status', ['betting', 'dealing', 'player_turns', 'dealer_turn', 'showdown'])
+      .in('status', ['betting', 'dealing', 'player_turns', 'banker_turn', 'showdown'])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -66,16 +67,17 @@ export default function Lucky9TablePage() {
         id: data.id,
         tableId: data.table_id,
         status: data.status as Lucky9Game['status'],
-        dealerCards: data.dealer_cards || [],
-        dealerHiddenCard: data.dealer_hidden_card,
-        currentPlayerPosition: data.current_player_position
+        bankerCards: data.dealer_cards || [],
+        bankerHiddenCard: data.dealer_hidden_card,
+        currentPlayerPosition: data.current_player_position,
+        bettingEndsAt: data.betting_ends_at,
+        bankerId: data.banker_id
       });
     } else {
       setGame(null);
     }
   }, [tableId]);
 
-  // Fetch players
   const fetchPlayers = useCallback(async () => {
     if (!tableId) return;
     const { data } = await supabase
@@ -101,9 +103,11 @@ export default function Lucky9TablePage() {
         isNatural: p.is_natural,
         result: p.result as Lucky9Player['result'],
         winnings: p.winnings,
-        isActive: p.is_active
+        isActive: p.is_active,
+        isBanker: p.is_banker
       }));
       setPlayers(mapped);
+      setHasBanker(mapped.some(p => p.isBanker));
       
       if (user) {
         const me = mapped.find(p => p.userId === user.id);
@@ -112,12 +116,9 @@ export default function Lucky9TablePage() {
     }
   }, [tableId, user]);
 
-  // Join table
-  const joinTable = useCallback(async () => {
-    if (!user || !profile || !tableId || hasJoined.current) return;
-    hasJoined.current = true;
-
-    // Check if already at table
+  const checkExistingPlayer = useCallback(async () => {
+    if (!user || !tableId) return false;
+    
     const { data: existing } = await supabase
       .from('lucky9_players')
       .select('*')
@@ -142,48 +143,35 @@ export default function Lucky9TablePage() {
         isNatural: existing.is_natural,
         result: existing.result as Lucky9Player['result'],
         winnings: existing.winnings,
-        isActive: existing.is_active
+        isActive: existing.is_active,
+        isBanker: existing.is_banker
       });
-      return;
+      return true;
     }
+    return false;
+  }, [user, tableId]);
 
-    // Find next available position
-    const { data: currentPlayers } = await supabase
-      .from('lucky9_players')
-      .select('position')
-      .eq('table_id', tableId)
-      .eq('is_active', true);
+  const joinTable = async (role: 'banker' | 'player') => {
+    if (!user || !tableId) return;
+    setIsProcessing(true);
+    setShowRoleDialog(false);
 
-    const usedPositions = new Set(currentPlayers?.map(p => p.position) || []);
-    let position = 1;
-    while (usedPositions.has(position)) position++;
+    const { data, error } = await supabase.functions.invoke('lucky9-game', {
+      body: { action: 'join_table', tableId, userId: user.id, role }
+    });
 
-    // Join with chips from profile
-    const { data: newPlayer, error } = await supabase
-      .from('lucky9_players')
-      .insert({
-        table_id: tableId,
-        user_id: user.id,
-        username: profile.username,
-        position,
-        stack: profile.chips
-      })
-      .select()
-      .single();
-
-    if (error) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
-      hasJoined.current = false;
-    } else if (newPlayer) {
-      toast({ title: 'Joined!', description: `You joined the table at position ${position}` });
+    if (error || data?.error) {
+      toast({ title: 'Error', description: data?.error || error?.message, variant: 'destructive' });
+    } else {
+      toast({ title: 'Joined!', description: `You joined as ${role}` });
+      fetchPlayers();
     }
-  }, [user, profile, tableId, toast]);
+    setIsProcessing(false);
+  };
 
-  // Leave table
   const leaveTable = async () => {
     if (!myPlayer) return;
 
-    // Return chips to profile
     if (profile && myPlayer.stack > 0) {
       await supabase
         .from('profiles')
@@ -191,15 +179,10 @@ export default function Lucky9TablePage() {
         .eq('user_id', user?.id);
     }
 
-    await supabase
-      .from('lucky9_players')
-      .delete()
-      .eq('id', myPlayer.id);
-
+    await supabase.from('lucky9_players').delete().eq('id', myPlayer.id);
     navigate('/lucky9');
   };
 
-  // Place bet
   const placeBet = async (amount: number) => {
     if (!myPlayer) return;
     setIsProcessing(true);
@@ -214,13 +197,26 @@ export default function Lucky9TablePage() {
     setIsProcessing(false);
   };
 
-  // Start round (any player can start when all have bet)
-  const startRound = async () => {
+  const startBetting = async () => {
     if (!tableId) return;
     setIsProcessing(true);
 
+    const { error } = await supabase.functions.invoke('lucky9-game', {
+      body: { action: 'start_betting', tableId }
+    });
+
+    if (error) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    }
+    setIsProcessing(false);
+  };
+
+  const startRound = async () => {
+    if (!game) return;
+    setIsProcessing(true);
+
     const { data, error } = await supabase.functions.invoke('lucky9-game', {
-      body: { action: 'start_round', tableId }
+      body: { action: 'start_round', tableId, gameId: game.id }
     });
 
     if (error) {
@@ -231,19 +227,13 @@ export default function Lucky9TablePage() {
     setIsProcessing(false);
   };
 
-  // Player action (draw/stand)
   const handlePlayerAction = async (playerAction: 'draw' | 'stand') => {
     if (!myPlayer || !game) return;
     setIsProcessing(true);
 
+    const action = myPlayer.isBanker ? 'banker_action' : 'player_action';
     const { data, error } = await supabase.functions.invoke('lucky9-game', {
-      body: { 
-        action: 'player_action', 
-        playerId: myPlayer.id, 
-        gameId: game.id,
-        playerAction,
-        remainingDeck 
-      }
+      body: { action, playerId: myPlayer.id, gameId: game.id, playerAction, remainingDeck }
     });
 
     if (error) {
@@ -254,31 +244,11 @@ export default function Lucky9TablePage() {
     setIsProcessing(false);
   };
 
-  // Dealer plays
-  const dealerPlay = useCallback(async () => {
-    if (!game) return;
-    setIsProcessing(true);
-
-    const { error } = await supabase.functions.invoke('lucky9-game', {
-      body: { action: 'dealer_play', gameId: game.id, remainingDeck }
-    });
-
-    if (error) {
-      console.error('Dealer play error:', error);
-    }
-    setIsProcessing(false);
-  }, [game, remainingDeck]);
-
-  // Reset round
   const resetRound = async () => {
     if (!tableId) return;
-    
-    await supabase.functions.invoke('lucky9-game', {
-      body: { action: 'reset_round', tableId }
-    });
+    await supabase.functions.invoke('lucky9-game', { body: { action: 'reset_round', tableId } });
   };
 
-  // Effects
   useEffect(() => {
     fetchTable();
     fetchGame();
@@ -286,35 +256,31 @@ export default function Lucky9TablePage() {
   }, [fetchTable, fetchGame, fetchPlayers]);
 
   useEffect(() => {
-    if (user && profile && tableId) {
-      joinTable();
-    }
-  }, [user, profile, tableId, joinTable]);
+    const initPlayer = async () => {
+      if (user && tableId && !hasJoined.current) {
+        hasJoined.current = true;
+        const exists = await checkExistingPlayer();
+        if (!exists) {
+          const { data } = await supabase.from('lucky9_players').select('is_banker').eq('table_id', tableId).eq('is_active', true);
+          setHasBanker(data?.some(p => p.is_banker) || false);
+          setShowRoleDialog(true);
+        }
+      }
+    };
+    initPlayer();
+  }, [user, tableId, checkExistingPlayer]);
 
-  // Realtime subscriptions
   useEffect(() => {
     if (!tableId) return;
-
     const channel = supabase
       .channel(`lucky9-${tableId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'lucky9_games', filter: `table_id=eq.${tableId}` }, fetchGame)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'lucky9_players', filter: `table_id=eq.${tableId}` }, fetchPlayers)
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [tableId, fetchGame, fetchPlayers]);
 
-  // Auto dealer play when it's dealer's turn
-  useEffect(() => {
-    if (game?.status === 'dealer_turn' && !isProcessing) {
-      const timeout = setTimeout(dealerPlay, 1500);
-      return () => clearTimeout(timeout);
-    }
-  }, [game?.status, dealerPlay, isProcessing]);
-
-  // Auto reset after finished
   useEffect(() => {
     if (game?.status === 'finished') {
       const timeout = setTimeout(resetRound, 5000);
@@ -322,43 +288,30 @@ export default function Lucky9TablePage() {
     }
   }, [game?.status, tableId]);
 
-  const isMyTurn = game?.status === 'player_turns' && 
-    myPlayer && 
-    game.currentPlayerPosition === myPlayer.position &&
-    !myPlayer.hasActed;
-
-  const allPlayersHaveBet = players.length > 0 && players.every(p => p.currentBet > 0);
-  const canStartRound = !game && allPlayersHaveBet && players.length >= 1;
-  const showDealerCards = game && game.dealerCards.length > 0;
-  const showAllDealerCards = game?.status === 'showdown' || game?.status === 'finished';
-
-  const currentPlayer = game?.currentPlayerPosition 
-    ? players.find(p => p.position === game.currentPlayerPosition)
-    : null;
+  const banker = players.find(p => p.isBanker);
+  const nonBankerPlayers = players.filter(p => !p.isBanker);
+  const isMyTurn = game?.status === 'player_turns' && myPlayer && !myPlayer.isBanker && game.currentPlayerPosition === myPlayer.position && !myPlayer.hasActed;
+  const isBankerTurn = game?.status === 'banker_turn' && myPlayer?.isBanker && !myPlayer.hasActed;
+  const allPlayersHaveBet = nonBankerPlayers.length > 0 && nonBankerPlayers.every(p => p.currentBet > 0);
+  const canStartBetting = !game && myPlayer?.isBanker && nonBankerPlayers.length >= 1;
+  const canDealCards = game?.status === 'betting' && myPlayer?.isBanker && allPlayersHaveBet;
 
   if (!table) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-pulse text-xl">Loading table...</div>
-      </div>
-    );
+    return <div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-pulse text-xl">Loading table...</div></div>;
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-slate-900 to-purple-950">
-      {/* Header */}
-      <header className="border-b border-purple-500/30 bg-slate-900/80 backdrop-blur sticky top-0 z-10">
+    <div className="min-h-screen bg-gradient-to-br from-green-950 via-slate-900 to-green-950">
+      <Lucky9RoleDialog open={showRoleDialog} hasBanker={hasBanker} onSelectRole={joinTable} onCancel={() => navigate('/lucky9')} />
+
+      <header className="border-b border-green-500/30 bg-slate-900/80 backdrop-blur sticky top-0 z-20">
         <div className="container mx-auto px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={leaveTable}>
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
+            <Button variant="ghost" size="icon" onClick={leaveTable}><ArrowLeft className="h-5 w-5" /></Button>
             <span className="text-2xl">🎴</span>
             <div>
-              <h1 className="text-xl font-bold text-purple-400">{table.name}</h1>
-              <p className="text-xs text-muted-foreground">
-                Bet: ₱{table.minBet} - ₱{table.maxBet}
-              </p>
+              <h1 className="text-xl font-bold text-green-400">{table.name}</h1>
+              <p className="text-xs text-muted-foreground">Bet: ₱{table.minBet} - ₱{table.maxBet}</p>
             </div>
           </div>
           {myPlayer && (
@@ -371,80 +324,24 @@ export default function Lucky9TablePage() {
       </header>
 
       <main className="container mx-auto px-4 py-6 space-y-6">
-        {/* Game Status */}
-        <Lucky9GameStatus 
-          status={game?.status || 'betting'} 
-          currentPlayerName={currentPlayer?.username}
-        />
+        <Lucky9GameStatus status={game?.status || 'betting'} currentPlayerName={players.find(p => p.position === game?.currentPlayerPosition)?.username} />
 
-        {/* Dealer Area */}
-        {showDealerCards && (
-          <div className="flex justify-center">
-            <Lucky9Dealer 
-              cards={game.dealerCards} 
-              hiddenCard={game.dealerHiddenCard}
-              showAll={showAllDealerCards}
-            />
-          </div>
+        {game?.bettingEndsAt && game.status === 'betting' && (
+          <div className="max-w-md mx-auto"><Lucky9BettingTimer bettingEndsAt={game.bettingEndsAt} /></div>
         )}
 
-        {/* Players Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {players.map((player) => (
-            <Lucky9PlayerSeat
-              key={player.id}
-              player={player}
-              isCurrentTurn={game?.currentPlayerPosition === player.position}
-              showCards={true}
-              gameStatus={game?.status || 'betting'}
-            />
-          ))}
-        </div>
+        <Lucky9GamblingTable players={players} banker={banker || null} game={game} currentUserId={user?.id} />
 
-        {/* Action Area */}
-        <div className="flex justify-center">
-          {/* Betting Phase */}
-          {!game && myPlayer && myPlayer.currentBet === 0 && (
-            <Lucky9BetPanel
-              minBet={table.minBet}
-              maxBet={table.maxBet}
-              playerStack={myPlayer.stack}
-              onPlaceBet={placeBet}
-              disabled={isProcessing}
-            />
+        <div className="flex justify-center flex-wrap gap-4">
+          {canStartBetting && <Button onClick={startBetting} disabled={isProcessing} className="bg-green-600 hover:bg-green-700 px-8 py-6 text-lg">🎲 Start Betting</Button>}
+          {canDealCards && <Button onClick={startRound} disabled={isProcessing} className="bg-green-600 hover:bg-green-700 px-8 py-6 text-lg">🎴 Deal Cards</Button>}
+          
+          {game?.status === 'betting' && myPlayer && !myPlayer.isBanker && myPlayer.currentBet === 0 && (
+            <Lucky9BetPanel minBet={table.minBet} maxBet={table.maxBet} playerStack={myPlayer.stack} onPlaceBet={placeBet} disabled={isProcessing} />
           )}
 
-          {/* Waiting for other bets */}
-          {!game && myPlayer && myPlayer.currentBet > 0 && !canStartRound && (
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="text-center py-4 px-6 bg-slate-800/80 rounded-lg"
-            >
-              <p className="text-slate-300">Waiting for other players to bet...</p>
-              <p className="text-sm text-slate-500 mt-1">Your bet: ₱{myPlayer.currentBet}</p>
-            </motion.div>
-          )}
-
-          {/* Start Round Button */}
-          {canStartRound && (
-            <Button
-              onClick={startRound}
-              disabled={isProcessing}
-              className="bg-green-600 hover:bg-green-700 px-8 py-6 text-lg"
-            >
-              🎴 Deal Cards
-            </Button>
-          )}
-
-          {/* Player Actions */}
-          {isMyTurn && (
-            <Lucky9ActionButtons
-              onDraw={() => handlePlayerAction('draw')}
-              onStand={() => handlePlayerAction('stand')}
-              canDraw={myPlayer!.cards.length < 3}
-              disabled={isProcessing}
-            />
+          {(isMyTurn || isBankerTurn) && (
+            <Lucky9ActionButtons onDraw={() => handlePlayerAction('draw')} onStand={() => handlePlayerAction('stand')} canDraw={(myPlayer?.cards.length || 0) < 3} disabled={isProcessing} />
           )}
         </div>
       </main>

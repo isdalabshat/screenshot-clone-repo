@@ -5,15 +5,18 @@ export interface Lucky9Table {
   maxBet: number;
   maxPlayers: number;
   isActive: boolean;
+  betTimerSeconds: number;
 }
 
 export interface Lucky9Game {
   id: string;
   tableId: string;
-  status: 'betting' | 'dealing' | 'player_turns' | 'dealer_turn' | 'showdown' | 'finished';
-  dealerCards: string[];
-  dealerHiddenCard: string | null;
+  status: 'betting' | 'dealing' | 'player_turns' | 'banker_turn' | 'showdown' | 'finished';
+  bankerCards: string[];
+  bankerHiddenCard: string | null;
   currentPlayerPosition: number | null;
+  bettingEndsAt: string | null;
+  bankerId: string | null;
 }
 
 export interface Lucky9Player {
@@ -32,6 +35,8 @@ export interface Lucky9Player {
   result: 'win' | 'lose' | 'push' | 'natural_win' | null;
   winnings: number;
   isActive: boolean;
+  isBanker: boolean;
 }
 
 export type Lucky9Action = 'draw' | 'stand';
+export type Lucky9Role = 'banker' | 'player';
