@@ -277,6 +277,7 @@ export type Database = {
       }
       lucky9_players: {
         Row: {
+          bet_accepted: boolean | null
           cards: string[] | null
           current_bet: number
           game_id: string | null
@@ -296,6 +297,7 @@ export type Database = {
           winnings: number
         }
         Insert: {
+          bet_accepted?: boolean | null
           cards?: string[] | null
           current_bet?: number
           game_id?: string | null
@@ -315,6 +317,7 @@ export type Database = {
           winnings?: number
         }
         Update: {
+          bet_accepted?: boolean | null
           cards?: string[] | null
           current_bet?: number
           game_id?: string | null
