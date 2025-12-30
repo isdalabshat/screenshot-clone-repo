@@ -176,24 +176,27 @@ export default function Lucky9TablePage() {
   const leaveTable = async () => {
     if (!myPlayer) return;
 
-    // Handle mid-game leave with proper payouts
-    if (game && game.status !== 'finished') {
-      const action = myPlayer.isBanker ? 'banker_leave' : 'player_leave';
-      await supabase.functions.invoke('lucky9-game', {
-        body: { action, tableId, userId: user?.id }
-      });
-    } else {
-      // No active game - just return chips and delete
-      if (profile && myPlayer.stack > 0) {
-        await supabase
-          .from('profiles')
-          .update({ chips: profile.chips + myPlayer.stack })
-          .eq('user_id', user?.id);
-      }
-      await supabase.from('lucky9_players').delete().eq('id', myPlayer.id);
-    }
+    const action = myPlayer.isBanker ? 'banker_leave' : 'player_leave';
+    await supabase.functions.invoke('lucky9-game', {
+      body: { action, tableId, userId: user?.id }
+    });
     
     navigate('/lucky9');
+  };
+
+  const handleBettingTimerEnd = async () => {
+    if (!tableId || !game) return;
+    
+    const { data, error } = await supabase.functions.invoke('lucky9-game', {
+      body: { action: 'betting_timer_end', tableId }
+    });
+
+    if (data?.allLeft) {
+      toast({ title: 'No bets accepted', description: 'All players have left the table' });
+      navigate('/lucky9');
+    } else if (data?.canDeal && myPlayer?.isBanker) {
+      toast({ title: 'Betting ended', description: `${data.acceptedCount} player(s) ready to play` });
+    }
   };
 
   const placeBet = async (amount: number) => {
@@ -409,7 +412,7 @@ export default function Lucky9TablePage() {
         {/* Betting timer */}
         {hasActiveBanker && game?.bettingEndsAt && game.status === 'betting' && (
           <div className="max-w-xs mx-auto">
-            <Lucky9BettingTimer bettingEndsAt={game.bettingEndsAt} />
+            <Lucky9BettingTimer bettingEndsAt={game.bettingEndsAt} onTimeUp={handleBettingTimerEnd} />
           </div>
         )}
 

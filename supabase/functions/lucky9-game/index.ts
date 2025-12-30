@@ -57,8 +57,8 @@ serve(async (req) => {
     );
 
     const body = await req.json();
-    const { action, tableId, playerId, betAmount, userId, role } = body;
-    console.log('Lucky9 action:', action, 'tableId:', tableId, 'playerId:', playerId);
+    const { action, tableId, playerId, amount, userId, role, gameId, actionType } = body;
+    console.log('Lucky9 action:', action, 'tableId:', tableId, 'playerId:', playerId, 'actionType:', actionType);
 
     switch (action) {
       case 'join_table': {
@@ -85,7 +85,7 @@ serve(async (req) => {
           .eq('is_active', true);
 
         const usedPositions = new Set(currentPlayers?.map(p => p.position) || []);
-        let position = role === 'banker' ? 0 : 1; // Banker gets position 0
+        let position = role === 'banker' ? 0 : 1;
         if (role !== 'banker') {
           while (usedPositions.has(position)) position++;
         }
@@ -148,22 +148,192 @@ serve(async (req) => {
           });
         }
 
-        if (player.stack < betAmount) {
+        if (player.stack < amount) {
           return new Response(JSON.stringify({ error: 'Insufficient chips' }), {
             status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           });
         }
 
-        // Update player bet
+        // Update player bet - bet_accepted is null (pending)
         await supabase
           .from('lucky9_players')
           .update({ 
-            current_bet: betAmount, 
-            stack: player.stack - betAmount 
+            current_bet: amount, 
+            stack: player.stack - amount,
+            bet_accepted: null
           })
           .eq('id', playerId);
 
         return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      case 'accept_bet': {
+        // Banker accepts a player's bet
+        const { data: banker } = await supabase
+          .from('lucky9_players')
+          .select('*')
+          .eq('table_id', tableId)
+          .eq('user_id', userId)
+          .eq('is_banker', true)
+          .single();
+
+        if (!banker) {
+          return new Response(JSON.stringify({ error: 'Only banker can accept bets' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        await supabase
+          .from('lucky9_players')
+          .update({ bet_accepted: true })
+          .eq('id', playerId);
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      case 'reject_bet': {
+        // Banker rejects a player's bet - return their chips
+        const { data: banker } = await supabase
+          .from('lucky9_players')
+          .select('*')
+          .eq('table_id', tableId)
+          .eq('user_id', userId)
+          .eq('is_banker', true)
+          .single();
+
+        if (!banker) {
+          return new Response(JSON.stringify({ error: 'Only banker can reject bets' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Get player
+        const { data: player } = await supabase
+          .from('lucky9_players')
+          .select('*')
+          .eq('id', playerId)
+          .single();
+
+        if (player) {
+          // Return the bet to player's stack
+          await supabase
+            .from('lucky9_players')
+            .update({ 
+              bet_accepted: false,
+              stack: player.stack + player.current_bet,
+              current_bet: 0
+            })
+            .eq('id', playerId);
+        }
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      case 'betting_timer_end': {
+        // When betting timer ends, only accepted bets continue
+        // If no accepted bets, all players and banker auto leave
+        console.log('Betting timer ended for table:', tableId);
+
+        // Get current game
+        const { data: game } = await supabase
+          .from('lucky9_games')
+          .select('*')
+          .eq('table_id', tableId)
+          .eq('status', 'betting')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!game) {
+          return new Response(JSON.stringify({ error: 'No active betting game' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Get players with accepted bets
+        const { data: acceptedPlayers } = await supabase
+          .from('lucky9_players')
+          .select('*')
+          .eq('game_id', game.id)
+          .eq('is_active', true)
+          .eq('is_banker', false)
+          .eq('bet_accepted', true);
+
+        // Get players with pending bets (not accepted) - return their chips
+        const { data: pendingPlayers } = await supabase
+          .from('lucky9_players')
+          .select('*')
+          .eq('game_id', game.id)
+          .eq('is_active', true)
+          .eq('is_banker', false)
+          .is('bet_accepted', null)
+          .gt('current_bet', 0);
+
+        // Return chips to pending bet players
+        for (const player of pendingPlayers || []) {
+          await supabase
+            .from('lucky9_players')
+            .update({ 
+              stack: player.stack + player.current_bet,
+              current_bet: 0,
+              bet_accepted: false
+            })
+            .eq('id', player.id);
+        }
+
+        if (!acceptedPlayers || acceptedPlayers.length === 0) {
+          // No accepted bets - everyone auto leaves
+          console.log('No accepted bets - auto leaving all players');
+
+          // Get all players including banker
+          const { data: allPlayers } = await supabase
+            .from('lucky9_players')
+            .select('*')
+            .eq('table_id', tableId)
+            .eq('is_active', true);
+
+          // Return chips to profiles and delete players
+          for (const player of allPlayers || []) {
+            // Return chips to profile
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('chips')
+              .eq('user_id', player.user_id)
+              .single();
+
+            if (profile) {
+              await supabase
+                .from('profiles')
+                .update({ chips: profile.chips + player.stack })
+                .eq('user_id', player.user_id);
+            }
+
+            // Delete player
+            await supabase
+              .from('lucky9_players')
+              .delete()
+              .eq('id', player.id);
+          }
+
+          // Mark game as finished
+          await supabase
+            .from('lucky9_games')
+            .update({ status: 'finished' })
+            .eq('id', game.id);
+
+          return new Response(JSON.stringify({ success: true, allLeft: true }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // There are accepted bets - proceed to dealing
+        return new Response(JSON.stringify({ success: true, canDeal: true, acceptedCount: acceptedPlayers.length }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
@@ -214,10 +384,20 @@ serve(async (req) => {
           });
         }
 
-        // Link players to game
+        // Link players to game and reset their bet status for new round
         await supabase
           .from('lucky9_players')
-          .update({ game_id: game.id })
+          .update({ 
+            game_id: game.id,
+            current_bet: 0,
+            bet_accepted: null,
+            cards: [],
+            has_acted: false,
+            has_stood: false,
+            is_natural: false,
+            result: null,
+            winnings: 0
+          })
           .eq('table_id', tableId)
           .eq('is_active', true);
 
@@ -227,8 +407,6 @@ serve(async (req) => {
       }
 
       case 'start_round': {
-        const { gameId } = body;
-
         // Get game
         const { data: game } = await supabase
           .from('lucky9_games')
@@ -242,13 +420,14 @@ serve(async (req) => {
           });
         }
 
-        // Get all active players with bets (non-bankers)
+        // Get all active players with ACCEPTED bets only
         const { data: players } = await supabase
           .from('lucky9_players')
           .select('*')
           .eq('game_id', gameId)
           .eq('is_active', true)
           .eq('is_banker', false)
+          .eq('bet_accepted', true)
           .gt('current_bet', 0)
           .order('position');
 
@@ -266,7 +445,7 @@ serve(async (req) => {
         }
 
         if (!players || players.length === 0) {
-          return new Response(JSON.stringify({ error: 'No players with bets' }), {
+          return new Response(JSON.stringify({ error: 'No players with accepted bets' }), {
             status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           });
         }
@@ -275,7 +454,7 @@ serve(async (req) => {
         const deck = shuffleDeck(createDeck());
         let deckIndex = 0;
 
-        // Deal 2 cards to each player
+        // Deal 2 cards to each player with accepted bets
         for (const player of players) {
           const cards = [deck[deckIndex++], deck[deckIndex++]];
           const natural = isNatural9(cards);
@@ -285,13 +464,13 @@ serve(async (req) => {
             .update({ 
               cards, 
               is_natural: natural,
-              has_acted: natural, // Natural 9 auto-stands
+              has_acted: natural,
               has_stood: natural
             })
             .eq('id', player.id);
         }
 
-        // Deal banker cards (2 cards, one hidden)
+        // Deal banker cards
         const bankerVisibleCard = deck[deckIndex++];
         const bankerHiddenCard = deck[deckIndex++];
         const bankerCards = [bankerVisibleCard, bankerHiddenCard];
@@ -309,24 +488,25 @@ serve(async (req) => {
 
         // Find first player to act (skip naturals)
         const firstPlayer = players.find(p => {
-          const playerCards = [deck[players.indexOf(p) * 2], deck[players.indexOf(p) * 2 + 1]];
+          const idx = players.indexOf(p);
+          const playerCards = [deck[idx * 2], deck[idx * 2 + 1]];
           return !isNatural9(playerCards);
         });
+
+        // Store remaining deck
+        const remainingDeck = deck.slice(deckIndex);
 
         // Update game
         await supabase
           .from('lucky9_games')
           .update({
             status: 'player_turns',
-            dealer_cards: [bankerVisibleCard], // Only visible card
+            dealer_cards: [bankerVisibleCard],
             dealer_hidden_card: bankerHiddenCard,
             current_player_position: firstPlayer?.position || null,
             betting_ends_at: null
           })
           .eq('id', gameId);
-
-        // Store remaining deck
-        const remainingDeck = deck.slice(deckIndex);
 
         return new Response(JSON.stringify({ 
           success: true, 
@@ -338,7 +518,7 @@ serve(async (req) => {
       }
 
       case 'player_action': {
-        const { playerAction, gameId, remainingDeck } = body;
+        console.log('Player action:', actionType, 'playerId:', playerId, 'gameId:', gameId);
 
         if (!playerId || !gameId) {
           return new Response(JSON.stringify({ error: 'Missing playerId or gameId' }), {
@@ -364,19 +544,39 @@ serve(async (req) => {
           });
         }
 
-        if (player.cards && player.cards.length >= 3) {
-          return new Response(JSON.stringify({ error: 'Maximum 3 cards reached' }), {
-            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-
         let updatedCards = [...(player.cards || [])];
-        let updatedDeck = [...(remainingDeck || [])];
 
-        if (playerAction === 'draw') {
-          const newCard = updatedDeck.shift();
-          if (newCard) {
+        if (actionType === 'draw') {
+          if (updatedCards.length >= 3) {
+            return new Response(JSON.stringify({ error: 'Maximum 3 cards reached' }), {
+              status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+          
+          // Create a fresh deck and draw a random card
+          const usedCards = new Set(updatedCards);
+          
+          // Get all player cards in the game to avoid duplicates
+          const { data: allPlayers } = await supabase
+            .from('lucky9_players')
+            .select('cards')
+            .eq('game_id', gameId)
+            .eq('is_active', true);
+          
+          for (const p of allPlayers || []) {
+            for (const c of p.cards || []) {
+              usedCards.add(c);
+            }
+          }
+          
+          const fullDeck = createDeck();
+          const availableCards = fullDeck.filter(c => !usedCards.has(c));
+          
+          if (availableCards.length > 0) {
+            const randomIndex = Math.floor(Math.random() * availableCards.length);
+            const newCard = availableCards[randomIndex];
             updatedCards.push(newCard);
+            console.log('Drew card:', newCard, 'New hand:', updatedCards);
           }
         }
 
@@ -396,16 +596,14 @@ serve(async (req) => {
           .eq('game_id', gameId)
           .eq('is_active', true)
           .eq('is_banker', false)
+          .eq('bet_accepted', true)
           .order('position');
 
         const allActed = allPlayers?.every(p => p.has_acted || p.id === playerId);
-        
-        // Find next player who hasn't acted
         const currentPos = player.position;
         const nextPlayer = allPlayers?.find(p => p.position > currentPos && !p.has_acted && p.id !== playerId);
 
         if (allActed || !nextPlayer) {
-          // Move to banker turn
           await supabase
             .from('lucky9_games')
             .update({ 
@@ -414,7 +612,6 @@ serve(async (req) => {
             })
             .eq('id', gameId);
         } else {
-          // Update current player position
           await supabase
             .from('lucky9_games')
             .update({ current_player_position: nextPlayer.position })
@@ -423,15 +620,14 @@ serve(async (req) => {
 
         return new Response(JSON.stringify({ 
           success: true, 
-          cards: updatedCards,
-          remainingDeck: updatedDeck
+          cards: updatedCards
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
       case 'banker_action': {
-        const { playerAction, gameId, remainingDeck } = body;
+        console.log('Banker action:', actionType, 'playerId:', playerId, 'gameId:', gameId);
 
         if (!playerId || !gameId) {
           return new Response(JSON.stringify({ error: 'Missing playerId or gameId' }), {
@@ -458,12 +654,31 @@ serve(async (req) => {
         }
 
         let bankerCards = [...(banker.cards || [])];
-        let updatedDeck = [...(remainingDeck || [])];
 
-        if (playerAction === 'draw' && bankerCards.length < 3) {
-          const newCard = updatedDeck.shift();
-          if (newCard) {
+        if (actionType === 'draw' && bankerCards.length < 3) {
+          // Get all used cards
+          const usedCards = new Set(bankerCards);
+          
+          const { data: allPlayers } = await supabase
+            .from('lucky9_players')
+            .select('cards')
+            .eq('game_id', gameId)
+            .eq('is_active', true);
+          
+          for (const p of allPlayers || []) {
+            for (const c of p.cards || []) {
+              usedCards.add(c);
+            }
+          }
+          
+          const fullDeck = createDeck();
+          const availableCards = fullDeck.filter(c => !usedCards.has(c));
+          
+          if (availableCards.length > 0) {
+            const randomIndex = Math.floor(Math.random() * availableCards.length);
+            const newCard = availableCards[randomIndex];
             bankerCards.push(newCard);
+            console.log('Banker drew card:', newCard, 'New hand:', bankerCards);
           }
         }
 
@@ -476,7 +691,7 @@ serve(async (req) => {
           })
           .eq('id', playerId);
 
-        // Get game to update dealer cards display
+        // Update game to showdown
         await supabase
           .from('lucky9_games')
           .update({ 
@@ -490,13 +705,14 @@ serve(async (req) => {
         const bankerValue = calculateLucky9Value(bankerCards);
         const bankerIsNatural = banker.is_natural;
 
-        // Get all players
+        // Get all players with accepted bets
         const { data: players } = await supabase
           .from('lucky9_players')
           .select('*')
           .eq('game_id', gameId)
           .eq('is_active', true)
-          .eq('is_banker', false);
+          .eq('is_banker', false)
+          .eq('bet_accepted', true);
 
         let bankerTotalWin = 0;
         let bankerTotalLoss = 0;
@@ -576,7 +792,8 @@ serve(async (req) => {
             is_natural: false,
             result: null,
             winnings: 0,
-            game_id: null
+            game_id: null,
+            bet_accepted: null
           })
           .eq('table_id', tableId)
           .eq('is_active', true);
@@ -588,54 +805,101 @@ serve(async (req) => {
 
       case 'banker_leave': {
         // When banker leaves mid-game, all players win their bets
-        const { gameId } = body;
-        console.log('Banker leaving game:', gameId);
+        console.log('Banker leaving table:', tableId);
 
-        if (gameId) {
-          // Get active game
-          const { data: game } = await supabase
-            .from('lucky9_games')
+        // Get active game
+        const { data: currentGame } = await supabase
+          .from('lucky9_games')
+          .select('*')
+          .eq('table_id', tableId)
+          .neq('status', 'finished')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (currentGame) {
+          // Get all players with accepted bets
+          const { data: players } = await supabase
+            .from('lucky9_players')
             .select('*')
-            .eq('id', gameId)
-            .single();
+            .eq('game_id', currentGame.id)
+            .eq('is_active', true)
+            .eq('is_banker', false)
+            .eq('bet_accepted', true);
 
-          if (game && game.status !== 'finished') {
-            // Get all players with bets
-            const { data: players } = await supabase
-              .from('lucky9_players')
-              .select('*')
-              .eq('game_id', gameId)
-              .eq('is_active', true)
-              .eq('is_banker', false);
-
-            // All players win - return their bet + winnings (2x bet)
-            for (const player of players || []) {
-              if (player.current_bet > 0) {
-                const winnings = player.current_bet * 2;
-                await supabase
-                  .from('lucky9_players')
-                  .update({ 
-                    result: 'win',
-                    winnings,
-                    stack: player.stack + winnings
-                  })
-                  .eq('id', player.id);
-              }
+          // All players win - return their bet + winnings (2x bet)
+          for (const player of players || []) {
+            if (player.current_bet > 0) {
+              const winnings = player.current_bet * 2;
+              await supabase
+                .from('lucky9_players')
+                .update({ 
+                  result: 'win',
+                  winnings,
+                  stack: player.stack + winnings
+                })
+                .eq('id', player.id);
             }
-
-            // Mark game as finished
-            await supabase
-              .from('lucky9_games')
-              .update({ status: 'finished' })
-              .eq('id', gameId);
           }
+
+          // Return pending bets
+          const { data: pendingPlayers } = await supabase
+            .from('lucky9_players')
+            .select('*')
+            .eq('game_id', currentGame.id)
+            .eq('is_active', true)
+            .eq('is_banker', false)
+            .is('bet_accepted', null);
+
+          for (const player of pendingPlayers || []) {
+            if (player.current_bet > 0) {
+              await supabase
+                .from('lucky9_players')
+                .update({ 
+                  stack: player.stack + player.current_bet,
+                  current_bet: 0
+                })
+                .eq('id', player.id);
+            }
+          }
+
+          // Mark game as finished
+          await supabase
+            .from('lucky9_games')
+            .update({ status: 'finished' })
+            .eq('id', currentGame.id);
         }
 
-        // Delete the banker
-        await supabase
+        // Get banker to delete and return chips
+        const { data: bankerPlayer } = await supabase
           .from('lucky9_players')
-          .delete()
-          .eq('id', playerId);
+          .select('*')
+          .eq('table_id', tableId)
+          .eq('user_id', userId)
+          .eq('is_banker', true)
+          .single();
+
+        if (bankerPlayer) {
+          // Return chips to profile
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('chips')
+            .eq('user_id', userId)
+            .single();
+
+          if (profile) {
+            await supabase
+              .from('profiles')
+              .update({ chips: profile.chips + bankerPlayer.stack })
+              .eq('user_id', userId);
+          }
+
+          // Delete the banker
+          await supabase
+            .from('lucky9_players')
+            .delete()
+            .eq('id', bankerPlayer.id);
+        }
 
         return new Response(JSON.stringify({ success: true, bankerLeft: true }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -644,53 +908,61 @@ serve(async (req) => {
 
       case 'player_leave': {
         // When a player leaves mid-game, banker wins their bet
-        const { gameId } = body;
-        console.log('Player leaving game:', gameId);
+        console.log('Player leaving table:', tableId, 'userId:', userId);
 
         // Get the player
         const { data: player } = await supabase
           .from('lucky9_players')
           .select('*')
-          .eq('id', playerId)
+          .eq('table_id', tableId)
+          .eq('user_id', userId)
+          .eq('is_banker', false)
           .single();
 
-        if (player && gameId && player.current_bet > 0) {
-          // Get the game
-          const { data: game } = await supabase
-            .from('lucky9_games')
+        if (!player) {
+          return new Response(JSON.stringify({ error: 'Player not found' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Get active game
+        const { data: currentGame } = await supabase
+          .from('lucky9_games')
+          .select('*')
+          .eq('table_id', tableId)
+          .neq('status', 'finished')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (currentGame && player.current_bet > 0 && player.bet_accepted === true) {
+          // Get the banker
+          const { data: banker } = await supabase
+            .from('lucky9_players')
             .select('*')
-            .eq('id', gameId)
+            .eq('id', currentGame.banker_id)
             .single();
 
-          if (game && game.status !== 'finished' && game.banker_id) {
-            // Get the banker
-            const { data: banker } = await supabase
+          if (banker) {
+            // Banker wins the player's bet
+            await supabase
               .from('lucky9_players')
-              .select('*')
-              .eq('id', game.banker_id)
-              .single();
-
-            if (banker) {
-              // Banker wins the player's bet
-              await supabase
-                .from('lucky9_players')
-                .update({ 
-                  stack: banker.stack + player.current_bet
-                })
-                .eq('id', banker.id);
-            }
+              .update({ 
+                stack: banker.stack + player.current_bet
+              })
+              .eq('id', banker.id);
           }
 
           // Check if this was the current player's turn - advance to next
-          if (game?.current_player_position === player.position && game?.status === 'player_turns') {
-            // Get remaining players
+          if (currentGame.current_player_position === player.position && currentGame.status === 'player_turns') {
             const { data: remainingPlayers } = await supabase
               .from('lucky9_players')
               .select('*')
-              .eq('game_id', gameId)
+              .eq('game_id', currentGame.id)
               .eq('is_active', true)
               .eq('is_banker', false)
-              .neq('id', playerId)
+              .eq('bet_accepted', true)
+              .neq('id', player.id)
               .order('position');
 
             const nextPlayer = remainingPlayers?.find(p => p.position > player.position && !p.has_acted);
@@ -699,22 +971,35 @@ serve(async (req) => {
               await supabase
                 .from('lucky9_games')
                 .update({ current_player_position: nextPlayer.position })
-                .eq('id', gameId);
+                .eq('id', currentGame.id);
             } else {
-              // No more players, move to banker turn
               await supabase
                 .from('lucky9_games')
                 .update({ status: 'banker_turn', current_player_position: null })
-                .eq('id', gameId);
+                .eq('id', currentGame.id);
             }
           }
+        }
+
+        // Return remaining stack to profile
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('chips')
+          .eq('user_id', userId)
+          .single();
+
+        if (profile && player.stack > 0) {
+          await supabase
+            .from('profiles')
+            .update({ chips: profile.chips + player.stack })
+            .eq('user_id', userId);
         }
 
         // Delete the player
         await supabase
           .from('lucky9_players')
           .delete()
-          .eq('id', playerId);
+          .eq('id', player.id);
 
         return new Response(JSON.stringify({ success: true }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }

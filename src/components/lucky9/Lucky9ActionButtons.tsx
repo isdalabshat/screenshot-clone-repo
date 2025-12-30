@@ -23,7 +23,7 @@ export function Lucky9ActionButtons({ onDraw, onStand, canDraw, disabled }: Luck
           className="flex-1 h-16 text-lg font-bold bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 rounded-xl shadow-lg shadow-blue-500/30 disabled:opacity-50"
         >
           <Hand className="h-6 w-6 mr-2" />
-          Draw
+          Hirit
         </Button>
         
         <Button
@@ -32,7 +32,7 @@ export function Lucky9ActionButtons({ onDraw, onStand, canDraw, disabled }: Luck
           className="flex-1 h-16 text-lg font-bold bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 rounded-xl shadow-lg shadow-amber-500/30"
         >
           <Square className="h-6 w-6 mr-2" />
-          Stand
+          Good
         </Button>
       </div>
       
