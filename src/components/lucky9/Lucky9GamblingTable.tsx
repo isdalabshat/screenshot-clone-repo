@@ -2,10 +2,20 @@ import { Lucky9Player, Lucky9Game } from '@/types/lucky9';
 import { Lucky9PlayerSeat } from './Lucky9PlayerSeat';
 import { Lucky9RevealableCard } from './Lucky9RevealableCard';
 import { Lucky9ChipStack } from './Lucky9BetAnimation';
+import { Lucky9PlayerAvatar } from './Lucky9PlayerAvatar';
+import { Lucky9CardDeck } from './Lucky9CardDeck';
 import { calculateLucky9Value, isNatural9 } from '@/lib/lucky9/deck';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 import { Crown } from 'lucide-react';
+
+interface PlayerEmojiState {
+  [playerId: string]: string | null;
+}
+
+interface PlayerDecisionState {
+  [playerId: string]: 'hirit' | 'good' | null;
+}
 
 interface Lucky9GamblingTableProps {
   players: Lucky9Player[];
@@ -17,6 +27,9 @@ interface Lucky9GamblingTableProps {
   onRejectBet?: (playerId: string) => void;
   isProcessing?: boolean;
   onCardReveal?: (playerId: string, cardIndex: number) => void;
+  playerEmojis?: PlayerEmojiState;
+  playerDecisions?: PlayerDecisionState;
+  isDealing?: boolean;
 }
 
 export function Lucky9GamblingTable({ 
@@ -28,7 +41,10 @@ export function Lucky9GamblingTable({
   onAcceptBet,
   onRejectBet,
   isProcessing,
-  onCardReveal
+  onCardReveal,
+  playerEmojis = {},
+  playerDecisions = {},
+  isDealing = false
 }: Lucky9GamblingTableProps) {
   const nonBankerPlayers = players.filter(p => !p.isBanker);
   const showAllCards = game?.status === 'showdown' || game?.status === 'finished';
@@ -72,6 +88,11 @@ export function Lucky9GamblingTable({
         </div>
       </div>
 
+      {/* Card Deck - positioned in center of table */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-5">
+        <Lucky9CardDeck isDealing={isDealing} />
+      </div>
+
       {/* Banker Position (Top Center) */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -84,14 +105,23 @@ export function Lucky9GamblingTable({
               ? 'border-yellow-400 shadow-lg shadow-yellow-500/40 animate-pulse' 
               : 'border-amber-600'
           }`}>
-            {/* Banker header */}
+            {/* Banker header with avatar */}
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <Crown className="h-4 w-4 text-amber-400" />
-                <span className="font-bold text-amber-400 text-sm">{banker.username}</span>
-                {isCurrentUserBanker && (
-                  <Badge className="bg-purple-500 text-[10px] px-1.5">YOU</Badge>
-                )}
+                <Lucky9PlayerAvatar
+                  username={banker.username}
+                  isBanker
+                  isMe={isCurrentUserBanker}
+                  size="md"
+                  currentEmoji={playerEmojis[banker.userId] || null}
+                  currentDecision={playerDecisions[banker.userId] || null}
+                />
+                <div>
+                  <span className="font-bold text-amber-400 text-sm">{banker.username}</span>
+                  {isCurrentUserBanker && (
+                    <Badge className="ml-2 bg-purple-500 text-[10px] px-1.5">YOU</Badge>
+                  )}
+                </div>
               </div>
               <span className="text-yellow-400 font-mono text-sm">₱{banker.stack.toLocaleString()}</span>
             </div>
@@ -177,6 +207,26 @@ export function Lucky9GamblingTable({
         )}
       </motion.div>
 
+      {/* Showdown overlay */}
+      <AnimatePresence>
+        {showAllCards && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20"
+          >
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              className="bg-gradient-to-r from-amber-600 to-amber-500 px-6 py-2 rounded-full shadow-lg"
+            >
+              <span className="text-lg font-bold text-black tracking-wider">SHOWDOWN</span>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Player Positions - around bottom arc */}
       {nonBankerPlayers.map((player, index) => {
         const position = getPlayerPosition(index, nonBankerPlayers.length);
@@ -204,6 +254,8 @@ export function Lucky9GamblingTable({
               isProcessing={isProcessing}
               canRevealCards={isMe && isCurrentTurn && !player.hasActed}
               onCardReveal={(cardIndex) => onCardReveal?.(player.id, cardIndex)}
+              currentEmoji={playerEmojis[player.userId] || null}
+              currentDecision={playerDecisions[player.userId] || null}
             />
           </motion.div>
         );

@@ -1,11 +1,12 @@
 import { Lucky9Player } from '@/types/lucky9';
 import { Lucky9RevealableCard } from './Lucky9RevealableCard';
 import { Lucky9ChipStack } from './Lucky9BetAnimation';
+import { Lucky9PlayerAvatar } from './Lucky9PlayerAvatar';
 import { calculateLucky9Value, isNatural9 } from '@/lib/lucky9/deck';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
-import { User, Check, X, Clock } from 'lucide-react';
+import { Check, X, Clock } from 'lucide-react';
 
 interface Lucky9PlayerSeatProps {
   player: Lucky9Player;
@@ -19,6 +20,8 @@ interface Lucky9PlayerSeatProps {
   isProcessing?: boolean;
   canRevealCards?: boolean;
   onCardReveal?: (cardIndex: number) => void;
+  currentEmoji?: string | null;
+  currentDecision?: 'hirit' | 'good' | null;
 }
 
 export function Lucky9PlayerSeat({ 
@@ -32,7 +35,9 @@ export function Lucky9PlayerSeat({
   onRejectBet,
   isProcessing,
   canRevealCards,
-  onCardReveal
+  onCardReveal,
+  currentEmoji,
+  currentDecision
 }: Lucky9PlayerSeatProps) {
   const cards = player.cards || [];
   const handValue = cards.length > 0 ? calculateLucky9Value(cards) : null;
@@ -57,10 +62,16 @@ export function Lucky9PlayerSeat({
       animate={isCurrentTurn ? { scale: [1, 1.02, 1] } : {}}
       transition={{ repeat: isCurrentTurn ? Infinity : 0, duration: 1.5 }}
     >
-      {/* Player info */}
+      {/* Player Avatar with emoji/decision */}
       <div className="flex items-center justify-between gap-2 mb-1.5">
-        <div className="flex items-center gap-1 min-w-0">
-          <User className="h-3 w-3 text-slate-400 flex-shrink-0" />
+        <div className="flex items-center gap-1.5 min-w-0">
+          <Lucky9PlayerAvatar
+            username={player.username}
+            isMe={isMe}
+            size="sm"
+            currentEmoji={currentEmoji}
+            currentDecision={currentDecision}
+          />
           <span className="text-xs font-medium text-white truncate">{player.username}</span>
         </div>
         {isMe && <Badge className="bg-blue-500 text-[9px] px-1">YOU</Badge>}
