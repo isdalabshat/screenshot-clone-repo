@@ -1,6 +1,7 @@
 import { Lucky9Player, Lucky9Game } from '@/types/lucky9';
 import { Lucky9PlayerSeat } from './Lucky9PlayerSeat';
-import { Lucky9Card } from './Lucky9Card';
+import { Lucky9RevealableCard } from './Lucky9RevealableCard';
+import { Lucky9ChipStack } from './Lucky9BetAnimation';
 import { calculateLucky9Value, isNatural9 } from '@/lib/lucky9/deck';
 import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +16,7 @@ interface Lucky9GamblingTableProps {
   onAcceptBet?: (playerId: string) => void;
   onRejectBet?: (playerId: string) => void;
   isProcessing?: boolean;
+  onCardReveal?: (playerId: string, cardIndex: number) => void;
 }
 
 export function Lucky9GamblingTable({ 
@@ -25,7 +27,8 @@ export function Lucky9GamblingTable({
   isBankerView,
   onAcceptBet,
   onRejectBet,
-  isProcessing
+  isProcessing,
+  onCardReveal
 }: Lucky9GamblingTableProps) {
   const nonBankerPlayers = players.filter(p => !p.isBanker);
   const showAllCards = game?.status === 'showdown' || game?.status === 'finished';
@@ -99,13 +102,17 @@ export function Lucky9GamblingTable({
                 {bankerCards.map((card, i) => {
                   // Hide ALL cards from non-banker players until showdown
                   const shouldHide = !showAllCards && !isCurrentUserBanker;
+                  // Banker can slowly reveal their own cards during their turn
+                  const canReveal = isCurrentUserBanker && isBankerTurn && !banker?.hasActed;
                   return (
-                    <Lucky9Card 
+                    <Lucky9RevealableCard 
                       key={i} 
-                      card={shouldHide ? '' : card} 
+                      card={card} 
                       hidden={shouldHide}
+                      canReveal={canReveal}
                       delay={i * 0.1} 
-                      small 
+                      small
+                      onReveal={() => onCardReveal?.(banker?.id || '', i)}
                     />
                   );
                 })}
@@ -195,6 +202,8 @@ export function Lucky9GamblingTable({
               onAcceptBet={onAcceptBet}
               onRejectBet={onRejectBet}
               isProcessing={isProcessing}
+              canRevealCards={isMe && isCurrentTurn && !player.hasActed}
+              onCardReveal={(cardIndex) => onCardReveal?.(player.id, cardIndex)}
             />
           </motion.div>
         );

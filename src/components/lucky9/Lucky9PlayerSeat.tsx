@@ -1,5 +1,6 @@
 import { Lucky9Player } from '@/types/lucky9';
-import { Lucky9Card } from './Lucky9Card';
+import { Lucky9RevealableCard } from './Lucky9RevealableCard';
+import { Lucky9ChipStack } from './Lucky9BetAnimation';
 import { calculateLucky9Value, isNatural9 } from '@/lib/lucky9/deck';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,8 @@ interface Lucky9PlayerSeatProps {
   onAcceptBet?: (playerId: string) => void;
   onRejectBet?: (playerId: string) => void;
   isProcessing?: boolean;
+  canRevealCards?: boolean;
+  onCardReveal?: (cardIndex: number) => void;
 }
 
 export function Lucky9PlayerSeat({ 
@@ -27,7 +30,9 @@ export function Lucky9PlayerSeat({
   isBankerView,
   onAcceptBet,
   onRejectBet,
-  isProcessing
+  isProcessing,
+  canRevealCards,
+  onCardReveal
 }: Lucky9PlayerSeatProps) {
   const cards = player.cards || [];
   const handValue = cards.length > 0 ? calculateLucky9Value(cards) : null;
@@ -121,14 +126,23 @@ export function Lucky9PlayerSeat({
       {cards.length > 0 && (
         <div className="flex gap-1 justify-center mb-1">
           {cards.map((card, i) => (
-            <Lucky9Card 
+            <Lucky9RevealableCard 
               key={i} 
-              card={showCards ? card : ''} 
+              card={card} 
               hidden={!showCards}
+              canReveal={canRevealCards}
               delay={i * 0.1} 
-              small 
+              small
+              onReveal={() => onCardReveal?.(i)}
             />
           ))}
+        </div>
+      )}
+
+      {/* Bet chip stack */}
+      {player.currentBet > 0 && gameStatus !== 'betting' && (
+        <div className="absolute -top-6 left-1/2 -translate-x-1/2">
+          <Lucky9ChipStack amount={player.currentBet} small />
         </div>
       )}
 

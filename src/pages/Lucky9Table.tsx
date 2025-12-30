@@ -12,6 +12,9 @@ import { Lucky9GameStatus } from '@/components/lucky9/Lucky9GameStatus';
 import { Lucky9RoleDialog } from '@/components/lucky9/Lucky9RoleDialog';
 import { Lucky9BettingTimer } from '@/components/lucky9/Lucky9BettingTimer';
 import { Lucky9GamblingTable } from '@/components/lucky9/Lucky9GamblingTable';
+import Lucky9Chat from '@/components/lucky9/Lucky9Chat';
+import Lucky9EmojiReactions from '@/components/lucky9/Lucky9EmojiReactions';
+import { Lucky9WinnerAnimation } from '@/components/lucky9/Lucky9WinnerAnimation';
 
 export default function Lucky9TablePage() {
   const { tableId } = useParams<{ tableId: string }>();
@@ -27,6 +30,8 @@ export default function Lucky9TablePage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showRoleDialog, setShowRoleDialog] = useState(false);
   const [hasBanker, setHasBanker] = useState(false);
+  const [showWinnerAnimation, setShowWinnerAnimation] = useState(false);
+  const [winners, setWinners] = useState<{ username: string; winnings: number }[]>([]);
 
   const hasJoined = useRef(false);
 
@@ -333,10 +338,20 @@ export default function Lucky9TablePage() {
 
   useEffect(() => {
     if (game?.status === 'finished') {
+      // Collect winners for animation
+      const gameWinners = players.filter(p => p.winnings > 0).map(p => ({
+        username: p.username,
+        winnings: p.winnings
+      }));
+      if (gameWinners.length > 0) {
+        setWinners(gameWinners);
+        setShowWinnerAnimation(true);
+      }
+      
       const timeout = setTimeout(resetRound, 5000);
       return () => clearTimeout(timeout);
     }
-  }, [game?.status, tableId]);
+  }, [game?.status, players]);
 
   const banker = players.find(p => p.isBanker);
   const nonBankerPlayers = players.filter(p => !p.isBanker);
@@ -367,6 +382,10 @@ export default function Lucky9TablePage() {
   // Is current user the banker
   const iAmBanker = myPlayer?.isBanker;
 
+  const handleCardReveal = (playerId: string, cardIndex: number) => {
+    console.log(`Card ${cardIndex} revealed for player ${playerId}`);
+  };
+
   if (!table) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-950 via-slate-900 to-green-950">
@@ -378,6 +397,13 @@ export default function Lucky9TablePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-950 via-slate-900 to-green-950 pb-24">
       <Lucky9RoleDialog open={showRoleDialog} hasBanker={hasBanker} onSelectRole={joinTable} onCancel={() => navigate('/lucky9')} />
+      
+      {/* Winner Animation */}
+      <Lucky9WinnerAnimation 
+        winners={winners} 
+        show={showWinnerAnimation} 
+        onComplete={() => setShowWinnerAnimation(false)} 
+      />
 
       {/* Compact header for mobile */}
       <header className="border-b border-green-500/30 bg-slate-900/90 backdrop-blur sticky top-0 z-20">
@@ -426,6 +452,7 @@ export default function Lucky9TablePage() {
           onAcceptBet={handleAcceptBet}
           onRejectBet={handleRejectBet}
           isProcessing={isProcessing}
+          onCardReveal={handleCardReveal}
         />
 
         {/* Banker controls */}
@@ -505,6 +532,19 @@ export default function Lucky9TablePage() {
           disabled={isProcessing} 
         />
       )}
+
+      {/* Chat and Emoji Reactions */}
+      <Lucky9Chat 
+        tableId={tableId || ''} 
+        userId={user?.id} 
+        username={profile?.username} 
+      />
+      <Lucky9EmojiReactions 
+        tableId={tableId || ''} 
+        userId={user?.id} 
+        username={profile?.username} 
+        isJoined={!!myPlayer}
+      />
     </div>
   );
 }
