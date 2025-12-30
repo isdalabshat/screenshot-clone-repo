@@ -15,12 +15,29 @@ import { Lucky9GamblingTable } from '@/components/lucky9/Lucky9GamblingTable';
 import Lucky9Chat from '@/components/lucky9/Lucky9Chat';
 import Lucky9EmojiReactions from '@/components/lucky9/Lucky9EmojiReactions';
 import { Lucky9WinnerAnimation } from '@/components/lucky9/Lucky9WinnerAnimation';
+import { useLucky9Sounds } from '@/hooks/useLucky9Sounds';
+
+interface PlayerEmoji {
+  id: string;
+  emoji: string;
+  username: string;
+  userId: string;
+}
+
+interface PlayerEmojiState {
+  [playerId: string]: string | null;
+}
+
+interface PlayerDecisionState {
+  [playerId: string]: 'hirit' | 'good' | null;
+}
 
 export default function Lucky9TablePage() {
   const { tableId } = useParams<{ tableId: string }>();
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const { toast } = useToast();
+  const { playSound, playDealSequence } = useLucky9Sounds();
 
   const [table, setTable] = useState<Lucky9Table | null>(null);
   const [game, setGame] = useState<Lucky9Game | null>(null);
@@ -32,8 +49,12 @@ export default function Lucky9TablePage() {
   const [hasBanker, setHasBanker] = useState(false);
   const [showWinnerAnimation, setShowWinnerAnimation] = useState(false);
   const [winners, setWinners] = useState<{ username: string; winnings: number }[]>([]);
+  const [playerEmojis, setPlayerEmojis] = useState<PlayerEmojiState>({});
+  const [playerDecisions, setPlayerDecisions] = useState<PlayerDecisionState>({});
+  const [isDealing, setIsDealing] = useState(false);
 
   const hasJoined = useRef(false);
+  const prevGameStatus = useRef<string | null>(null);
 
   const fetchTable = useCallback(async () => {
     if (!tableId) return;
@@ -158,6 +179,99 @@ export default function Lucky9TablePage() {
     return false;
   }, [user, tableId]);
 
+  // Handle emoji from other players
+  const handlePlayerEmoji = useCallback((emojiData: PlayerEmoji) => {
+    setPlayerEmojis(prev => ({ ...prev, [emojiData.userId]: emojiData.emoji }));
+    // Clear after 3 seconds
+    setTimeout(() => {
+      setPlayerEmojis(prev => ({ ...prev, [emojiData.userId]: null }));
+    }, 3000);
+  }, []);
+
+  // Broadcast decision to other players
+  const broadcastDecision = useCallback(async (decision: 'hirit' | 'good') => {
+    if (!tableId || !user?.id || !profile?.username) return;
+    
+    await supabase.channel(`lucky9-decisions-${tableId}`).send({
+      type: 'broadcast',
+      event: 'decision',
+      payload: { decision, userId: user.id, username: profile.username }
+    });
+    
+    // Show own decision
+    setPlayerDecisions(prev => ({ ...prev, [user.id]: decision }));
+    setTimeout(() => {
+      setPlayerDecisions(prev => ({ ...prev, [user.id]: null }));
+    }, 2000);
+  }, [tableId, user?.id, profile?.username]);
+
+  // Subscribe to decisions broadcast
+  useEffect(() => {
+    if (!tableId) return;
+    
+    const channel = supabase.channel(`lucky9-decisions-${tableId}`)
+      .on('broadcast', { event: 'decision' }, ({ payload }) => {
+        if (payload.userId !== user?.id) {
+          setPlayerDecisions(prev => ({ ...prev, [payload.userId]: payload.decision }));
+          // Play sound for other player's decision
+          playSound(payload.decision === 'hirit' ? 'hirit' : 'good');
+          setTimeout(() => {
+            setPlayerDecisions(prev => ({ ...prev, [payload.userId]: null }));
+          }, 2000);
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [tableId, user?.id, playSound]);
+
+  // Sound effects based on game state changes
+  useEffect(() => {
+    if (!game?.status) return;
+    
+    const currentStatus = game.status;
+    const prevStatus = prevGameStatus.current;
+    
+    if (prevStatus !== currentStatus) {
+      switch (currentStatus) {
+        case 'dealing':
+        case 'player_turns':
+          if (prevStatus === 'betting' || prevStatus === 'dealing') {
+            setIsDealing(true);
+            playSound('shuffle');
+            setTimeout(() => {
+              playDealSequence(players.filter(p => p.betAccepted).length * 2);
+              setTimeout(() => setIsDealing(false), 1000);
+            }, 300);
+          }
+          break;
+        case 'showdown':
+          playSound('showdown');
+          break;
+        case 'finished':
+          // Check for winners
+          const gameWinners = players.filter(p => p.winnings > 0);
+          if (gameWinners.length > 0) {
+            playSound('win');
+          }
+          break;
+      }
+      prevGameStatus.current = currentStatus;
+    }
+  }, [game?.status, players, playSound, playDealSequence]);
+
+  // Play turn sound when it's my turn
+  useEffect(() => {
+    const isMyTurn = game?.status === 'player_turns' && myPlayer && !myPlayer.isBanker && game.currentPlayerPosition === myPlayer.position && !myPlayer.hasActed;
+    const isBankerTurn = game?.status === 'banker_turn' && myPlayer?.isBanker && !myPlayer.hasActed;
+    
+    if (isMyTurn || isBankerTurn) {
+      playSound('turn');
+    }
+  }, [game?.status, game?.currentPlayerPosition, myPlayer, playSound]);
+
   const joinTable = async (role: 'banker' | 'player') => {
     if (!user || !tableId || !profile) return;
     setIsProcessing(true);
@@ -207,6 +321,7 @@ export default function Lucky9TablePage() {
   const placeBet = async (amount: number) => {
     if (!myPlayer) return;
     setIsProcessing(true);
+    playSound('bet');
 
     const { data, error } = await supabase.functions.invoke('lucky9-game', {
       body: { action: 'place_bet', tableId, playerId: myPlayer.id, amount }
@@ -223,6 +338,7 @@ export default function Lucky9TablePage() {
   const handleAcceptBet = async (playerId: string) => {
     if (!myPlayer?.isBanker || !user) return;
     setIsProcessing(true);
+    playSound('betAccepted');
 
     const { data, error } = await supabase.functions.invoke('lucky9-game', {
       body: { action: 'accept_bet', tableId, playerId, userId: user.id }
@@ -239,6 +355,7 @@ export default function Lucky9TablePage() {
   const handleRejectBet = async (playerId: string) => {
     if (!myPlayer?.isBanker || !user) return;
     setIsProcessing(true);
+    playSound('betRejected');
 
     const { data, error } = await supabase.functions.invoke('lucky9-game', {
       body: { action: 'reject_bet', tableId, playerId, userId: user.id }
@@ -269,6 +386,8 @@ export default function Lucky9TablePage() {
   const startRound = async () => {
     if (!game) return;
     setIsProcessing(true);
+    setIsDealing(true);
+    playSound('shuffle');
 
     const { data, error } = await supabase.functions.invoke('lucky9-game', {
       body: { action: 'start_round', tableId, gameId: game.id }
@@ -278,13 +397,29 @@ export default function Lucky9TablePage() {
       toast({ title: 'Error', description: data?.error || error?.message, variant: 'destructive' });
     } else if (data?.remainingDeck) {
       setRemainingDeck(data.remainingDeck);
+      // Play deal sequence
+      setTimeout(() => {
+        playDealSequence(players.filter(p => p.betAccepted).length * 2 + 2);
+      }, 300);
     }
+    setTimeout(() => setIsDealing(false), 1500);
     setIsProcessing(false);
   };
 
   const handlePlayerAction = async (playerAction: 'draw' | 'stand') => {
     if (!myPlayer || !game) return;
     setIsProcessing(true);
+
+    // Broadcast decision to other players
+    broadcastDecision(playerAction === 'draw' ? 'hirit' : 'good');
+    
+    // Play sound
+    playSound(playerAction === 'draw' ? 'hirit' : 'good');
+
+    if (playerAction === 'draw') {
+      setIsDealing(true);
+      setTimeout(() => setIsDealing(false), 500);
+    }
 
     const action = myPlayer.isBanker ? 'banker_action' : 'player_action';
     const { data, error } = await supabase.functions.invoke('lucky9-game', {
@@ -295,6 +430,9 @@ export default function Lucky9TablePage() {
       toast({ title: 'Error', description: data?.error || error?.message, variant: 'destructive' });
     } else if (data?.remainingDeck) {
       setRemainingDeck(data.remainingDeck);
+      if (playerAction === 'draw') {
+        playSound('deal');
+      }
     }
     setIsProcessing(false);
   };
@@ -383,6 +521,7 @@ export default function Lucky9TablePage() {
   const iAmBanker = myPlayer?.isBanker;
 
   const handleCardReveal = (playerId: string, cardIndex: number) => {
+    playSound('cardFlip');
     console.log(`Card ${cardIndex} revealed for player ${playerId}`);
   };
 
@@ -453,6 +592,9 @@ export default function Lucky9TablePage() {
           onRejectBet={handleRejectBet}
           isProcessing={isProcessing}
           onCardReveal={handleCardReveal}
+          playerEmojis={playerEmojis}
+          playerDecisions={playerDecisions}
+          isDealing={isDealing}
         />
 
         {/* Banker controls */}
@@ -544,6 +686,7 @@ export default function Lucky9TablePage() {
         userId={user?.id} 
         username={profile?.username} 
         isJoined={!!myPlayer}
+        onPlayerEmoji={handlePlayerEmoji}
       />
     </div>
   );
