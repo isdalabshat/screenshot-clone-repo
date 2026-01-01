@@ -224,6 +224,48 @@ export type Database = {
           },
         ]
       }
+      lucky9_fees: {
+        Row: {
+          created_at: string
+          fee_amount: number
+          game_id: string | null
+          id: string
+          table_id: string
+          total_winnings: number
+        }
+        Insert: {
+          created_at?: string
+          fee_amount?: number
+          game_id?: string | null
+          id?: string
+          table_id: string
+          total_winnings?: number
+        }
+        Update: {
+          created_at?: string
+          fee_amount?: number
+          game_id?: string | null
+          id?: string
+          table_id?: string
+          total_winnings?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lucky9_fees_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "lucky9_games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lucky9_fees_table_id_fkey"
+            columns: ["table_id"]
+            isOneToOne: false
+            referencedRelation: "lucky9_tables"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lucky9_games: {
         Row: {
           banker_id: string | null

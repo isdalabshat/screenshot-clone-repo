@@ -210,8 +210,6 @@ export function Lucky9GamblingTable({
                     isMe={isCurrentUserBanker}
                     size="sm"
                     currentEmoji={playerEmojis[banker.userId] || null}
-                    isWinner={bankerIsWinner}
-                    isNaturalWinner={bankerIsWinner && bankerIsNatural}
                   />
                   <motion.div 
                     className="absolute -top-0.5 -right-0.5"
@@ -230,6 +228,29 @@ export function Lucky9GamblingTable({
                   </div>
                   <span className="text-yellow-400 font-mono text-[10px] font-bold">₱{banker.stack.toLocaleString()}</span>
                 </div>
+                {/* Banker win indicator - outside beside avatar */}
+                <AnimatePresence>
+                  {bankerIsWinner && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0, x: -10 }}
+                      animate={{ opacity: 1, scale: 1, x: 0 }}
+                      exit={{ opacity: 0, scale: 0 }}
+                    >
+                      <motion.div
+                        animate={{ scale: [1, 1.15, 1] }}
+                        transition={{ repeat: Infinity, duration: 0.8 }}
+                        className={cn(
+                          'px-1.5 py-0.5 rounded-full text-[7px] font-bold shadow-lg whitespace-nowrap',
+                          bankerIsNatural
+                            ? 'bg-gradient-to-r from-amber-400 to-yellow-300 text-black'
+                            : 'bg-gradient-to-r from-green-500 to-emerald-400 text-white'
+                        )}
+                      >
+                        {bankerIsNatural ? '🏆9!' : '🎉WIN'}
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
               {/* Banker Cards - MANDATORY: Always visible when game finished */}
