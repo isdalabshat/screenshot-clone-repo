@@ -14,7 +14,6 @@ import { Lucky9BettingTimer } from '@/components/lucky9/Lucky9BettingTimer';
 import { Lucky9GamblingTable } from '@/components/lucky9/Lucky9GamblingTable';
 import Lucky9Chat from '@/components/lucky9/Lucky9Chat';
 import Lucky9EmojiReactions from '@/components/lucky9/Lucky9EmojiReactions';
-import { Lucky9WinnerAnimation } from '@/components/lucky9/Lucky9WinnerAnimation';
 import { Lucky9HiritCard, Lucky9DealSequence } from '@/components/lucky9/Lucky9FloatingCard';
 import { useLucky9Sounds } from '@/hooks/useLucky9Sounds';
 
@@ -47,12 +46,11 @@ export default function Lucky9TablePage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showRoleDialog, setShowRoleDialog] = useState(false);
   const [hasBanker, setHasBanker] = useState(false);
-  const [showWinnerAnimation, setShowWinnerAnimation] = useState(false);
-  const [winners, setWinners] = useState<{ username: string; winnings: number }[]>([]);
   const [playerEmojis, setPlayerEmojis] = useState<PlayerEmojiState>({});
   const [playerDecisions, setPlayerDecisions] = useState<PlayerDecisionState>({});
   const [isDealing, setIsDealing] = useState(false);
   const [showHiritAnimation, setShowHiritAnimation] = useState(false);
+  const [hiritTargetPosition, setHiritTargetPosition] = useState({ x: 0, y: 0 });
   const [showDealSequence, setShowDealSequence] = useState(false);
   const [dealTargets, setDealTargets] = useState<{ x: number; y: number }[]>([]);
 
@@ -209,7 +207,7 @@ export default function Lucky9TablePage() {
     }, 2000);
   }, [tableId, user?.id, profile?.username]);
 
-  // Subscribe to decisions and deal animation broadcast
+  // Subscribe to decisions, deal animation, and hirit animation broadcast
   useEffect(() => {
     if (!tableId) return;
     
@@ -252,6 +250,19 @@ export default function Lucky9TablePage() {
             setShowDealSequence(false);
             setDealTargets([]);
           }, 1500);
+        }
+      })
+      .on('broadcast', { event: 'hirit_card' }, ({ payload }) => {
+        // Show hirit animation to all players except the one who triggered it
+        if (payload.userId !== user?.id) {
+          setIsDealing(true);
+          setShowHiritAnimation(true);
+          setHiritTargetPosition(payload.targetPosition || { x: window.innerWidth / 2 - 25, y: window.innerHeight - 200 });
+          playSound('deal');
+          setTimeout(() => {
+            setIsDealing(false);
+            setShowHiritAnimation(false);
+          }, 500);
         }
       })
       .subscribe();
@@ -428,6 +439,18 @@ export default function Lucky9TablePage() {
     if (playerAction === 'draw') {
       setIsDealing(true);
       setShowHiritAnimation(true);
+      setHiritTargetPosition({ x: window.innerWidth / 2 - 25, y: window.innerHeight - 200 });
+      
+      // Broadcast hirit animation to all players
+      await supabase.channel(`lucky9-decisions-${tableId}`).send({
+        type: 'broadcast',
+        event: 'hirit_card',
+        payload: { 
+          userId: user?.id, 
+          targetPosition: { x: window.innerWidth / 2 - 25, y: window.innerHeight - 200 }
+        }
+      });
+      
       setTimeout(() => {
         setIsDealing(false);
         setShowHiritAnimation(false);
@@ -456,8 +479,6 @@ export default function Lucky9TablePage() {
 
   const resetRound = async () => {
     if (!tableId) return;
-    setShowWinnerAnimation(false);
-    setWinners([]);
     await supabase.functions.invoke('lucky9-game', { body: { action: 'reset_round', tableId } });
   };
 
@@ -531,14 +552,9 @@ export default function Lucky9TablePage() {
       revealingHandled.current = true;
       console.log('Revealing all cards for 5 seconds...');
       
-      // Show winner animation
-      const gameWinners = players.filter(p => p.winnings > 0).map(p => ({
-        username: p.username,
-        winnings: p.winnings
-      }));
+      // Play win sound if there are winners
+      const gameWinners = players.filter(p => p.winnings > 0);
       if (gameWinners.length > 0) {
-        setWinners(gameWinners);
-        setShowWinnerAnimation(true);
         playSound('win');
       }
       
@@ -552,8 +568,6 @@ export default function Lucky9TablePage() {
         
         // Wait a moment then reset
         setTimeout(() => {
-          setShowWinnerAnimation(false);
-          setWinners([]);
           revealingHandled.current = false;
           resetRound();
         }, 500);
@@ -624,13 +638,6 @@ export default function Lucky9TablePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-950 via-slate-900 to-green-950 pb-28 overflow-x-hidden">
       <Lucky9RoleDialog open={showRoleDialog} hasBanker={hasBanker} onSelectRole={joinTable} onCancel={() => navigate('/lucky9')} />
-      
-      {/* Winner Animation */}
-      <Lucky9WinnerAnimation 
-        winners={winners} 
-        show={showWinnerAnimation} 
-        onComplete={() => setShowWinnerAnimation(false)} 
-      />
 
       {/* Compact header for mobile */}
       <header className="border-b border-green-500/30 bg-slate-900/90 backdrop-blur sticky top-0 z-20">
@@ -708,7 +715,7 @@ export default function Lucky9TablePage() {
         <Lucky9HiritCard
           isAnimating={showHiritAnimation}
           deckPosition={{ x: window.innerWidth / 2 - 25, y: window.innerHeight / 2 - 50 }}
-          targetPosition={{ x: window.innerWidth / 2 - 25, y: window.innerHeight - 200 }}
+          targetPosition={hiritTargetPosition}
           onComplete={() => setShowHiritAnimation(false)}
         />
 
