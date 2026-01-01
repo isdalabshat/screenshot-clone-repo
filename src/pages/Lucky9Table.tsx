@@ -238,26 +238,11 @@ export default function Lucky9TablePage() {
     const currentStatus = game.status;
     const prevStatus = prevGameStatus.current;
     
-    if (prevStatus !== currentStatus) {
-      switch (currentStatus) {
-        case 'finished':
-          // Show winner animation after showing all cards
-          const gameWinners = players.filter(p => p.winnings > 0);
-          if (gameWinners.length > 0) {
-            playSound('win');
-            setTimeout(() => {
-              setWinners(gameWinners.map(p => ({
-                username: p.username,
-                winnings: p.winnings
-              })));
-              setShowWinnerAnimation(true);
-            }, 1000);
-          }
-          break;
-      }
+    // Only track status changes for non-finished states (finished handling is in separate useEffect)
+    if (prevStatus !== currentStatus && currentStatus !== 'finished') {
       prevGameStatus.current = currentStatus;
     }
-  }, [game?.status, players, playSound]);
+  }, [game?.status]);
 
   // Play turn sound when it's my turn
   useEffect(() => {

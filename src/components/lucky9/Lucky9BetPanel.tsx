@@ -29,25 +29,25 @@ export function Lucky9BetPanel({ minBet, maxBet, playerStack, onPlaceBet, disabl
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 50 }}
+      initial={{ opacity: 0, y: 30 }}
       animate={{ opacity: 1, y: 0 }}
-      className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-slate-900 via-slate-900/98 to-slate-900/95 backdrop-blur-xl border-t border-yellow-500/30 p-4 z-30"
+      className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-slate-900 via-slate-900/98 to-slate-900/95 backdrop-blur-xl border-t border-yellow-500/30 px-3 py-2 z-30"
     >
-      {/* Current bet display */}
-      <div className="flex items-center justify-center gap-3 mb-3">
+      {/* Compact bet display with inline controls */}
+      <div className="flex items-center justify-center gap-2 mb-2">
         <Button 
           variant="outline" 
           size="icon" 
           onClick={() => adjustBet(-minBet)}
           disabled={betAmount <= minBet}
-          className="h-10 w-10 rounded-full border-slate-600 bg-slate-800"
+          className="h-8 w-8 rounded-full border-slate-600 bg-slate-800"
         >
-          <Minus className="h-4 w-4" />
+          <Minus className="h-3 w-3" />
         </Button>
         
-        <div className="flex items-center gap-2 bg-black/50 px-6 py-3 rounded-xl border border-yellow-500/50 min-w-[140px] justify-center">
-          <Coins className="h-5 w-5 text-yellow-400" />
-          <span className="text-2xl font-bold text-yellow-400">₱{betAmount}</span>
+        <div className="flex items-center gap-1.5 bg-black/50 px-4 py-1.5 rounded-lg border border-yellow-500/50">
+          <Coins className="h-4 w-4 text-yellow-400" />
+          <span className="text-lg font-bold text-yellow-400">₱{betAmount}</span>
         </div>
         
         <Button 
@@ -55,23 +55,23 @@ export function Lucky9BetPanel({ minBet, maxBet, playerStack, onPlaceBet, disabl
           size="icon" 
           onClick={() => adjustBet(minBet)}
           disabled={betAmount >= Math.min(playerStack, maxBet)}
-          className="h-10 w-10 rounded-full border-slate-600 bg-slate-800"
+          className="h-8 w-8 rounded-full border-slate-600 bg-slate-800"
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="h-3 w-3" />
         </Button>
       </div>
 
-      {/* Quick chip buttons - scrollable on mobile */}
-      <div className="flex gap-2 overflow-x-auto pb-2 mb-3 scrollbar-hide justify-center">
+      {/* Compact chip buttons */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1.5 mb-2 scrollbar-hide justify-center">
         {chipValues.map((chip) => (
           <Button
             key={chip}
             variant="outline"
             size="sm"
             onClick={() => setBetAmount(chip)}
-            className={`flex-shrink-0 h-12 px-4 rounded-full font-bold transition-all ${
+            className={`flex-shrink-0 h-8 px-3 rounded-full text-xs font-bold transition-all ${
               betAmount === chip 
-                ? 'bg-yellow-500 text-black border-yellow-400 scale-110' 
+                ? 'bg-yellow-500 text-black border-yellow-400 scale-105' 
                 : 'border-yellow-500/50 text-yellow-400 hover:bg-yellow-500/20'
             }`}
           >
@@ -82,23 +82,23 @@ export function Lucky9BetPanel({ minBet, maxBet, playerStack, onPlaceBet, disabl
           variant="outline"
           size="sm"
           onClick={() => setBetAmount(Math.min(playerStack, maxBet))}
-          className="flex-shrink-0 h-12 px-4 rounded-full border-red-500/50 text-red-400 hover:bg-red-500/20 font-bold"
+          className="flex-shrink-0 h-8 px-3 rounded-full border-red-500/50 text-red-400 hover:bg-red-500/20 text-xs font-bold"
         >
           ALL IN
         </Button>
       </div>
 
-      {/* Confirm bet button */}
+      {/* Confirm bet button - smaller */}
       <Button
         onClick={handleBet}
         disabled={disabled || betAmount < minBet || betAmount > playerStack}
-        className="w-full h-14 text-lg font-bold bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 rounded-xl shadow-lg shadow-green-500/30"
+        className="w-full h-10 text-sm font-bold bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 rounded-lg shadow-md shadow-green-500/30"
       >
-        <Coins className="h-5 w-5 mr-2" />
-        Confirm Bet ₱{betAmount}
+        <Coins className="h-4 w-4 mr-1.5" />
+        Confirm ₱{betAmount}
       </Button>
 
-      <p className="text-center text-xs text-slate-500 mt-2">
+      <p className="text-center text-[10px] text-slate-500 mt-1">
         Min: ₱{minBet} | Max: ₱{maxBet} | Stack: ₱{playerStack}
       </p>
     </motion.div>

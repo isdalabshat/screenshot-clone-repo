@@ -232,16 +232,16 @@ export function Lucky9GamblingTable({
         )}
       </div>
 
-      {/* Table felt - Mobile optimized */}
-      <div className="relative w-full aspect-square max-w-[200px] mx-auto">
+      {/* Table felt - Landscape rectangle for mobile */}
+      <div className="relative w-full aspect-[16/9] max-w-[320px] mx-auto">
         <motion.div 
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className="absolute inset-0 rounded-full bg-gradient-to-b from-green-600 via-green-700 to-green-900 border-4 border-amber-700 shadow-xl shadow-black/60"
+          className="absolute inset-0 rounded-2xl bg-gradient-to-b from-green-600 via-green-700 to-green-900 border-4 border-amber-700 shadow-xl shadow-black/60"
         >
-          {/* Inner ring decorations */}
-          <div className="absolute inset-2 rounded-full border border-amber-600/30" />
-          <div className="absolute inset-4 rounded-full border border-green-500/30" />
+          {/* Inner border decorations */}
+          <div className="absolute inset-2 rounded-xl border border-amber-600/30" />
+          <div className="absolute inset-4 rounded-lg border border-green-500/30" />
           
           {/* Center logo with glow */}
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
@@ -249,13 +249,13 @@ export function Lucky9GamblingTable({
               animate={{ opacity: [0.15, 0.25, 0.15] }}
               transition={{ duration: 3, repeat: Infinity }}
             >
-              <div className="text-green-400/30 text-lg font-bold tracking-wider">LUCKY</div>
-              <div className="text-green-400/40 text-3xl font-black">9</div>
+              <div className="text-green-400/30 text-base font-bold tracking-wider">LUCKY</div>
+              <div className="text-green-400/40 text-2xl font-black">9</div>
             </motion.div>
           </div>
           
           {/* Ambient light effect */}
-          <div className="absolute inset-0 rounded-full bg-gradient-to-t from-transparent via-white/5 to-white/10 pointer-events-none" />
+          <div className="absolute inset-0 rounded-2xl bg-gradient-to-t from-transparent via-white/5 to-white/10 pointer-events-none" />
         </motion.div>
 
         {/* Card Deck with glow */}
