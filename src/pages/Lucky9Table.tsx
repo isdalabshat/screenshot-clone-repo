@@ -3,7 +3,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Coins, Play, Layers } from 'lucide-react';
 import { CashInOutButtons } from '@/components/CashInOutButtons';
 import { Lucky9Table, Lucky9Game, Lucky9Player } from '@/types/lucky9';
@@ -38,7 +37,6 @@ export default function Lucky9TablePage() {
   const { tableId } = useParams<{ tableId: string }>();
   const navigate = useNavigate();
   const { user, profile } = useAuth();
-  const { toast } = useToast();
   const { playSound, playDealSequence } = useLucky9Sounds();
 
   const [table, setTable] = useState<Lucky9Table | null>(null);
@@ -280,10 +278,7 @@ export default function Lucky9TablePage() {
       body: { action: 'join_table', tableId, userId: user.id, username: profile.username, role, stack: profile.chips }
     });
 
-    if (error || data?.error) {
-      toast({ title: 'Error', description: data?.error || error?.message, variant: 'destructive' });
-    } else {
-      toast({ title: 'Joined!', description: `You joined as ${role}` });
+    if (!error && !data?.error) {
       // Deduct chips from profile
       await supabase.from('profiles').update({ chips: 0 }).eq('user_id', user.id);
       fetchPlayers();
@@ -305,15 +300,12 @@ export default function Lucky9TablePage() {
   const handleBettingTimerEnd = async () => {
     if (!tableId || !game) return;
     
-    const { data, error } = await supabase.functions.invoke('lucky9-game', {
+    const { data } = await supabase.functions.invoke('lucky9-game', {
       body: { action: 'betting_timer_end', tableId }
     });
 
     if (data?.allLeft) {
-      toast({ title: 'No bets accepted', description: 'All players have left the table' });
       navigate('/lucky9');
-    } else if (data?.canDeal && myPlayer?.isBanker) {
-      toast({ title: 'Betting ended', description: `${data.acceptedCount} player(s) ready to play` });
     }
   };
 
@@ -322,15 +314,10 @@ export default function Lucky9TablePage() {
     setIsProcessing(true);
     playSound('bet');
 
-    const { data, error } = await supabase.functions.invoke('lucky9-game', {
+    await supabase.functions.invoke('lucky9-game', {
       body: { action: 'place_bet', tableId, playerId: myPlayer.id, amount }
     });
 
-    if (error || data?.error) {
-      toast({ title: 'Error', description: data?.error || error?.message, variant: 'destructive' });
-    } else {
-      toast({ title: 'Bet Placed', description: `Waiting for banker to accept your bet` });
-    }
     setIsProcessing(false);
   };
 
@@ -339,15 +326,10 @@ export default function Lucky9TablePage() {
     setIsProcessing(true);
     playSound('betAccepted');
 
-    const { data, error } = await supabase.functions.invoke('lucky9-game', {
+    await supabase.functions.invoke('lucky9-game', {
       body: { action: 'accept_bet', tableId, playerId, userId: user.id }
     });
 
-    if (error || data?.error) {
-      toast({ title: 'Error', description: data?.error || error?.message, variant: 'destructive' });
-    } else {
-      toast({ title: 'Bet Accepted' });
-    }
     setIsProcessing(false);
   };
 
@@ -356,15 +338,10 @@ export default function Lucky9TablePage() {
     setIsProcessing(true);
     playSound('betRejected');
 
-    const { data, error } = await supabase.functions.invoke('lucky9-game', {
+    await supabase.functions.invoke('lucky9-game', {
       body: { action: 'reject_bet', tableId, playerId, userId: user.id }
     });
 
-    if (error || data?.error) {
-      toast({ title: 'Error', description: data?.error || error?.message, variant: 'destructive' });
-    } else {
-      toast({ title: 'Bet Rejected', description: 'Player\'s bet has been returned' });
-    }
     setIsProcessing(false);
   };
 
@@ -372,13 +349,10 @@ export default function Lucky9TablePage() {
     if (!tableId) return;
     setIsProcessing(true);
 
-    const { data, error } = await supabase.functions.invoke('lucky9-game', {
+    await supabase.functions.invoke('lucky9-game', {
       body: { action: 'start_betting', tableId }
     });
 
-    if (error || data?.error) {
-      toast({ title: 'Error', description: data?.error || error?.message, variant: 'destructive' });
-    }
     setIsProcessing(false);
   };
 
@@ -401,13 +375,11 @@ export default function Lucky9TablePage() {
     targets.push({ x: window.innerWidth / 2 - 25, y: 120 });
     setDealTargets(targets);
 
-    const { data, error } = await supabase.functions.invoke('lucky9-game', {
+    const { data } = await supabase.functions.invoke('lucky9-game', {
       body: { action: 'start_round', tableId, gameId: game.id }
     });
 
-    if (error || data?.error) {
-      toast({ title: 'Error', description: data?.error || error?.message, variant: 'destructive' });
-    } else if (data?.remainingDeck) {
+    if (data?.remainingDeck) {
       setRemainingDeck(data.remainingDeck);
       setTimeout(() => {
         playDealSequence(acceptedPlayers.length * 2 + 2);
@@ -441,29 +413,20 @@ export default function Lucky9TablePage() {
     }
 
     const action = myPlayer.isBanker ? 'banker_action' : 'player_action';
-    const { data, error } = await supabase.functions.invoke('lucky9-game', {
+    const { data } = await supabase.functions.invoke('lucky9-game', {
       body: { action, tableId, playerId: myPlayer.id, gameId: game.id, actionType: playerAction, userId: user?.id }
     });
 
-    if (error || data?.error) {
-      toast({ title: 'Error', description: data?.error || error?.message, variant: 'destructive' });
-    } else {
-      if (data?.remainingDeck) {
-        setRemainingDeck(data.remainingDeck);
-        if (playerAction === 'draw') {
-          playSound('deal');
-        }
+    if (data?.remainingDeck) {
+      setRemainingDeck(data.remainingDeck);
+      if (playerAction === 'draw') {
+        playSound('deal');
       }
-      // Handle auto-kicked players notification
-      if (data?.kickedPlayers && data.kickedPlayers.length > 0) {
-        if (data.kickedPlayers.includes(user?.id)) {
-          toast({ 
-            title: '⚠️ Removed from Table', 
-            description: 'Your balance reached zero. You have been removed from the table.',
-            variant: 'destructive'
-          });
-          setTimeout(() => navigate('/lucky9'), 2000);
-        }
+    }
+    // Handle auto-kicked players
+    if (data?.kickedPlayers && data.kickedPlayers.length > 0) {
+      if (data.kickedPlayers.includes(user?.id)) {
+        setTimeout(() => navigate('/lucky9'), 2000);
       }
     }
     setIsProcessing(false);
@@ -577,7 +540,7 @@ export default function Lucky9TablePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-950 via-slate-900 to-green-950 pb-24">
+    <div className="min-h-screen bg-gradient-to-br from-green-950 via-slate-900 to-green-950 pb-28 overflow-x-hidden">
       <Lucky9RoleDialog open={showRoleDialog} hasBanker={hasBanker} onSelectRole={joinTable} onCancel={() => navigate('/lucky9')} />
       
       {/* Winner Animation */}
@@ -589,31 +552,31 @@ export default function Lucky9TablePage() {
 
       {/* Compact header for mobile */}
       <header className="border-b border-green-500/30 bg-slate-900/90 backdrop-blur sticky top-0 z-20">
-        <div className="flex justify-between items-center px-3 py-2">
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={leaveTable} className="h-8 w-8">
-              <ArrowLeft className="h-4 w-4" />
+        <div className="flex justify-between items-center px-2 py-1.5">
+          <div className="flex items-center gap-1.5">
+            <Button variant="ghost" size="icon" onClick={leaveTable} className="h-7 w-7">
+              <ArrowLeft className="h-3.5 w-3.5" />
             </Button>
             <div>
-              <h1 className="text-sm font-bold text-green-400">{table.name}</h1>
-              <p className="text-[10px] text-muted-foreground">₱{table.minBet} - ₱{table.maxBet}</p>
+              <h1 className="text-xs font-bold text-green-400">{table.name}</h1>
+              <p className="text-[9px] text-muted-foreground">₱{table.minBet} - ₱{table.maxBet}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {/* Cash In/Out Buttons */}
             {user && profile && <CashInOutButtons userId={user.id} userChips={profile.chips} />}
             
             {myPlayer && (
-              <div className="flex items-center gap-1.5 bg-black/50 px-3 py-1.5 rounded-lg border border-yellow-500/30">
-                <Coins className="h-4 w-4 text-yellow-400" />
-                <span className="text-sm font-bold text-yellow-400">₱{myPlayer.stack.toLocaleString()}</span>
+              <div className="flex items-center gap-1 bg-black/50 px-2 py-1 rounded-lg border border-yellow-500/30">
+                <Coins className="h-3 w-3 text-yellow-400" />
+                <span className="text-xs font-bold text-yellow-400">₱{myPlayer.stack.toLocaleString()}</span>
               </div>
             )}
           </div>
         </div>
       </header>
 
-      <main className="px-3 py-4 space-y-4">
+      <main className="px-2 py-2 space-y-2">
         {/* Game status */}
         <Lucky9GameStatus 
           status={hasActiveBanker ? (game?.status || 'waiting') : 'waiting_banker'} 
@@ -624,7 +587,7 @@ export default function Lucky9TablePage() {
 
         {/* Betting timer */}
         {hasActiveBanker && game?.bettingEndsAt && game.status === 'betting' && (
-          <div className="max-w-xs mx-auto">
+          <div className="max-w-[200px] mx-auto">
             <Lucky9BettingTimer bettingEndsAt={game.bettingEndsAt} onTimeUp={handleBettingTimerEnd} />
           </div>
         )}
@@ -669,14 +632,14 @@ export default function Lucky9TablePage() {
 
         {/* Banker controls */}
         {hasActiveBanker && (canStartBetting || canDealCards) && (
-          <div className="flex justify-center gap-3 pt-2">
+          <div className="flex justify-center gap-2 pt-1">
             {canStartBetting && (
               <Button 
                 onClick={startBetting} 
                 disabled={isProcessing} 
-                className="bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 px-6 py-5 text-base font-bold rounded-xl shadow-lg shadow-green-500/30"
+                className="bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 px-4 py-3 text-sm font-bold rounded-xl shadow-lg shadow-green-500/30"
               >
-                <Play className="h-5 w-5 mr-2" />
+                <Play className="h-4 w-4 mr-1.5" />
                 Start Betting
               </Button>
             )}
@@ -684,9 +647,9 @@ export default function Lucky9TablePage() {
               <Button 
                 onClick={startRound} 
                 disabled={isProcessing} 
-                className="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 px-6 py-5 text-base font-bold rounded-xl shadow-lg shadow-amber-500/30"
+                className="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 px-4 py-3 text-sm font-bold rounded-xl shadow-lg shadow-amber-500/30"
               >
-                <Layers className="h-5 w-5 mr-2" />
+                <Layers className="h-4 w-4 mr-1.5" />
                 Deal Cards
               </Button>
             )}
@@ -695,8 +658,8 @@ export default function Lucky9TablePage() {
 
         {/* Pending bets info for banker */}
         {iAmBanker && game?.status === 'betting' && playersWithPendingBets.length > 0 && (
-          <div className="text-center py-2">
-            <p className="text-amber-400 text-sm">
+          <div className="text-center py-1">
+            <p className="text-amber-400 text-xs">
               {playersWithPendingBets.length} player(s) waiting for bet acceptance
             </p>
           </div>
@@ -704,22 +667,22 @@ export default function Lucky9TablePage() {
 
         {/* Waiting for banker message for players */}
         {!hasActiveBanker && myPlayer && !myPlayer.isBanker && (
-          <div className="text-center py-4">
-            <p className="text-amber-400/70 text-sm">Waiting for a banker to start the game...</p>
+          <div className="text-center py-2">
+            <p className="text-amber-400/70 text-xs">Waiting for a banker to start the game...</p>
           </div>
         )}
 
         {/* Player bet status */}
         {myPlayer && !myPlayer.isBanker && myPlayer.currentBet > 0 && game?.status === 'betting' && (
-          <div className="text-center py-2">
+          <div className="text-center py-1">
             {myPlayer.betAccepted === null && (
-              <p className="text-yellow-400 text-sm animate-pulse">Waiting for banker to accept your bet...</p>
+              <p className="text-yellow-400 text-xs animate-pulse">Waiting for banker to accept your bet...</p>
             )}
             {myPlayer.betAccepted === true && (
-              <p className="text-green-400 text-sm">✓ Your bet of ₱{myPlayer.currentBet} has been accepted!</p>
+              <p className="text-green-400 text-xs">✓ Your bet of ₱{myPlayer.currentBet} has been accepted!</p>
             )}
             {myPlayer.betAccepted === false && (
-              <p className="text-red-400 text-sm">✗ Your bet was rejected. Your chips have been returned.</p>
+              <p className="text-red-400 text-xs">✗ Your bet was rejected. Your chips have been returned.</p>
             )}
           </div>
         )}
