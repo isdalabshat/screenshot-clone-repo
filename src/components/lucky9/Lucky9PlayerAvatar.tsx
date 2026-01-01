@@ -9,7 +9,7 @@ interface Lucky9PlayerAvatarProps {
   isBanker?: boolean;
   isMe?: boolean;
   currentEmoji?: string | null;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg';
   isWinner?: boolean;
   isNaturalWinner?: boolean;
 }
@@ -34,12 +34,14 @@ export function Lucky9PlayerAvatar({
   }, [currentEmoji]);
 
   const sizeClasses = {
+    xs: 'h-6 w-6 text-[8px]',
     sm: 'h-8 w-8 text-xs',
     md: 'h-10 w-10 text-sm',
     lg: 'h-12 w-12 text-base'
   };
 
   const iconSizes = {
+    xs: 'h-2 w-2',
     sm: 'h-3 w-3',
     md: 'h-4 w-4',
     lg: 'h-5 w-5'
@@ -88,6 +90,7 @@ export function Lucky9PlayerAvatar({
               transition={{ repeat: 2, duration: 0.3 }}
               className={cn(
                 'text-lg',
+                size === 'xs' && 'text-sm',
                 size === 'sm' && 'text-base',
                 size === 'lg' && 'text-xl'
               )}
