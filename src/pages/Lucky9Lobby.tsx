@@ -52,7 +52,10 @@ export default function Lucky9Lobby() {
         maxBet: t.max_bet,
         maxPlayers: t.max_players,
         isActive: t.is_active,
-        betTimerSeconds: t.bet_timer_seconds
+        betTimerSeconds: t.bet_timer_seconds,
+        callTimeMinutes: t.call_time_minutes,
+        callTimeStartedAt: t.call_time_started_at,
+        callTimeBankerId: t.call_time_banker_id
       })));
       fetchPlayerCounts();
     }
