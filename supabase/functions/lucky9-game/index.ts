@@ -684,14 +684,15 @@ serve(async (req) => {
             const currentBet = currentPlayer?.current_bet || 0;
             const currentStack = currentPlayer?.stack || 0;
             
-            // Natural 9 pays 3x (bet + 2x winnings)
-            const grossWinnings = currentBet * 3;
-            const feeDeducted = Math.floor(grossWinnings * 0.10);
+            // Natural 9 pays 3x (bet + 2x profit) - fee only on profit
+            const profit = currentBet * 2; // Natural pays 2x profit
+            const grossWinnings = currentBet + profit;
+            const feeDeducted = Math.floor(profit * 0.10); // 10% fee on profit only
             const netWinnings = grossWinnings - feeDeducted;
             
-            bankerTotalLossFromNaturals += currentBet * 2; // Banker loses 2x the bet
+            bankerTotalLossFromNaturals += profit; // Banker loses the profit amount
             totalFeesFromNaturals += feeDeducted;
-            totalWinningsFromNaturals += grossWinnings;
+            totalWinningsFromNaturals += profit;
             
             console.log(`Player ${player.username} has NATURAL 9! Wins immediately: ₱${netWinnings}`);
             
@@ -1022,13 +1023,15 @@ serve(async (req) => {
           let netWinnings = 0;
           let feeDeducted = 0;
 
-          // Case 1: Player has natural 9, banker doesn't - player wins with bonus
+          // Fee is only on PROFIT (winnings minus original bet), not on gross winnings
+          // Case 1: Player has natural 9, banker doesn't - player wins with bonus (3x = bet + 2x profit)
           if (playerIsNatural && !bankerIsNatural) {
             result = 'natural_win';
-            grossWinnings = player.current_bet * 3;
-            feeDeducted = Math.floor(grossWinnings * 0.10);
+            const profit = player.current_bet * 2; // Natural pays 2x profit
+            grossWinnings = player.current_bet + profit; // Total payout = bet + profit
+            feeDeducted = Math.floor(profit * 0.10); // 10% fee on profit only
             netWinnings = grossWinnings - feeDeducted;
-            bankerTotalLoss += player.current_bet * 2;
+            bankerTotalLoss += profit;
           } 
           // Case 2: Banker has natural 9, player doesn't - banker wins
           else if (bankerIsNatural && !playerIsNatural) {
@@ -1040,14 +1043,13 @@ serve(async (req) => {
           else if (playerValue === bankerValue) {
             // Tiebreaker: Natural 9 beats non-natural 9
             if (playerIsNatural && !bankerIsNatural) {
-              // Player had natural 9, banker got 9 after hirit - player wins
               result = 'natural_win';
-              grossWinnings = player.current_bet * 3;
-              feeDeducted = Math.floor(grossWinnings * 0.10);
+              const profit = player.current_bet * 2;
+              grossWinnings = player.current_bet + profit;
+              feeDeducted = Math.floor(profit * 0.10);
               netWinnings = grossWinnings - feeDeducted;
-              bankerTotalLoss += player.current_bet * 2;
+              bankerTotalLoss += profit;
             } else if (bankerIsNatural && !playerIsNatural) {
-              // Banker had natural 9, player got 9 after hirit - banker wins
               result = 'lose';
               netWinnings = 0;
               bankerTotalWin += player.current_bet;
@@ -1057,13 +1059,14 @@ serve(async (req) => {
               netWinnings = player.current_bet;
             }
           }
-          // Case 4: Player has higher value
+          // Case 4: Player has higher value - normal win (2x = bet + 1x profit)
           else if (playerValue > bankerValue) {
             result = 'win';
-            grossWinnings = player.current_bet * 2;
-            feeDeducted = Math.floor(grossWinnings * 0.10);
+            const profit = player.current_bet; // Normal pays 1x profit
+            grossWinnings = player.current_bet + profit;
+            feeDeducted = Math.floor(profit * 0.10); // 10% fee on profit only
             netWinnings = grossWinnings - feeDeducted;
-            bankerTotalLoss += player.current_bet;
+            bankerTotalLoss += profit;
           } 
           // Case 5: Banker has higher value
           else {

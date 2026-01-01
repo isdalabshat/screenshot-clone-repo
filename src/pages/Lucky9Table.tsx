@@ -15,6 +15,7 @@ import { Lucky9GamblingTable } from '@/components/lucky9/Lucky9GamblingTable';
 import Lucky9Chat from '@/components/lucky9/Lucky9Chat';
 import Lucky9EmojiReactions from '@/components/lucky9/Lucky9EmojiReactions';
 import { Lucky9HiritCard, Lucky9DealSequence, getPlayerSeatPosition } from '@/components/lucky9/Lucky9FloatingCard';
+import { Lucky9ChipAnimation, useLucky9ChipAnimations, getChipAnimationPosition } from '@/components/lucky9/Lucky9ChipAnimation';
 import { useLucky9Sounds } from '@/hooks/useLucky9Sounds';
 
 interface PlayerEmoji {
@@ -37,6 +38,7 @@ export default function Lucky9TablePage() {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const { playSound, playDealSequence } = useLucky9Sounds();
+  const { animations: chipAnimations, triggerAnimations, clearAnimations } = useLucky9ChipAnimations();
 
   const [table, setTable] = useState<Lucky9Table | null>(null);
   const [game, setGame] = useState<Lucky9Game | null>(null);
@@ -624,6 +626,52 @@ export default function Lucky9TablePage() {
         playSound('win');
       }
       
+      // Trigger chip animations after a short delay to let cards reveal first
+      const banker = players.find(p => p.isBanker);
+      if (banker) {
+        setTimeout(() => {
+          const bankerPos = getChipAnimationPosition(banker.id, true);
+          const chipAnims: any[] = [];
+          
+          players.filter(p => !p.isBanker && p.result).forEach((player, index) => {
+            const playerPos = getChipAnimationPosition(player.id, false);
+            if (!playerPos || !bankerPos) return;
+            
+            if (player.result === 'win' || player.result === 'natural_win') {
+              // Chips move from banker to player (player wins)
+              chipAnims.push({
+                id: `chip-${player.id}-${Date.now()}`,
+                fromPlayerId: banker.id,
+                toPlayerId: player.id,
+                amount: Math.abs(player.winnings - player.currentBet), // Profit amount
+                isWin: true,
+                startX: bankerPos.x,
+                startY: bankerPos.y,
+                endX: playerPos.x,
+                endY: playerPos.y
+              });
+            } else if (player.result === 'lose') {
+              // Chips move from player to banker (player loses)
+              chipAnims.push({
+                id: `chip-${player.id}-${Date.now()}`,
+                fromPlayerId: player.id,
+                toPlayerId: banker.id,
+                amount: player.currentBet,
+                isWin: false,
+                startX: playerPos.x,
+                startY: playerPos.y,
+                endX: bankerPos.x,
+                endY: bankerPos.y
+              });
+            }
+          });
+          
+          if (chipAnims.length > 0) {
+            triggerAnimations(chipAnims);
+          }
+        }, 500);
+      }
+      
       // Clear any existing timeout
       if (revealingTimeoutRef.current) {
         clearTimeout(revealingTimeoutRef.current);
@@ -835,6 +883,12 @@ export default function Lucky9TablePage() {
           deckPosition={{ x: window.innerWidth / 2 - 25, y: window.innerHeight / 2 - 50 }}
           targetPosition={hiritTargetPosition}
           onComplete={() => setShowHiritAnimation(false)}
+        />
+
+        {/* Chip animations for win/lose */}
+        <Lucky9ChipAnimation
+          animations={chipAnimations}
+          onComplete={clearAnimations}
         />
 
         {/* Banker controls */}
