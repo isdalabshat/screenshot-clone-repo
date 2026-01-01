@@ -10,9 +10,14 @@ interface Lucky9RoleDialogProps {
   onSelectRole: (role: Lucky9Role) => void;
   onCancel: () => void;
   forceSpectator?: boolean;
+  forceSpectatorReason?: 'balance' | 'full';
 }
 
-export function Lucky9RoleDialog({ open, hasBanker, onSelectRole, onCancel, forceSpectator = false }: Lucky9RoleDialogProps) {
+export function Lucky9RoleDialog({ open, hasBanker, onSelectRole, onCancel, forceSpectator = false, forceSpectatorReason = 'balance' }: Lucky9RoleDialogProps) {
+  const spectatorMessage = forceSpectatorReason === 'full' 
+    ? 'This table is full. You can watch the game as a spectator.'
+    : 'Your balance is zero. You can watch the game as a spectator.';
+
   return (
     <Dialog open={open} onOpenChange={(open) => !open && onCancel()}>
       <DialogContent className="sm:max-w-md bg-slate-900 border-purple-500/30">
@@ -22,7 +27,7 @@ export function Lucky9RoleDialog({ open, hasBanker, onSelectRole, onCancel, forc
           </DialogTitle>
           <DialogDescription>
             {forceSpectator 
-              ? 'Your balance is zero. You can watch the game as a spectator.'
+              ? spectatorMessage
               : 'Select whether you want to be the Banker, Player, or Spectator'}
           </DialogDescription>
         </DialogHeader>

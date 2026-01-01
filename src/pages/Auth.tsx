@@ -31,7 +31,7 @@ export default function Auth() {
 
   useEffect(() => {
     if (user && !isLoading) {
-      navigate('/lobby');
+      navigate('/');
     }
   }, [user, isLoading, navigate]);
 
@@ -54,7 +54,7 @@ export default function Auth() {
           title: 'Welcome to All-in Club!',
           description: 'Your account has been created successfully!'
         });
-        navigate('/lobby');
+        navigate('/');
       }
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -84,7 +84,7 @@ export default function Auth() {
           variant: 'destructive'
         });
       } else {
-        navigate('/lobby');
+        navigate('/');
       }
     } catch (err) {
       if (err instanceof z.ZodError) {
