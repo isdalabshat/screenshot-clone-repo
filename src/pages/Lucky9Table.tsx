@@ -17,6 +17,7 @@ import Lucky9EmojiReactions from '@/components/lucky9/Lucky9EmojiReactions';
 import { Lucky9HiritCard, Lucky9DealSequence, getPlayerSeatPosition } from '@/components/lucky9/Lucky9FloatingCard';
 import { Lucky9ChipAnimation, useLucky9ChipAnimations, getChipAnimationPosition } from '@/components/lucky9/Lucky9ChipAnimation';
 import { useLucky9Sounds } from '@/hooks/useLucky9Sounds';
+import { useToast } from '@/hooks/use-toast';
 
 interface PlayerEmoji {
   id: string;
@@ -39,6 +40,7 @@ export default function Lucky9TablePage() {
   const { user, profile } = useAuth();
   const { playSound, playDealSequence } = useLucky9Sounds();
   const { animations: chipAnimations, triggerAnimations, clearAnimations } = useLucky9ChipAnimations();
+  const { toast } = useToast();
 
   const [table, setTable] = useState<Lucky9Table | null>(null);
   const [game, setGame] = useState<Lucky9Game | null>(null);
@@ -371,7 +373,12 @@ export default function Lucky9TablePage() {
     // Check for Call Time restriction error
     if (data?.callTimeActive) {
       playSound('betRejected');
-      // Show toast or alert - user can't leave during call time
+      toast({
+        title: '🔒 Call Time Active',
+        description: `You cannot leave while Call Time is active. Wait for the banker to leave or for the timer to expire (${Math.ceil((callTimeRemaining || 0) / 60)} minutes remaining).`,
+        variant: 'destructive',
+        duration: 5000
+      });
       return;
     }
     
@@ -590,9 +597,20 @@ export default function Lucky9TablePage() {
     return () => { supabase.removeChannel(channel); };
   }, [tableId, fetchGame, fetchPlayers]);
 
-  // Track Call Time remaining
+  // Track Call Time remaining and show announcement when it ends
+  const prevCallTimeRef = useRef<number | null>(null);
+  
   useEffect(() => {
     if (!table?.callTimeStartedAt || !table?.callTimeMinutes) {
+      // Check if call time just ended (was active before but not now)
+      if (prevCallTimeRef.current !== null && prevCallTimeRef.current > 0) {
+        toast({
+          title: '⏰ Call Time Ended',
+          description: 'The banker has left or the Call Time has expired. You are now free to leave the table.',
+          duration: 6000
+        });
+      }
+      prevCallTimeRef.current = null;
       setCallTimeRemaining(null);
       return;
     }
@@ -604,10 +622,20 @@ export default function Lucky9TablePage() {
       const remaining = Math.max(0, Math.floor((endTime - now) / 1000));
       
       if (remaining <= 0) {
+        // Call time just expired
+        if (prevCallTimeRef.current !== null && prevCallTimeRef.current > 0) {
+          toast({
+            title: '⏰ Call Time Ended',
+            description: 'The Call Time has expired. You are now free to leave the table.',
+            duration: 6000
+          });
+        }
+        prevCallTimeRef.current = null;
         setCallTimeRemaining(null);
         // Refetch table to get updated call time status
         fetchTable();
       } else {
+        prevCallTimeRef.current = remaining;
         setCallTimeRemaining(remaining);
       }
     };
@@ -616,7 +644,7 @@ export default function Lucky9TablePage() {
     const interval = setInterval(updateCallTime, 1000);
 
     return () => clearInterval(interval);
-  }, [table?.callTimeStartedAt, table?.callTimeMinutes, fetchTable]);
+  }, [table?.callTimeStartedAt, table?.callTimeMinutes, fetchTable, toast]);
 
   // Handle calculating state - immediate check and transition to revealing
   const calculatingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -923,6 +951,7 @@ export default function Lucky9TablePage() {
           playerDecisions={playerDecisions}
           isDealing={isDealing}
           isShowdown={game?.status === 'finished' || game?.status === 'revealing'}
+          callTimeRemaining={callTimeRemaining}
         />
 
         {/* Floating card animations - Deal Sequence */}

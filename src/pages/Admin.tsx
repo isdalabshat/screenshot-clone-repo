@@ -168,7 +168,7 @@ export default function Admin() {
         <div className="container mx-auto px-4 py-4 flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate('/lobby')}><ArrowLeft className="h-5 w-5" /></Button>
           <Shield className="h-6 w-6 text-amber-400" />
-          <div><h1 className="text-2xl font-bold text-amber-400">JD Club Admin</h1><p className="text-sm text-muted-foreground">Welcome, {profile.username}</p></div>
+          <div><h1 className="text-2xl font-bold text-amber-400">All-in Club Admin</h1><p className="text-sm text-muted-foreground">Welcome, {profile.username}</p></div>
         </div>
       </motion.header>
 
