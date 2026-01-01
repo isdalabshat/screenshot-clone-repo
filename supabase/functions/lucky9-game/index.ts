@@ -62,6 +62,41 @@ serve(async (req) => {
 
     switch (action) {
       case 'join_table': {
+        // Get table info for min bet check
+        const { data: tableInfo } = await supabase
+          .from('lucky9_tables')
+          .select('min_bet')
+          .eq('id', tableId)
+          .single();
+
+        if (!tableInfo) {
+          return new Response(JSON.stringify({ error: 'Table not found' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Get user profile
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('username, chips')
+          .eq('user_id', userId)
+          .single();
+
+        if (!profile) {
+          return new Response(JSON.stringify({ error: 'Profile not found' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Check if balance is >= minimum bet
+        if (profile.chips < tableInfo.min_bet) {
+          return new Response(JSON.stringify({ 
+            error: `Insufficient balance. Minimum required: ₱${tableInfo.min_bet}` 
+          }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
         // Check if there's already a banker
         const { data: existingBanker } = await supabase
           .from('lucky9_players')
@@ -88,19 +123,6 @@ serve(async (req) => {
         let position = role === 'banker' ? 0 : 1;
         if (role !== 'banker') {
           while (usedPositions.has(position)) position++;
-        }
-
-        // Get user profile
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('username, chips')
-          .eq('user_id', userId)
-          .single();
-
-        if (!profile) {
-          return new Response(JSON.stringify({ error: 'Profile not found' }), {
-            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
         }
 
         // Insert player
@@ -181,6 +203,28 @@ serve(async (req) => {
 
         if (!banker) {
           return new Response(JSON.stringify({ error: 'Only banker can accept bets' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Get the player's bet amount
+        const { data: player } = await supabase
+          .from('lucky9_players')
+          .select('current_bet')
+          .eq('id', playerId)
+          .single();
+
+        if (!player) {
+          return new Response(JSON.stringify({ error: 'Player not found' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Check if banker has enough balance to cover the bet
+        if (banker.stack < player.current_bet) {
+          return new Response(JSON.stringify({ 
+            error: `Insufficient balance. You need ₱${player.current_bet} to accept this bet.` 
+          }), {
             status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           });
         }
@@ -902,17 +946,52 @@ serve(async (req) => {
           })
           .eq('id', banker.id);
 
-        // Update game status to finished
+        // Update game status to finished (skip showdown, cards are visible immediately)
         await supabase
           .from('lucky9_games')
           .update({ status: 'finished' })
           .eq('id', gameId);
 
+        // Check for zero balance and auto-kick players/banker
+        const kickedPlayers: string[] = [];
+
+        // Check banker balance
+        if (newBankerStack <= 0) {
+          console.log('Banker has zero balance, auto-kicking');
+          kickedPlayers.push(banker.user_id);
+          
+          // Return 0 chips and delete
+          await supabase
+            .from('lucky9_players')
+            .delete()
+            .eq('id', banker.id);
+        }
+
+        // Check all players
+        for (const player of players || []) {
+          const { data: updatedPlayer } = await supabase
+            .from('lucky9_players')
+            .select('stack, user_id')
+            .eq('id', player.id)
+            .single();
+
+          if (updatedPlayer && updatedPlayer.stack <= 0) {
+            console.log('Player has zero balance, auto-kicking:', updatedPlayer.user_id);
+            kickedPlayers.push(updatedPlayer.user_id);
+            
+            await supabase
+              .from('lucky9_players')
+              .delete()
+              .eq('id', player.id);
+          }
+        }
+
         return new Response(JSON.stringify({ 
           success: true, 
           bankerCards,
           bankerValue,
-          bankerIsNatural
+          bankerIsNatural,
+          kickedPlayers
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
