@@ -11,6 +11,29 @@ interface Lucky9RevealableCardProps {
   onReveal?: () => void;
 }
 
+// Unified card back design
+function CardBack({ small = false, canReveal = false }: { small?: boolean; canReveal?: boolean }) {
+  const sizeClasses = small 
+    ? 'w-10 h-14' 
+    : 'w-14 h-20 sm:w-16 sm:h-24';
+
+  return (
+    <div className={`${sizeClasses} rounded-lg bg-gradient-to-br from-red-700 via-red-800 to-red-900 border-2 border-red-500 shadow-lg flex items-center justify-center relative overflow-hidden ${canReveal ? 'cursor-pointer hover:border-yellow-400 hover:shadow-yellow-400/30' : ''}`}>
+      <div className="absolute inset-1 border border-red-400/30 rounded-md" />
+      <div className="w-full h-full flex items-center justify-center">
+        <div className="text-red-400/50 font-bold text-lg">L9</div>
+      </div>
+      {canReveal && (
+        <motion.div
+          className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+          animate={{ x: ['-100%', '100%'] }}
+          transition={{ repeat: Infinity, duration: 2, repeatDelay: 1 }}
+        />
+      )}
+    </div>
+  );
+}
+
 export function Lucky9RevealableCard({ 
   card, 
   hidden = false, 
@@ -43,7 +66,7 @@ export function Lucky9RevealableCard({
     }
   };
 
-  // Hidden card back
+  // Hidden card back - unified red design
   if (!showFace) {
     return (
       <motion.div
@@ -54,23 +77,14 @@ export function Lucky9RevealableCard({
         }}
         transition={{ delay, duration: 0.3 }}
         onClick={handleClick}
-        className={`${sizeClasses} rounded-lg bg-gradient-to-br from-blue-800 to-blue-950 border-2 border-blue-600 shadow-lg flex items-center justify-center ${canReveal ? 'cursor-pointer hover:border-yellow-400 hover:shadow-yellow-400/30' : ''}`}
+        className="relative"
       >
-        <div className="w-8 h-10 rounded border border-blue-400/30 bg-blue-700/50 flex items-center justify-center relative overflow-hidden">
-          <span className="text-blue-300 text-2xl">🎴</span>
-          {canReveal && (
-            <motion.div
-              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
-              animate={{ x: ['-100%', '100%'] }}
-              transition={{ repeat: Infinity, duration: 2, repeatDelay: 1 }}
-            />
-          )}
-        </div>
+        <CardBack small={small} canReveal={canReveal} />
         {canReveal && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="absolute -bottom-5 text-[8px] text-yellow-400 whitespace-nowrap"
+            className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[8px] text-yellow-400 whitespace-nowrap"
           >
             Tap to reveal
           </motion.div>
