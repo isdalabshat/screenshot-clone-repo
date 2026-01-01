@@ -38,12 +38,13 @@ interface Lucky9GamblingTableProps {
 
 // Position styles for 5 player seats around the vertical oval table (poker-style layout)
 // Position 0 = bottom center (current user), positions arranged clockwise
+// Increased spacing to prevent avatar overlap
 const seatPositionStyles: Record<number, string> = {
-  0: 'bottom-[3%] left-1/2 -translate-x-1/2',     // Bottom center - current user
-  1: 'bottom-[25%] left-[3%]',                     // Bottom left
-  2: 'top-[25%] left-[3%]',                        // Top left
-  3: 'top-[25%] right-[3%]',                       // Top right
-  4: 'bottom-[25%] right-[3%]',                    // Bottom right
+  0: 'bottom-[1%] left-1/2 -translate-x-1/2',     // Bottom center - current user
+  1: 'bottom-[30%] left-[-5%]',                    // Bottom left - moved further out
+  2: 'top-[18%] left-[-5%]',                       // Top left - moved further out
+  3: 'top-[18%] right-[-5%]',                      // Top right - moved further out
+  4: 'bottom-[30%] right-[-5%]',                   // Bottom right - moved further out
 };
 
 // Get display position based on user's actual position (rotate so user is always at bottom)
@@ -167,8 +168,8 @@ export function Lucky9GamblingTable({
         </motion.div>
       )}
 
-      {/* Main Table Container - Vertical oval table */}
-      <div className="relative w-full max-w-[320px] mx-auto" style={{ aspectRatio: '3/4' }}>
+      {/* Main Table Container - Taller vertical oval table for better spacing */}
+      <div className="relative w-full max-w-[300px] mx-auto" style={{ aspectRatio: '2/3', minHeight: '400px' }}>
         {/* Ambient glow effect */}
         <div className="absolute inset-0 bg-gradient-radial from-green-900/20 via-transparent to-transparent pointer-events-none" />
         
@@ -210,13 +211,13 @@ export function Lucky9GamblingTable({
           <div className="absolute inset-0 rounded-[45%/50%] bg-gradient-to-t from-transparent via-white/5 to-white/10 pointer-events-none" />
         </motion.div>
 
-        {/* Card Deck at center */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-5">
+        {/* Card Deck at center - smaller size */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-5 scale-75">
           <motion.div
             animate={{ 
               boxShadow: isDealing 
-                ? '0 0 30px rgba(255, 215, 0, 0.5)' 
-                : '0 0 15px rgba(0, 0, 0, 0.5)'
+                ? '0 0 20px rgba(255, 215, 0, 0.5)' 
+                : '0 0 10px rgba(0, 0, 0, 0.5)'
             }}
             className="rounded-lg"
           >
@@ -480,6 +481,7 @@ export function Lucky9GamblingTable({
                 currentDecision={playerDecisions[player.userId] || null}
                 showNaturalBadge={player.isNatural}
                 isWinner={playerIsWinner}
+                isCompact={!isMe} // Make other players' seats compact
               />
             </div>
           );

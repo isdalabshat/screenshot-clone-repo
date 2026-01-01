@@ -25,6 +25,7 @@ interface Lucky9PlayerSeatProps {
   currentDecision?: 'hirit' | 'good' | null;
   showNaturalBadge?: boolean;
   isWinner?: boolean;
+  isCompact?: boolean; // For other players' cards to be smaller
 }
 
 export function Lucky9PlayerSeat({ 
@@ -42,7 +43,8 @@ export function Lucky9PlayerSeat({
   currentEmoji,
   currentDecision,
   showNaturalBadge,
-  isWinner
+  isWinner,
+  isCompact = false
 }: Lucky9PlayerSeatProps) {
   const [showDecision, setShowDecision] = useState(false);
 
@@ -85,7 +87,8 @@ export function Lucky9PlayerSeat({
       
       {/* Seat cushion effect */}
       <div className={cn(
-        "relative bg-gradient-to-br from-slate-800/95 via-slate-900/95 to-slate-800/95 backdrop-blur rounded-lg p-1.5 border-2 min-w-[95px]",
+        "relative bg-gradient-to-br from-slate-800/95 via-slate-900/95 to-slate-800/95 backdrop-blur rounded-lg border-2",
+        isCompact ? "p-1 min-w-[80px]" : "p-1.5 min-w-[95px]",
         getSeatBorder()
       )}>
         {/* Player Avatar and info */}
@@ -215,9 +218,9 @@ export function Lucky9PlayerSeat({
           </div>
         )}
 
-        {/* Cards */}
+        {/* Cards - smaller for other players */}
         {cards.length > 0 && (
-          <div className="flex gap-0.5 justify-center mb-0.5">
+          <div className={cn("flex justify-center mb-0.5", isCompact ? "gap-0 -space-x-1" : "gap-0.5")}>
             {cards.map((card, i) => (
               <Lucky9RevealableCard 
                 key={i} 
@@ -226,6 +229,7 @@ export function Lucky9PlayerSeat({
                 canReveal={canRevealCards}
                 delay={i * 0.1} 
                 small
+                extraSmall={isCompact}
                 onReveal={() => onCardReveal?.(i)}
               />
             ))}
