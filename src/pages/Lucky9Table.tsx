@@ -951,7 +951,6 @@ export default function Lucky9TablePage() {
           playerDecisions={playerDecisions}
           isDealing={isDealing}
           isShowdown={game?.status === 'finished' || game?.status === 'revealing'}
-          callTimeRemaining={callTimeRemaining}
         />
 
         {/* Floating card animations - Deal Sequence */}

@@ -704,8 +704,8 @@ serve(async (req) => {
             const currentBet = currentPlayer?.current_bet || 0;
             const currentStack = currentPlayer?.stack || 0;
             
-            // Natural 9 pays 3x (bet + 2x profit) - fee only on profit
-            const profit = currentBet * 2; // Natural pays 2x profit
+            // Natural 9 pays 1:1 (same as regular win) - fee only on profit
+            const profit = currentBet; // Natural pays 1x profit (same as regular)
             const grossWinnings = currentBet + profit;
             const feeDeducted = Math.floor(profit * 0.10); // 10% fee on profit only
             const netWinnings = grossWinnings - feeDeducted;
@@ -1044,15 +1044,15 @@ serve(async (req) => {
           let feeDeducted = 0;
 
           // Fee is only on PROFIT (winnings minus original bet), not on gross winnings
-          // Case 1: Player has natural 9, banker doesn't - player wins with bonus (3x = bet + 2x profit)
+          // Case 1: Player has natural 9, banker doesn't - player wins (1:1 same as regular)
           if (playerIsNatural && !bankerIsNatural) {
             result = 'natural_win';
-            const profit = player.current_bet * 2; // Natural pays 2x profit
+            const profit = player.current_bet; // Natural pays 1x profit (same as regular)
             grossWinnings = player.current_bet + profit; // Total payout = bet + profit
             feeDeducted = Math.floor(profit * 0.10); // 10% fee on profit only
             netWinnings = grossWinnings - feeDeducted;
             bankerTotalLoss += profit;
-          } 
+          }
           // Case 2: Banker has natural 9, player doesn't - banker wins
           else if (bankerIsNatural && !playerIsNatural) {
             result = 'lose';
@@ -1064,7 +1064,7 @@ serve(async (req) => {
             // Tiebreaker: Natural 9 beats non-natural 9
             if (playerIsNatural && !bankerIsNatural) {
               result = 'natural_win';
-              const profit = player.current_bet * 2;
+              const profit = player.current_bet; // Natural pays 1x profit (same as regular)
               grossWinnings = player.current_bet + profit;
               feeDeducted = Math.floor(profit * 0.10);
               netWinnings = grossWinnings - feeDeducted;

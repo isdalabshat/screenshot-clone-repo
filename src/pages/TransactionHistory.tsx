@@ -95,10 +95,16 @@ export default function TransactionHistory() {
   const pendingCount = transactions.filter(t => t.status === 'pending').length;
 
   const resetTransactions = async () => {
-    // Delete ALL transactions including pending ones
-    await supabase.from('cash_requests').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    toast({ title: 'Success', description: 'All transaction history cleared' });
-    fetchTransactions();
+    // Delete ALL transactions including pending ones from database
+    const { error } = await supabase.from('cash_requests').delete().gte('amount', 0);
+    
+    if (error) {
+      console.error('Error deleting transactions:', error);
+      toast({ title: 'Error', description: 'Failed to clear transaction history', variant: 'destructive' });
+    } else {
+      setTransactions([]);
+      toast({ title: 'Success', description: 'All transaction history cleared' });
+    }
   };
 
   if (isLoading || !profile?.isAdmin) {
