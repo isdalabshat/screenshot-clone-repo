@@ -861,13 +861,13 @@ serve(async (req) => {
           })
           .eq('id', playerId);
 
-        // Update game to showdown
+        // Update game to 'calculating' first (1 sec delay before deciding winner)
         await supabase
           .from('lucky9_games')
           .update({ 
             dealer_cards: bankerCards,
             dealer_hidden_card: null,
-            status: 'showdown'
+            status: 'calculating'
           })
           .eq('id', gameId);
 
@@ -958,10 +958,10 @@ serve(async (req) => {
           })
           .eq('id', banker.id);
 
-        // Update game status to finished (skip showdown, cards are visible immediately)
+        // Update game status to 'revealing' - cards are visible for 5 seconds before 'finished'
         await supabase
           .from('lucky9_games')
-          .update({ status: 'finished' })
+          .update({ status: 'revealing' })
           .eq('id', gameId);
 
         // Check for zero balance and auto-kick players/banker

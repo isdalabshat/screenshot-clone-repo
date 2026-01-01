@@ -27,6 +27,10 @@ export function Lucky9GameStatus({ status, currentPlayerName, bankerName, messag
           : 'Waiting for player...';
       case 'banker_turn':
         return bankerName ? `${bankerName} (Banker) is playing...` : 'Banker is playing...';
+      case 'calculating':
+        return 'Deciding winner...';
+      case 'revealing':
+        return '🃏 Showing all cards!';
       case 'showdown':
         return 'Showdown!';
       case 'finished':

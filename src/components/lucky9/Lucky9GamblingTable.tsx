@@ -49,8 +49,8 @@ export function Lucky9GamblingTable({
 }: Lucky9GamblingTableProps) {
   const nonBankerPlayers = players.filter(p => !p.isBanker);
   
-  // MANDATORY CARD REVEAL: Show all cards when winner is decided (finished/showdown status)
-  const isGameFinished = game?.status === 'finished' || game?.status === 'showdown';
+  // MANDATORY CARD REVEAL: Show all cards when winner is decided or during reveal phase
+  const isGameFinished = game?.status === 'finished' || game?.status === 'showdown' || game?.status === 'revealing' || game?.status === 'calculating';
   // All cards MUST be visible once the game is finished - no hidden cards allowed
   const showAllCards = isShowdown || isGameFinished;
   
