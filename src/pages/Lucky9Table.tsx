@@ -232,7 +232,7 @@ export default function Lucky9TablePage() {
     };
   }, [tableId, user?.id, playSound]);
 
-  // Sound effects based on game state changes
+  // Sound effects based on game state changes - NO deal animation here (handled in startRound)
   useEffect(() => {
     if (!game?.status) return;
     
@@ -241,39 +241,6 @@ export default function Lucky9TablePage() {
     
     if (prevStatus !== currentStatus) {
       switch (currentStatus) {
-        case 'dealing':
-        case 'player_turns':
-          if (prevStatus === 'betting' || prevStatus === 'dealing') {
-            setIsDealing(true);
-            setShowDealSequence(true);
-            playSound('shuffle');
-            
-            // Calculate deal targets based on player positions
-            const acceptedPlayers = players.filter(p => p.betAccepted && !p.isBanker);
-            const targets: { x: number; y: number }[] = [];
-            
-            // Add targets for each accepted player
-            acceptedPlayers.forEach((_, index) => {
-              const baseX = window.innerWidth / 2 - 100 + (index * 60);
-              const baseY = window.innerHeight - 180;
-              targets.push({ x: baseX, y: baseY });
-            });
-            
-            // Add banker target
-            targets.push({ x: window.innerWidth / 2 - 25, y: 120 });
-            
-            setDealTargets(targets);
-            
-            setTimeout(() => {
-              playDealSequence(acceptedPlayers.length * 2 + 2);
-              setTimeout(() => {
-                setIsDealing(false);
-                setShowDealSequence(false);
-                setDealTargets([]);
-              }, 1200);
-            }, 300);
-          }
-          break;
         case 'finished':
           // Show winner animation after showing all cards
           const gameWinners = players.filter(p => p.winnings > 0);
@@ -291,7 +258,7 @@ export default function Lucky9TablePage() {
       }
       prevGameStatus.current = currentStatus;
     }
-  }, [game?.status, players, playSound, playDealSequence]);
+  }, [game?.status, players, playSound]);
 
   // Play turn sound when it's my turn
   useEffect(() => {
@@ -540,7 +507,7 @@ export default function Lucky9TablePage() {
     return () => { supabase.removeChannel(channel); };
   }, [tableId, fetchGame, fetchPlayers]);
 
-  // Handle finished state - show cards and winner animation
+  // Handle finished state - show cards and winner animation for 5 seconds
   useEffect(() => {
     if (game?.status === 'finished') {
       // Show winner animation after a short delay
@@ -554,9 +521,9 @@ export default function Lucky9TablePage() {
           setShowWinnerAnimation(true);
           playSound('win');
         }
-      }, 1000);
+      }, 500);
       
-      // Reset round after showing results
+      // Reset round after 5 seconds of showing results
       const resetTimeout = setTimeout(resetRound, 5000);
       
       return () => {

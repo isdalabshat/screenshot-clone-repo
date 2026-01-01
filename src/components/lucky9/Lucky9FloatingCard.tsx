@@ -1,11 +1,31 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 interface Lucky9FloatingCardProps {
   isAnimating: boolean;
   fromPosition: { x: number; y: number };
   toPosition: { x: number; y: number };
   onComplete?: () => void;
+}
+
+// Unified card back component - same as in Lucky9RevealableCard
+function CardBack({ size = 'sm' }: { size?: 'sm' | 'md' | 'lg' }) {
+  const sizeClasses = {
+    sm: 'w-10 h-14',
+    md: 'w-12 h-[68px]',
+    lg: 'w-14 h-[76px]'
+  };
+
+  return (
+    <div className={`${sizeClasses[size]} rounded-lg bg-gradient-to-br from-red-700 via-red-800 to-red-900 border-2 border-red-500 shadow-xl overflow-hidden`}>
+      <div className="w-full h-full p-0.5 relative">
+        <div className="absolute inset-0.5 border border-red-400/30 rounded-sm" />
+        <div className="w-full h-full flex items-center justify-center">
+          <div className="text-red-400/50 text-sm font-bold">L9</div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function Lucky9FloatingCard({ 
@@ -63,10 +83,13 @@ export function Lucky9DealSequence({
   onComplete 
 }: Lucky9DealSequenceProps) {
   const [cards, setCards] = useState<DealSequenceCard[]>([]);
-  const [isVisible, setIsVisible] = useState(false);
+  const hasDealt = useRef(false);
 
   useEffect(() => {
-    if (isDealing && targets.length > 0) {
+    // Only trigger once per deal
+    if (isDealing && targets.length > 0 && !hasDealt.current) {
+      hasDealt.current = true;
+      
       const newCards: DealSequenceCard[] = [];
       
       // Deal 2 cards per target with staggered delays
@@ -74,7 +97,7 @@ export function Lucky9DealSequence({
         for (let round = 0; round < 2; round++) {
           newCards.push({
             id: `deal-${targetIdx}-${round}-${Date.now()}`,
-            targetX: target.x + (round * 15), // Slight offset for second card
+            targetX: target.x + (round * 15),
             targetY: target.y,
             delay: (targetIdx * 2 + round) * 0.1,
             rotation: -10 + Math.random() * 20
@@ -83,24 +106,23 @@ export function Lucky9DealSequence({
       });
       
       setCards(newCards);
-      setIsVisible(true);
 
       // Clear cards after animation completes
-      const totalDuration = (targets.length * 2) * 0.1 + 0.5;
+      const totalDuration = (targets.length * 2) * 0.1 + 0.6;
       const timer = setTimeout(() => {
-        setIsVisible(false);
         setCards([]);
+        hasDealt.current = false;
         onComplete?.();
       }, totalDuration * 1000);
 
       return () => clearTimeout(timer);
-    } else {
-      setIsVisible(false);
+    } else if (!isDealing) {
+      hasDealt.current = false;
       setCards([]);
     }
-  }, [isDealing, targets.length]);
+  }, [isDealing, targets.length, onComplete]);
 
-  if (!isVisible || cards.length === 0) return null;
+  if (cards.length === 0) return null;
 
   return (
     <div className="fixed inset-0 z-50 pointer-events-none">
@@ -175,33 +197,15 @@ export function Lucky9HiritCard({
           transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
         >
           <div className="w-14 h-[76px] rounded-lg bg-gradient-to-br from-red-700 via-red-800 to-red-900 border-2 border-amber-500 shadow-2xl shadow-amber-500/30 overflow-hidden">
-            <div className="w-full h-full p-1">
-              <div className="w-full h-full border border-amber-500/50 rounded-sm bg-red-800 flex items-center justify-center">
-                <div className="text-amber-400/60 text-xl font-serif">L9</div>
+            <div className="w-full h-full p-1 relative">
+              <div className="absolute inset-0.5 border border-amber-500/50 rounded-sm" />
+              <div className="w-full h-full flex items-center justify-center">
+                <div className="text-amber-400/60 text-xl font-bold">L9</div>
               </div>
             </div>
           </div>
         </motion.div>
       )}
     </AnimatePresence>
-  );
-}
-
-// Reusable card back component
-function CardBack({ size = 'sm' }: { size?: 'sm' | 'md' | 'lg' }) {
-  const sizeClasses = {
-    sm: 'w-10 h-14',
-    md: 'w-12 h-[68px]',
-    lg: 'w-14 h-[76px]'
-  };
-
-  return (
-    <div className={`${sizeClasses[size]} rounded-lg bg-gradient-to-br from-red-700 via-red-800 to-red-900 border-2 border-red-500 shadow-xl overflow-hidden`}>
-      <div className="w-full h-full p-0.5">
-        <div className="w-full h-full border border-red-400/30 rounded-sm bg-gradient-to-br from-red-700 to-red-900 flex items-center justify-center">
-          <div className="text-red-400/50 text-sm font-bold">L9</div>
-        </div>
-      </div>
-    </div>
   );
 }
