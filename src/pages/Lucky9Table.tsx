@@ -479,10 +479,23 @@ export default function Lucky9TablePage() {
 
     if (error || data?.error) {
       toast({ title: 'Error', description: data?.error || error?.message, variant: 'destructive' });
-    } else if (data?.remainingDeck) {
-      setRemainingDeck(data.remainingDeck);
-      if (playerAction === 'draw') {
-        playSound('deal');
+    } else {
+      if (data?.remainingDeck) {
+        setRemainingDeck(data.remainingDeck);
+        if (playerAction === 'draw') {
+          playSound('deal');
+        }
+      }
+      // Handle auto-kicked players notification
+      if (data?.kickedPlayers && data.kickedPlayers.length > 0) {
+        if (data.kickedPlayers.includes(user?.id)) {
+          toast({ 
+            title: '⚠️ Removed from Table', 
+            description: 'Your balance reached zero. You have been removed from the table.',
+            variant: 'destructive'
+          });
+          setTimeout(() => navigate('/lucky9'), 2000);
+        }
       }
     }
     setIsProcessing(false);
