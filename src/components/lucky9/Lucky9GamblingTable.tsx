@@ -55,218 +55,173 @@ export function Lucky9GamblingTable({
   const isBankerTurn = game?.status === 'banker_turn';
   const isCurrentUserBanker = banker?.userId === currentUserId;
 
-  // Portrait layout positions for mobile - semi-circle at bottom
-  const getPlayerPosition = (index: number, total: number) => {
-    if (total === 1) {
-      return { left: '50%', bottom: '8%' };
-    }
-    
-    // Spread players in an arc at the bottom
-    const positions = [
-      { left: '15%', bottom: '20%' },
-      { left: '50%', bottom: '5%' },
-      { left: '85%', bottom: '20%' },
-      { left: '8%', bottom: '40%' },
-      { left: '92%', bottom: '40%' },
-    ];
-    
-    return positions[index] || { left: '50%', bottom: '10%' };
-  };
-
   return (
-    <div className="relative w-full aspect-[3/4] max-w-md mx-auto">
-      {/* Table felt - portrait oval */}
-      <div className="absolute inset-0 rounded-[45%] bg-gradient-to-b from-green-700 to-green-900 border-[6px] border-amber-800 shadow-2xl shadow-black/60">
-        {/* Inner decorative borders */}
-        <div className="absolute inset-2 rounded-[45%] border-2 border-amber-700/40" />
-        <div className="absolute inset-4 rounded-[45%] border border-green-600/30" />
-        
-        {/* Center logo */}
-        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
-          <div className="text-green-600/25 text-3xl font-bold tracking-wider">LUCKY</div>
-          <div className="text-green-600/25 text-5xl font-bold">9</div>
-        </div>
-      </div>
-
-      {/* Card Deck - positioned in center of table */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-5">
-        <Lucky9CardDeck isDealing={isDealing} />
-      </div>
-
-      {/* Banker Position (Top Center) */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="absolute top-[8%] left-1/2 -translate-x-1/2 z-10 w-[85%]"
-      >
+    <div className="relative w-full max-w-lg mx-auto">
+      {/* Banker section - OUTSIDE the table, compact */}
+      <div className="mb-2 px-2">
         {banker ? (
-          <div className={`bg-slate-900/95 backdrop-blur rounded-xl p-3 border-2 transition-all ${
-            isBankerTurn 
-              ? 'border-yellow-400 shadow-lg shadow-yellow-500/40 animate-pulse' 
-              : 'border-amber-600'
-          }`}>
-            {/* Banker header with avatar */}
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`bg-slate-900/90 backdrop-blur rounded-lg p-2 border transition-all ${
+              isBankerTurn 
+                ? 'border-yellow-400 shadow-md shadow-yellow-500/30' 
+                : 'border-amber-600/50'
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
                 <Lucky9PlayerAvatar
                   username={banker.username}
                   isBanker
                   isMe={isCurrentUserBanker}
-                  size="md"
+                  size="sm"
                   currentEmoji={playerEmojis[banker.userId] || null}
                   currentDecision={playerDecisions[banker.userId] || null}
                 />
-                <div>
-                  <span className="font-bold text-amber-400 text-sm">{banker.username}</span>
-                  {isCurrentUserBanker && (
-                    <Badge className="ml-2 bg-purple-500 text-[10px] px-1.5">YOU</Badge>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-amber-400 text-xs truncate">{banker.username}</span>
+                    {isCurrentUserBanker && <Badge className="bg-purple-500 text-[8px] px-1">YOU</Badge>}
+                  </div>
+                  <span className="text-yellow-400 font-mono text-[10px]">₱{banker.stack.toLocaleString()}</span>
+                </div>
+              </div>
+
+              {/* Banker Cards */}
+              {bankerCards.length > 0 && (
+                <div className="flex gap-1 items-center">
+                  {bankerCards.map((card, i) => {
+                    const shouldHide = !showAllCards && !isCurrentUserBanker;
+                    const canReveal = isCurrentUserBanker && isBankerTurn && !banker?.hasActed;
+                    return (
+                      <Lucky9RevealableCard 
+                        key={i} 
+                        card={card} 
+                        hidden={shouldHide}
+                        canReveal={canReveal}
+                        delay={i * 0.1} 
+                        small
+                        onReveal={() => onCardReveal?.(banker?.id || '', i)}
+                      />
+                    );
+                  })}
+                  {(showAllCards || isCurrentUserBanker) && bankerValue !== null && (
+                    <div className="ml-2 text-center">
+                      {bankerIsNatural && <Badge className="bg-amber-500 text-black text-[8px]">Natural!</Badge>}
+                      <div className={`text-lg font-bold ${bankerValue === 9 ? 'text-amber-400' : 'text-white'}`}>
+                        {bankerValue}
+                      </div>
+                    </div>
                   )}
                 </div>
-              </div>
-              <span className="text-yellow-400 font-mono text-sm">₱{banker.stack.toLocaleString()}</span>
-            </div>
+              )}
 
-            {/* Banker Cards - HIDDEN FROM OTHER PLAYERS UNTIL SHOWDOWN */}
-            {bankerCards.length > 0 && (
-              <div className="flex gap-1.5 justify-center mb-2">
-                {bankerCards.map((card, i) => {
-                  // Hide ALL cards from non-banker players until showdown
-                  const shouldHide = !showAllCards && !isCurrentUserBanker;
-                  // Banker can slowly reveal their own cards during their turn
-                  const canReveal = isCurrentUserBanker && isBankerTurn && !banker?.hasActed;
-                  return (
-                    <Lucky9RevealableCard 
-                      key={i} 
-                      card={card} 
-                      hidden={shouldHide}
-                      canReveal={canReveal}
-                      delay={i * 0.1} 
-                      small
-                      onReveal={() => onCardReveal?.(banker?.id || '', i)}
-                    />
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Banker value - visible to banker or at showdown */}
-            {bankerCards.length > 0 && (showAllCards || isCurrentUserBanker) && bankerValue !== null && (
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-center"
-              >
-                {bankerIsNatural && (
-                  <Badge className="bg-amber-500 text-black text-[10px] mb-1">Natural 9!</Badge>
-                )}
-                <div className={`text-lg font-bold ${bankerValue === 9 ? 'text-amber-400' : 'text-white'}`}>
-                  {bankerValue}
+              {/* Banker result */}
+              {banker.result && (
+                <div className="text-right">
+                  <Badge className={`text-[8px] ${banker.result === 'win' ? 'bg-green-500' : banker.result === 'lose' ? 'bg-red-500' : 'bg-slate-500'}`}>
+                    {banker.result === 'win' ? '✓' : banker.result === 'lose' ? '✗' : '↔'}
+                  </Badge>
+                  {banker.winnings !== 0 && (
+                    <div className={`text-[10px] font-bold ${banker.winnings > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {banker.winnings > 0 ? '+' : ''}₱{banker.winnings.toLocaleString()}
+                    </div>
+                  )}
                 </div>
-              </motion.div>
-            )}
+              )}
+            </div>
+          </motion.div>
+        ) : (
+          <div className="bg-slate-900/50 rounded-lg p-2 border border-dashed border-amber-500/30 text-center">
+            <div className="flex items-center justify-center gap-1.5 text-amber-400/60">
+              <Crown className="h-3 w-3" />
+              <span className="text-xs">Waiting for Banker...</span>
+            </div>
+          </div>
+        )}
+      </div>
 
-            {/* Turn indicator for banker */}
-            {isBankerTurn && isCurrentUserBanker && !banker.hasActed && (
+      {/* Table felt - smaller, centered */}
+      <div className="relative w-full aspect-square max-w-xs mx-auto">
+        <div className="absolute inset-0 rounded-full bg-gradient-to-b from-green-700 to-green-900 border-4 border-amber-800 shadow-xl shadow-black/50">
+          <div className="absolute inset-2 rounded-full border border-amber-700/30" />
+          <div className="absolute inset-4 rounded-full border border-green-600/20" />
+          
+          {/* Center logo */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
+            <div className="text-green-600/20 text-xl font-bold tracking-wider">LUCKY</div>
+            <div className="text-green-600/20 text-3xl font-bold">9</div>
+          </div>
+        </div>
+
+        {/* Card Deck */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-5">
+          <Lucky9CardDeck isDealing={isDealing} />
+        </div>
+
+        {/* Showdown overlay */}
+        <AnimatePresence>
+          {showAllCards && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20"
+            >
               <motion.div
-                animate={{ scale: [1, 1.05, 1] }}
-                transition={{ repeat: Infinity, duration: 1 }}
-                className="mt-1"
+                initial={{ scale: 0 }}
+                animate={{ scale: [0, 1.2, 1] }}
+                className="bg-gradient-to-r from-amber-600 to-amber-500 px-4 py-1.5 rounded-full shadow-lg"
               >
-                <Badge className="bg-yellow-500 text-black w-full justify-center text-xs">Your Turn!</Badge>
+                <span className="text-sm font-bold text-black tracking-wider">SHOWDOWN</span>
               </motion.div>
-            )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
-            {/* Result */}
-            {banker.result && (
-              <motion.div 
+      {/* Player positions - OUTSIDE the table, at bottom */}
+      <div className="mt-2 px-2">
+        <div className="flex flex-wrap justify-center gap-2">
+          {nonBankerPlayers.map((player, index) => {
+            const isCurrentTurn = game?.status === 'player_turns' && game.currentPlayerPosition === player.position;
+            const isMe = player.userId === currentUserId;
+            
+            return (
+              <motion.div
+                key={player.id}
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="mt-2 text-center"
+                transition={{ delay: index * 0.1 }}
               >
-                <Badge className={`text-xs ${
-                  banker.result === 'win' ? 'bg-green-500' : 
-                  banker.result === 'lose' ? 'bg-red-500' : 'bg-slate-500'
-                }`}>
-                  {banker.result === 'win' ? '✓ Won' : banker.result === 'lose' ? '✗ Lost' : '↔ Push'}
-                </Badge>
-                {banker.winnings !== 0 && (
-                  <div className={`text-sm font-bold ${banker.winnings > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {banker.winnings > 0 ? '+' : ''}₱{banker.winnings.toLocaleString()}
-                  </div>
-                )}
+                <Lucky9PlayerSeat
+                  player={player}
+                  isCurrentTurn={isCurrentTurn}
+                  showCards={isMe || showAllCards}
+                  gameStatus={game?.status || 'betting'}
+                  isMe={isMe}
+                  isBankerView={isBankerView}
+                  onAcceptBet={onAcceptBet}
+                  onRejectBet={onRejectBet}
+                  isProcessing={isProcessing}
+                  canRevealCards={isMe && isCurrentTurn && !player.hasActed}
+                  onCardReveal={(cardIndex) => onCardReveal?.(player.id, cardIndex)}
+                  currentEmoji={playerEmojis[player.userId] || null}
+                  currentDecision={playerDecisions[player.userId] || null}
+                />
               </motion.div>
-            )}
-          </div>
-        ) : (
-          <div className="bg-slate-900/50 backdrop-blur rounded-xl p-4 border-2 border-dashed border-amber-500/50 text-center">
-            <div className="flex items-center justify-center gap-2 text-amber-400/70">
-              <Crown className="h-4 w-4" />
-              <span className="text-sm">Waiting for Banker...</span>
-            </div>
-          </div>
-        )}
-      </motion.div>
-
-      {/* Showdown overlay */}
-      <AnimatePresence>
-        {showAllCards && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20"
-          >
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              className="bg-gradient-to-r from-amber-600 to-amber-500 px-6 py-2 rounded-full shadow-lg"
-            >
-              <span className="text-lg font-bold text-black tracking-wider">SHOWDOWN</span>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Player Positions - around bottom arc */}
-      {nonBankerPlayers.map((player, index) => {
-        const position = getPlayerPosition(index, nonBankerPlayers.length);
-        const isCurrentTurn = game?.status === 'player_turns' && game.currentPlayerPosition === player.position;
-        const isMe = player.userId === currentUserId;
-        
-        return (
-          <motion.div
-            key={player.id}
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: index * 0.1 }}
-            className="absolute -translate-x-1/2 translate-y-1/2 z-10"
-            style={{ left: position.left, bottom: position.bottom }}
-          >
-            <Lucky9PlayerSeat
-              player={player}
-              isCurrentTurn={isCurrentTurn}
-              showCards={isMe || showAllCards}
-              gameStatus={game?.status || 'betting'}
-              isMe={isMe}
-              isBankerView={isBankerView}
-              onAcceptBet={onAcceptBet}
-              onRejectBet={onRejectBet}
-              isProcessing={isProcessing}
-              canRevealCards={isMe && isCurrentTurn && !player.hasActed}
-              onCardReveal={(cardIndex) => onCardReveal?.(player.id, cardIndex)}
-              currentEmoji={playerEmojis[player.userId] || null}
-              currentDecision={playerDecisions[player.userId] || null}
-            />
-          </motion.div>
-        );
-      })}
-
-      {/* Empty state */}
-      {nonBankerPlayers.length === 0 && (
-        <div className="absolute bottom-1/4 left-1/2 -translate-x-1/2 text-green-500/40 text-sm text-center">
-          Waiting for<br />players to join...
+            );
+          })}
         </div>
-      )}
+
+        {/* Empty state */}
+        {nonBankerPlayers.length === 0 && (
+          <div className="text-center py-4 text-green-500/40 text-sm">
+            Waiting for players to join...
+          </div>
+        )}
+      </div>
     </div>
   );
 }

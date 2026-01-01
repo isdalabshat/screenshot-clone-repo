@@ -474,22 +474,36 @@ export default function Lucky9TablePage() {
     return () => { supabase.removeChannel(channel); };
   }, [tableId, fetchGame, fetchPlayers]);
 
+  // Handle showdown and finished states
   useEffect(() => {
-    if (game?.status === 'finished') {
-      // Collect winners for animation
-      const gameWinners = players.filter(p => p.winnings > 0).map(p => ({
-        username: p.username,
-        winnings: p.winnings
-      }));
-      if (gameWinners.length > 0) {
-        setWinners(gameWinners);
-        setShowWinnerAnimation(true);
-      }
-      
-      const timeout = setTimeout(resetRound, 5000);
-      return () => clearTimeout(timeout);
+    if (game?.status === 'showdown') {
+      // 3 second showdown before moving to finished
+      playSound('showdown');
     }
-  }, [game?.status, players]);
+    
+    if (game?.status === 'finished') {
+      // Wait 3 seconds for showdown display, then show winner animation
+      const showdownTimeout = setTimeout(() => {
+        const gameWinners = players.filter(p => p.winnings > 0).map(p => ({
+          username: p.username,
+          winnings: p.winnings
+        }));
+        if (gameWinners.length > 0) {
+          setWinners(gameWinners);
+          setShowWinnerAnimation(true);
+          playSound('win');
+        }
+      }, 3000); // 3 second showdown
+      
+      // Reset after additional time
+      const resetTimeout = setTimeout(resetRound, 8000); // 3s showdown + 5s winner animation
+      
+      return () => {
+        clearTimeout(showdownTimeout);
+        clearTimeout(resetTimeout);
+      };
+    }
+  }, [game?.status, players, playSound]);
 
   const banker = players.find(p => p.isBanker);
   const nonBankerPlayers = players.filter(p => !p.isBanker);
