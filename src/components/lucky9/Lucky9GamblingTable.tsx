@@ -259,7 +259,7 @@ export function Lucky9GamblingTable({
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               className={cn(
-                "relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 backdrop-blur rounded-xl p-2 border-2 transition-all min-w-[120px]",
+                "relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 backdrop-blur rounded-lg p-1 border-2 transition-all min-w-[90px] max-w-[100px]",
                 isBankerTurn 
                   ? 'border-yellow-400 shadow-md shadow-yellow-500/30' 
                   : bankerIsWinner
@@ -298,15 +298,15 @@ export function Lucky9GamblingTable({
                 )}
               </AnimatePresence>
               
-              <div className="relative flex flex-col items-center gap-1">
+              <div className="relative flex flex-col items-center gap-0.5">
                 {/* Avatar and info */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
                   <div className="relative flex-shrink-0">
                     <Lucky9PlayerAvatar
                       username={banker.username}
                       isBanker
                       isMe={isCurrentUserBanker}
-                      size="sm"
+                      size="xs"
                       currentEmoji={playerEmojis[banker.userId] || null}
                     />
                     <motion.div 
@@ -314,23 +314,23 @@ export function Lucky9GamblingTable({
                       animate={{ rotate: [0, 10, -10, 0] }}
                       transition={{ duration: 2, repeat: Infinity }}
                     >
-                      <Crown className="h-3 w-3 text-amber-400 fill-amber-400" />
+                      <Crown className="h-2.5 w-2.5 text-amber-400 fill-amber-400" />
                     </motion.div>
                   </div>
                   <div className="min-w-0 text-center">
-                    <div className="flex items-center gap-1 justify-center">
-                      <span className="font-bold text-amber-400 text-xs truncate max-w-[50px]">{banker.username}</span>
+                    <div className="flex items-center gap-0.5 justify-center">
+                      <span className="font-bold text-amber-400 text-[8px] truncate max-w-[35px]">{banker.username}</span>
                       {isCurrentUserBanker && (
-                        <Badge className="bg-purple-500/80 text-[7px] px-1 py-0">YOU</Badge>
+                        <Badge className="bg-purple-500/80 text-[5px] px-0.5 py-0">YOU</Badge>
                       )}
                     </div>
-                    <span className="text-yellow-400 font-mono text-[10px] font-bold">₱{banker.stack.toLocaleString()}</span>
+                    <span className="text-yellow-400 font-mono text-[7px] font-bold">₱{banker.stack.toLocaleString()}</span>
                   </div>
                 </div>
 
                 {/* Banker Cards */}
                 {bankerCards.length > 0 && (
-                  <div className="flex gap-1 items-center justify-center">
+                  <div className="flex gap-0.5 items-center justify-center">
                     {bankerCards.map((card, i) => {
                       const shouldShow = showAllCards || isCurrentUserBanker;
                       const canReveal = isCurrentUserBanker && isBankerTurn && !banker?.hasActed;
@@ -342,20 +342,21 @@ export function Lucky9GamblingTable({
                           canReveal={canReveal}
                           delay={i * 0.1} 
                           small
+                          extraSmall
                           onReveal={() => onCardReveal?.(banker?.id || '', i)}
                         />
                       );
                     })}
                     {(showAllCards || isCurrentUserBanker) && bankerValue !== null && (
-                      <div className="ml-1 text-center">
+                      <div className="ml-0.5 text-center">
                         {bankerIsNatural && (
                           <motion.div
                             initial={{ scale: 0 }}
                             animate={{ scale: [1, 1.1, 1] }}
                             transition={{ repeat: Infinity, duration: 1.5 }}
                           >
-                            <Badge className="bg-gradient-to-r from-amber-500 to-yellow-400 text-black text-[6px] flex items-center gap-0.5 shadow-lg px-1">
-                              <Sparkles className="h-2 w-2" />
+                            <Badge className="bg-gradient-to-r from-amber-500 to-yellow-400 text-black text-[5px] flex items-center gap-0.5 shadow-lg px-0.5">
+                              <Sparkles className="h-1.5 w-1.5" />
                               9!
                             </Badge>
                           </motion.div>
@@ -363,7 +364,7 @@ export function Lucky9GamblingTable({
                         <motion.div 
                           initial={{ scale: 0 }}
                           animate={{ scale: 1 }}
-                          className={`text-lg font-bold ${bankerValue === 9 ? 'text-amber-400' : 'text-white'}`}
+                          className={`text-sm font-bold ${bankerValue === 9 ? 'text-amber-400' : 'text-white'}`}
                         >
                           {bankerValue}
                         </motion.div>
@@ -379,7 +380,7 @@ export function Lucky9GamblingTable({
                     animate={{ scale: 1, opacity: 1 }}
                     className="text-center"
                   >
-                    <Badge className={`text-[8px] font-bold ${
+                    <Badge className={`text-[6px] font-bold ${
                       banker.result === 'win' || banker.result === 'natural_win' ? 'bg-gradient-to-r from-green-500 to-emerald-400' : 
                       banker.result === 'lose' ? 'bg-gradient-to-r from-red-500 to-red-400' : 
                       'bg-slate-500'
@@ -390,7 +391,7 @@ export function Lucky9GamblingTable({
                       <motion.div 
                         initial={{ y: 10, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
-                        className={`text-[10px] font-bold ${banker.winnings > 0 ? 'text-green-400' : 'text-red-400'}`}
+                        className={`text-[8px] font-bold ${banker.winnings > 0 ? 'text-green-400' : 'text-red-400'}`}
                       >
                         {banker.winnings > 0 ? '+' : ''}₱{banker.winnings.toLocaleString()}
                       </motion.div>
@@ -410,13 +411,13 @@ export function Lucky9GamblingTable({
                         animate={{ scale: [1, 1.15, 1] }}
                         transition={{ repeat: Infinity, duration: 0.8 }}
                         className={cn(
-                          'px-2 py-0.5 rounded-full text-[8px] font-bold shadow-lg whitespace-nowrap',
+                          'px-1.5 py-0.5 rounded-full text-[6px] font-bold shadow-lg whitespace-nowrap',
                           bankerIsNatural
                             ? 'bg-gradient-to-r from-amber-400 to-yellow-300 text-black'
                             : 'bg-gradient-to-r from-green-500 to-emerald-400 text-white'
                         )}
                       >
-                        {bankerIsNatural ? '🏆 Natural 9!' : '🎉 WIN'}
+                        {bankerIsNatural ? '🏆9!' : '🎉WIN'}
                       </motion.div>
                     </motion.div>
                   )}
