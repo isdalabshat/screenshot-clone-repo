@@ -47,22 +47,27 @@ export function Lucky9PlayerSeat({
   // Show banker bet controls during betting phase if player has bet pending
   const showBetControls = isBankerView && gameStatus === 'betting' && player.currentBet > 0 && player.betAccepted === null;
 
+  // Determine seat styling based on state
+  const getSeatBorder = () => {
+    if (isCurrentTurn) return 'border-green-400 shadow-lg shadow-green-500/40';
+    if (isMe) return 'border-blue-400/60';
+    if (player.betAccepted === true) return 'border-green-500/50';
+    if (player.betAccepted === false) return 'border-red-500/50';
+    return 'border-amber-700/60';
+  };
+
   return (
     <motion.div 
-      className={`relative bg-slate-900/90 backdrop-blur rounded-lg p-1.5 min-w-[85px] max-w-[100px] border transition-all ${
-        isCurrentTurn 
-          ? 'border-green-400 shadow-md shadow-green-500/30' 
-          : isMe 
-            ? 'border-blue-500/50' 
-            : player.betAccepted === true 
-              ? 'border-green-500/40'
-              : player.betAccepted === false
-                ? 'border-red-500/40'
-                : 'border-slate-600/50'
-      }`}
+      className={`relative min-w-[90px] max-w-[105px] transition-all`}
       animate={isCurrentTurn ? { scale: [1, 1.02, 1] } : {}}
       transition={{ repeat: isCurrentTurn ? Infinity : 0, duration: 1.5 }}
     >
+      {/* Visual Seat Frame */}
+      <div className="absolute -inset-1.5 rounded-xl bg-gradient-to-b from-amber-900/40 via-amber-800/20 to-amber-900/40 blur-[1px]" />
+      <div className="absolute -inset-1 rounded-xl border-2 border-amber-700/40 bg-gradient-to-b from-amber-950/60 to-slate-950/60" />
+      
+      {/* Seat cushion effect */}
+      <div className={`relative bg-gradient-to-br from-slate-800/95 via-slate-900/95 to-slate-800/95 backdrop-blur rounded-lg p-1.5 border-2 ${getSeatBorder()}`}>
       {/* Player Avatar with emoji/decision */}
       <div className="flex items-center gap-1 mb-1">
         <Lucky9PlayerAvatar
@@ -215,6 +220,7 @@ export function Lucky9PlayerSeat({
           )}
         </motion.div>
       )}
+      </div>
     </motion.div>
   );
 }

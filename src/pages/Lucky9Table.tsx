@@ -87,7 +87,7 @@ export default function Lucky9TablePage() {
       .from('lucky9_games')
       .select('*')
       .eq('table_id', tableId)
-      .in('status', ['betting', 'accepting_bets', 'dealing', 'player_turns', 'banker_turn', 'showdown'])
+      .in('status', ['betting', 'accepting_bets', 'dealing', 'player_turns', 'banker_turn', 'calculating', 'revealing', 'showdown'])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -493,30 +493,45 @@ export default function Lucky9TablePage() {
     return () => { supabase.removeChannel(channel); };
   }, [tableId, fetchGame, fetchPlayers]);
 
-  // Handle showdown/finished state - show cards and winner animation for exactly 5 seconds
-  const resultsShownRef = useRef(false);
-  const resultsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastGameIdRef = useRef<string | null>(null);
+  // Handle calculating state - 1 sec delay then transition to revealing
+  const calculatingHandled = useRef(false);
+  const calculatingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   useEffect(() => {
-    // Trigger on finished status
-    const isResultsPhase = game?.status === 'finished';
-    const gameId = game?.id || null;
+    if (game?.status === 'calculating' && !calculatingHandled.current) {
+      calculatingHandled.current = true;
+      console.log('Calculating winner... 1 sec delay');
+      
+      // After 1 second, update to 'revealing' status
+      calculatingTimeoutRef.current = setTimeout(async () => {
+        await supabase
+          .from('lucky9_games')
+          .update({ status: 'revealing' })
+          .eq('id', game.id);
+      }, 1000);
+    }
     
-    // Only trigger once per game - use game ID to track
-    if (isResultsPhase && gameId && lastGameIdRef.current !== gameId) {
-      lastGameIdRef.current = gameId;
-      resultsShownRef.current = true;
-      
-      // Clear any existing timeout
-      if (resultsTimeoutRef.current) {
-        clearTimeout(resultsTimeoutRef.current);
-        resultsTimeoutRef.current = null;
+    if (game?.status !== 'calculating') {
+      calculatingHandled.current = false;
+    }
+    
+    return () => {
+      if (calculatingTimeoutRef.current) {
+        clearTimeout(calculatingTimeoutRef.current);
       }
+    };
+  }, [game?.status, game?.id]);
+
+  // Handle revealing state - show all cards for 5 seconds, then finish
+  const revealingHandled = useRef(false);
+  const revealingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  useEffect(() => {
+    if (game?.status === 'revealing' && !revealingHandled.current) {
+      revealingHandled.current = true;
+      console.log('Revealing all cards for 5 seconds...');
       
-      console.log('Results phase started - will show for 5 seconds');
-      
-      // Show winner animation immediately
+      // Show winner animation
       const gameWinners = players.filter(p => p.winnings > 0).map(p => ({
         username: p.username,
         winnings: p.winnings
@@ -527,28 +542,40 @@ export default function Lucky9TablePage() {
         playSound('win');
       }
       
-      // Reset round after EXACTLY 5 seconds of showing results
-      resultsTimeoutRef.current = setTimeout(() => {
-        console.log('5 seconds elapsed - resetting round now');
-        resultsShownRef.current = false;
-        setShowWinnerAnimation(false);
-        setWinners([]);
-        resetRound();
+      // After 5 seconds, mark as finished and reset
+      revealingTimeoutRef.current = setTimeout(async () => {
+        console.log('5 seconds reveal complete - finishing game');
+        await supabase
+          .from('lucky9_games')
+          .update({ status: 'finished' })
+          .eq('id', game.id);
+        
+        // Wait a moment then reset
+        setTimeout(() => {
+          setShowWinnerAnimation(false);
+          setWinners([]);
+          revealingHandled.current = false;
+          resetRound();
+        }, 500);
       }, 5000);
     }
     
-    // Cleanup on unmount only
+    if (game?.status !== 'revealing') {
+      revealingHandled.current = false;
+    }
+    
     return () => {
-      // Don't clear timeout on re-renders, only on unmount
+      if (revealingTimeoutRef.current) {
+        clearTimeout(revealingTimeoutRef.current);
+      }
     };
-  }, [game?.status, game?.id]);
-  
-  // Cleanup timeout on component unmount
+  }, [game?.status, game?.id, players, playSound]);
+
+  // Cleanup timeouts on component unmount
   useEffect(() => {
     return () => {
-      if (resultsTimeoutRef.current) {
-        clearTimeout(resultsTimeoutRef.current);
-      }
+      if (calculatingTimeoutRef.current) clearTimeout(calculatingTimeoutRef.current);
+      if (revealingTimeoutRef.current) clearTimeout(revealingTimeoutRef.current);
     };
   }, []);
 

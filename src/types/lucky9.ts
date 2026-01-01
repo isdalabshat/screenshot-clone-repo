@@ -11,7 +11,7 @@ export interface Lucky9Table {
 export interface Lucky9Game {
   id: string;
   tableId: string;
-  status: 'betting' | 'accepting_bets' | 'dealing' | 'player_turns' | 'banker_turn' | 'showdown' | 'finished';
+  status: 'betting' | 'accepting_bets' | 'dealing' | 'player_turns' | 'banker_turn' | 'calculating' | 'revealing' | 'showdown' | 'finished';
   bankerCards: string[];
   bankerHiddenCard: string | null;
   currentPlayerPosition: number | null;
