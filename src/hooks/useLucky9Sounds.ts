@@ -19,7 +19,8 @@ type Lucky9SoundType =
   | 'naturalReveal'
   | 'chipStack'
   | 'bigWin'
-  | 'spectatorJoin';
+  | 'spectatorJoin'
+  | 'clockTick';
 
 export function useLucky9Sounds() {
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -265,6 +266,12 @@ export function useLucky9Sounds() {
         // Subtle join sound
         playTone(400, 0.1, 'sine', 0.1);
         setTimeout(() => playTone(500, 0.1, 'sine', 0.08), 100);
+        break;
+        
+      case 'clockTick':
+        // Clock ticking sound - crisp mechanical tick
+        playTone(1200, 0.03, 'square', 0.12);
+        setTimeout(() => playTone(800, 0.02, 'square', 0.08), 15);
         break;
     }
   }, [playTone, playNoise, playChord]);

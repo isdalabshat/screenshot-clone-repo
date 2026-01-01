@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Clock } from 'lucide-react';
+import { useLucky9Sounds } from '@/hooks/useLucky9Sounds';
 
 interface Lucky9BettingTimerProps {
   bettingEndsAt: string;
@@ -9,12 +10,21 @@ interface Lucky9BettingTimerProps {
 
 export function Lucky9BettingTimer({ bettingEndsAt, onTimeUp }: Lucky9BettingTimerProps) {
   const [secondsLeft, setSecondsLeft] = useState(0);
+  const { playSound } = useLucky9Sounds();
+  const lastSecond = useRef<number | null>(null);
 
   useEffect(() => {
     const updateTimer = () => {
       const endTime = new Date(bettingEndsAt).getTime();
       const now = Date.now();
       const remaining = Math.max(0, Math.ceil((endTime - now) / 1000));
+      
+      // Play clock tick sound when seconds change
+      if (lastSecond.current !== remaining && remaining > 0 && remaining <= 15) {
+        playSound('clockTick');
+      }
+      lastSecond.current = remaining;
+      
       setSecondsLeft(remaining);
 
       if (remaining === 0 && onTimeUp) {
@@ -25,7 +35,7 @@ export function Lucky9BettingTimer({ bettingEndsAt, onTimeUp }: Lucky9BettingTim
     updateTimer();
     const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
-  }, [bettingEndsAt, onTimeUp]);
+  }, [bettingEndsAt, onTimeUp, playSound]);
 
   const isUrgent = secondsLeft <= 10;
   const progress = Math.min(100, (secondsLeft / 30) * 100);

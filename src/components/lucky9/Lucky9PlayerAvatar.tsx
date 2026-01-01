@@ -74,47 +74,26 @@ export function Lucky9PlayerAvatar({
         </AvatarFallback>
       </Avatar>
 
-      {/* Emoji popup above avatar */}
+      {/* Emoji inside avatar - centered overlay */}
       <AnimatePresence>
         {showEmoji && currentEmoji && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0, y: -10 }}
-            className="absolute -top-8 left-1/2 -translate-x-1/2 z-20"
-          >
-            <motion.div
-              animate={{ scale: [1, 1.2, 1] }}
-              transition={{ repeat: 2, duration: 0.4 }}
-              className="bg-slate-900/90 backdrop-blur rounded-full px-2 py-1 border border-slate-600 shadow-lg"
-            >
-              <span className="text-xl">{currentEmoji}</span>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Winner indicator */}
-      <AnimatePresence>
-        {(isWinner || isNaturalWinner) && (
           <motion.div
             initial={{ opacity: 0, scale: 0 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0 }}
-            className="absolute -top-2 -right-2 z-30"
+            className="absolute inset-0 flex items-center justify-center z-20 bg-black/50 rounded-full"
           >
-            <motion.div
-              animate={{ scale: [1, 1.2, 1] }}
-              transition={{ repeat: Infinity, duration: 0.8 }}
+            <motion.span
+              animate={{ scale: [1, 1.3, 1] }}
+              transition={{ repeat: 2, duration: 0.3 }}
               className={cn(
-                'px-1.5 py-0.5 rounded-full text-[8px] font-bold uppercase shadow-lg',
-                isNaturalWinner 
-                  ? 'bg-gradient-to-r from-amber-400 to-yellow-300 text-black' 
-                  : 'bg-gradient-to-r from-green-500 to-emerald-400 text-white'
+                'text-lg',
+                size === 'sm' && 'text-base',
+                size === 'lg' && 'text-xl'
               )}
             >
-              {isNaturalWinner ? '🏆 9!' : '🎉 WIN'}
-            </motion.div>
+              {currentEmoji}
+            </motion.span>
           </motion.div>
         )}
       </AnimatePresence>

@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { Hand, Square, Timer } from 'lucide-react';
 import { useEffect, useState, useRef } from 'react';
+import { useLucky9Sounds } from '@/hooks/useLucky9Sounds';
 
 interface Lucky9ActionButtonsProps {
   onDraw: () => void;
@@ -15,15 +16,26 @@ export function Lucky9ActionButtons({ onDraw, onStand, canDraw, disabled, onTime
   const [timeLeft, setTimeLeft] = useState(30);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const hasTimedOut = useRef(false);
+  const lastSecond = useRef<number | null>(null);
+  const { playSound } = useLucky9Sounds();
 
   useEffect(() => {
     // Reset timer when component mounts (new turn)
     setTimeLeft(30);
     hasTimedOut.current = false;
+    lastSecond.current = null;
 
     timerRef.current = setInterval(() => {
       setTimeLeft(prev => {
-        if (prev <= 1) {
+        const newTime = prev - 1;
+        
+        // Play clock tick sound for last 15 seconds
+        if (lastSecond.current !== newTime && newTime > 0 && newTime <= 15) {
+          playSound('clockTick');
+        }
+        lastSecond.current = newTime;
+        
+        if (newTime <= 0) {
           // Time's up - auto-stand
           if (!hasTimedOut.current && !disabled) {
             hasTimedOut.current = true;
@@ -39,7 +51,7 @@ export function Lucky9ActionButtons({ onDraw, onStand, canDraw, disabled, onTime
           }
           return 0;
         }
-        return prev - 1;
+        return newTime;
       });
     }, 1000);
 
@@ -48,7 +60,7 @@ export function Lucky9ActionButtons({ onDraw, onStand, canDraw, disabled, onTime
         clearInterval(timerRef.current);
       }
     };
-  }, [disabled, onStand, onTimeout]);
+  }, [disabled, onStand, onTimeout, playSound]);
 
   // Calculate progress percentage
   const progressPercent = (timeLeft / 30) * 100;

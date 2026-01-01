@@ -563,10 +563,12 @@ serve(async (req) => {
             })
             .eq('id', gameId);
 
-          // Calculate results immediately
+          // Calculate results immediately with 10% fee on winnings
           const bankerValue = calculateLucky9Value(bankerCards);
           let bankerTotalWin = 0;
           let bankerTotalLoss = 0;
+          let totalFeesCollected = 0;
+          let totalWinningsForFee = 0;
 
           for (const player of players) {
             const playerCards = [deck[(players.indexOf(player)) * 2], deck[(players.indexOf(player)) * 2 + 1]];
@@ -584,64 +586,98 @@ serve(async (req) => {
             const currentStack = currentPlayer?.stack || 0;
             
             let result: string;
-            let winnings = 0;
+            let grossWinnings = 0;
+            let netWinnings = 0;
+            let feeDeducted = 0;
 
             // Natural 9 wins logic
             if (playerIsNatural && !bankerNatural) {
               result = 'natural_win';
-              winnings = currentBet * 3;
+              grossWinnings = currentBet * 3;
+              feeDeducted = Math.floor(grossWinnings * 0.10);
+              netWinnings = grossWinnings - feeDeducted;
               bankerTotalLoss += currentBet * 2;
             } else if (bankerNatural && !playerIsNatural) {
               result = 'lose';
-              winnings = 0;
+              netWinnings = 0;
               bankerTotalWin += currentBet;
             } else if (playerValue === bankerValue) {
               if (playerIsNatural && !bankerNatural) {
                 result = 'natural_win';
-                winnings = currentBet * 3;
+                grossWinnings = currentBet * 3;
+                feeDeducted = Math.floor(grossWinnings * 0.10);
+                netWinnings = grossWinnings - feeDeducted;
                 bankerTotalLoss += currentBet * 2;
               } else if (bankerNatural && !playerIsNatural) {
                 result = 'lose';
-                winnings = 0;
+                netWinnings = 0;
                 bankerTotalWin += currentBet;
               } else {
                 result = 'push';
-                winnings = currentBet;
+                netWinnings = currentBet; // No fee on push
               }
             } else if (playerValue > bankerValue) {
               result = 'win';
-              winnings = currentBet * 2;
+              grossWinnings = currentBet * 2;
+              feeDeducted = Math.floor(grossWinnings * 0.10);
+              netWinnings = grossWinnings - feeDeducted;
               bankerTotalLoss += currentBet;
             } else {
               result = 'lose';
-              winnings = 0;
+              netWinnings = 0;
               bankerTotalWin += currentBet;
             }
+
+            totalFeesCollected += feeDeducted;
+            if (grossWinnings > 0) totalWinningsForFee += grossWinnings;
 
             await supabase
               .from('lucky9_players')
               .update({ 
                 result,
-                winnings,
-                stack: currentStack + winnings,
+                winnings: netWinnings,
+                stack: currentStack + netWinnings,
                 has_acted: true,
                 has_stood: true
               })
               .eq('id', player.id);
           }
 
+          // Calculate banker's net winnings with 10% fee
+          let bankerNetWin = bankerTotalWin - bankerTotalLoss;
+          let bankerFee = 0;
+          if (bankerNetWin > 0) {
+            bankerFee = Math.floor(bankerNetWin * 0.10);
+            bankerNetWin = bankerNetWin - bankerFee;
+            totalFeesCollected += bankerFee;
+            totalWinningsForFee += bankerTotalWin;
+          }
+
           // Update banker
-          const newBankerStack = banker.stack + bankerTotalWin - bankerTotalLoss;
+          const newBankerStack = banker.stack + bankerNetWin;
           await supabase
             .from('lucky9_players')
             .update({ 
               stack: newBankerStack,
               result: bankerTotalWin > bankerTotalLoss ? 'win' : bankerTotalWin < bankerTotalLoss ? 'lose' : 'push',
-              winnings: bankerTotalWin - bankerTotalLoss,
+              winnings: bankerNetWin,
               has_acted: true,
               has_stood: true
             })
             .eq('id', banker.id);
+
+          // Record collected fees
+          if (totalFeesCollected > 0) {
+            await supabase
+              .from('lucky9_fees')
+              .insert({
+                game_id: gameId,
+                table_id: tableId,
+                fee_amount: totalFeesCollected,
+                total_winnings: totalWinningsForFee
+              });
+            console.log('Lucky 9 natural win fee recorded:', totalFeesCollected);
+          }
 
           // Mark game as calculating first (will transition to revealing on client)
           await supabase
@@ -886,23 +922,29 @@ serve(async (req) => {
 
         let bankerTotalWin = 0;
         let bankerTotalLoss = 0;
+        let totalFeesCollected = 0;
+        let totalWinningsForFee = 0;
 
         for (const player of players || []) {
           const playerValue = calculateLucky9Value(player.cards || []);
           const playerIsNatural = player.is_natural; // Had 9 with initial 2 cards
           let result: string;
-          let winnings = 0;
+          let grossWinnings = 0;
+          let netWinnings = 0;
+          let feeDeducted = 0;
 
           // Case 1: Player has natural 9, banker doesn't - player wins with bonus
           if (playerIsNatural && !bankerIsNatural) {
             result = 'natural_win';
-            winnings = player.current_bet * 3;
+            grossWinnings = player.current_bet * 3;
+            feeDeducted = Math.floor(grossWinnings * 0.10);
+            netWinnings = grossWinnings - feeDeducted;
             bankerTotalLoss += player.current_bet * 2;
           } 
           // Case 2: Banker has natural 9, player doesn't - banker wins
           else if (bankerIsNatural && !playerIsNatural) {
             result = 'lose';
-            winnings = 0;
+            netWinnings = 0;
             bankerTotalWin += player.current_bet;
           }
           // Case 3: Both have same value (tie scenarios)
@@ -911,52 +953,82 @@ serve(async (req) => {
             if (playerIsNatural && !bankerIsNatural) {
               // Player had natural 9, banker got 9 after hirit - player wins
               result = 'natural_win';
-              winnings = player.current_bet * 3;
+              grossWinnings = player.current_bet * 3;
+              feeDeducted = Math.floor(grossWinnings * 0.10);
+              netWinnings = grossWinnings - feeDeducted;
               bankerTotalLoss += player.current_bet * 2;
             } else if (bankerIsNatural && !playerIsNatural) {
               // Banker had natural 9, player got 9 after hirit - banker wins
               result = 'lose';
-              winnings = 0;
+              netWinnings = 0;
               bankerTotalWin += player.current_bet;
             } else {
-              // Both natural or both non-natural with same value - push
+              // Both natural or both non-natural with same value - push (no fee on push)
               result = 'push';
-              winnings = player.current_bet;
+              netWinnings = player.current_bet;
             }
           }
           // Case 4: Player has higher value
           else if (playerValue > bankerValue) {
             result = 'win';
-            winnings = player.current_bet * 2;
+            grossWinnings = player.current_bet * 2;
+            feeDeducted = Math.floor(grossWinnings * 0.10);
+            netWinnings = grossWinnings - feeDeducted;
             bankerTotalLoss += player.current_bet;
           } 
           // Case 5: Banker has higher value
           else {
             result = 'lose';
-            winnings = 0;
+            netWinnings = 0;
             bankerTotalWin += player.current_bet;
           }
+
+          totalFeesCollected += feeDeducted;
+          if (grossWinnings > 0) totalWinningsForFee += grossWinnings;
 
           await supabase
             .from('lucky9_players')
             .update({ 
               result,
-              winnings,
-              stack: player.stack + winnings
+              winnings: netWinnings,
+              stack: player.stack + netWinnings
             })
             .eq('id', player.id);
         }
 
-        // Update banker stack
-        const newBankerStack = banker.stack + bankerTotalWin - bankerTotalLoss;
+        // Calculate banker's net winnings with 10% fee if banker won
+        let bankerNetWin = bankerTotalWin - bankerTotalLoss;
+        let bankerFee = 0;
+        if (bankerNetWin > 0) {
+          bankerFee = Math.floor(bankerNetWin * 0.10);
+          bankerNetWin = bankerNetWin - bankerFee;
+          totalFeesCollected += bankerFee;
+          totalWinningsForFee += bankerTotalWin;
+        }
+
+        // Update banker stack with fee deducted from winnings
+        const newBankerStack = banker.stack + bankerNetWin;
         await supabase
           .from('lucky9_players')
           .update({ 
             stack: newBankerStack,
             result: bankerTotalWin > bankerTotalLoss ? 'win' : bankerTotalWin < bankerTotalLoss ? 'lose' : 'push',
-            winnings: bankerTotalWin - bankerTotalLoss
+            winnings: bankerNetWin
           })
           .eq('id', banker.id);
+
+        // Record collected fees
+        if (totalFeesCollected > 0) {
+          await supabase
+            .from('lucky9_fees')
+            .insert({
+              game_id: gameId,
+              table_id: tableId,
+              fee_amount: totalFeesCollected,
+              total_winnings: totalWinningsForFee
+            });
+          console.log('Lucky 9 fee recorded:', totalFeesCollected, 'from total winnings:', totalWinningsForFee);
+        }
 
         // Game status is already 'calculating' - client will transition to 'revealing' after 1 sec
         // The calculation has been done, but we let client handle the timed transitions

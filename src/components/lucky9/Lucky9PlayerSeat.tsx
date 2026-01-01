@@ -81,15 +81,13 @@ export function Lucky9PlayerSeat({
       
       {/* Seat cushion effect */}
       <div className={`relative bg-gradient-to-br from-slate-800/95 via-slate-900/95 to-slate-800/95 backdrop-blur rounded-lg p-1.5 border-2 ${getSeatBorder()}`}>
-      {/* Player Avatar with emoji and win indicator */}
+      {/* Player Avatar and info */}
       <div className="flex items-center gap-1 mb-1">
         <Lucky9PlayerAvatar
           username={player.username}
           isMe={isMe}
           size="sm"
           currentEmoji={currentEmoji}
-          isWinner={isWinner}
-          isNaturalWinner={isWinner && player.isNatural}
         />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-0.5">
@@ -98,6 +96,29 @@ export function Lucky9PlayerSeat({
           </div>
           <span className="text-yellow-400 font-mono text-[8px]">₱{player.stack}</span>
         </div>
+        {/* Win indicator - outside beside avatar */}
+        <AnimatePresence>
+          {isWinner && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0, x: -10 }}
+              animate={{ opacity: 1, scale: 1, x: 0 }}
+              exit={{ opacity: 0, scale: 0 }}
+            >
+              <motion.div
+                animate={{ scale: [1, 1.15, 1] }}
+                transition={{ repeat: Infinity, duration: 0.8 }}
+                className={cn(
+                  'px-1.5 py-0.5 rounded-full text-[7px] font-bold shadow-lg whitespace-nowrap',
+                  player.isNatural
+                    ? 'bg-gradient-to-r from-amber-400 to-yellow-300 text-black'
+                    : 'bg-gradient-to-r from-green-500 to-emerald-400 text-white'
+                )}
+              >
+                {player.isNatural ? '🏆9!' : '🎉WIN'}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Decision indicator (Hirit/Good) - OUTSIDE avatar panel */}
