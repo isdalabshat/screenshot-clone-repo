@@ -457,30 +457,40 @@ export default function Lucky9TablePage() {
   }, [tableId, fetchGame, fetchPlayers]);
 
   // Handle finished state - show cards and winner animation for 5 seconds
+  // Handle finished state - show cards and winner animation for exactly 5 seconds
+  const resultsShownRef = useRef(false);
+  
   useEffect(() => {
-    if (game?.status === 'finished') {
+    if (game?.status === 'finished' && !resultsShownRef.current) {
+      resultsShownRef.current = true;
+      
       // Show winner animation after a short delay
       const winnerTimeout = setTimeout(() => {
         const gameWinners = players.filter(p => p.winnings > 0).map(p => ({
           username: p.username,
           winnings: p.winnings
         }));
-        if (gameWinners.length > 0 && !showWinnerAnimation) {
+        if (gameWinners.length > 0) {
           setWinners(gameWinners);
           setShowWinnerAnimation(true);
           playSound('win');
         }
-      }, 500);
+      }, 300);
       
-      // Reset round after 5 seconds of showing results
-      const resetTimeout = setTimeout(resetRound, 5000);
+      // Reset round after exactly 5 seconds of showing results
+      const resetTimeout = setTimeout(() => {
+        resultsShownRef.current = false;
+        resetRound();
+      }, 5000);
       
       return () => {
         clearTimeout(winnerTimeout);
         clearTimeout(resetTimeout);
       };
+    } else if (game?.status !== 'finished') {
+      resultsShownRef.current = false;
     }
-  }, [game?.status, players, playSound, showWinnerAnimation]);
+  }, [game?.status]);
 
   const banker = players.find(p => p.isBanker);
   const nonBankerPlayers = players.filter(p => !p.isBanker);
