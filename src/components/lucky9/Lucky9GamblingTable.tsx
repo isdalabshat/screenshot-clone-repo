@@ -36,14 +36,14 @@ interface Lucky9GamblingTableProps {
   onGetPlayerSeatPosition?: (playerId: string) => { x: number; y: number } | null;
 }
 
-// Position styles for 5 player seats around the table (poker-style layout)
+// Position styles for 5 player seats around the vertical oval table (poker-style layout)
 // Position 0 = bottom center (current user), positions arranged clockwise
 const seatPositionStyles: Record<number, string> = {
-  0: 'bottom-[2%] left-1/2 -translate-x-1/2',     // Bottom center - current user
-  1: 'bottom-[20%] left-[5%]',                     // Bottom left
-  2: 'top-[35%] left-[2%]',                        // Left side
-  3: 'top-[35%] right-[2%]',                       // Right side
-  4: 'bottom-[20%] right-[5%]',                    // Bottom right
+  0: 'bottom-[3%] left-1/2 -translate-x-1/2',     // Bottom center - current user
+  1: 'bottom-[25%] left-[3%]',                     // Bottom left
+  2: 'top-[25%] left-[3%]',                        // Top left
+  3: 'top-[25%] right-[3%]',                       // Top right
+  4: 'bottom-[25%] right-[3%]',                    // Bottom right
 };
 
 // Get display position based on user's actual position (rotate so user is always at bottom)
@@ -167,16 +167,16 @@ export function Lucky9GamblingTable({
         </motion.div>
       )}
 
-      {/* Main Table Container - Poker style oval table */}
-      <div className="relative w-full aspect-[4/3] max-w-[400px] mx-auto">
+      {/* Main Table Container - Vertical oval table */}
+      <div className="relative w-full max-w-[320px] mx-auto" style={{ aspectRatio: '3/4' }}>
         {/* Ambient glow effect */}
         <div className="absolute inset-0 bg-gradient-radial from-green-900/20 via-transparent to-transparent pointer-events-none" />
         
-        {/* Table Surface with Premium Felt - Oval shape like poker */}
+        {/* Table Surface with Premium Felt - Vertical oval shape */}
         <motion.div 
           initial={{ scale: 0.95, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className="absolute inset-6 sm:inset-8 rounded-[50%/45%] border-[10px] sm:border-[12px] border-amber-900/95 shadow-2xl"
+          className="absolute inset-8 sm:inset-10 rounded-[45%/50%] border-[10px] sm:border-[12px] border-amber-900/95 shadow-2xl"
           style={{
             boxShadow: `
               inset 0 0 80px rgba(0,0,0,0.6), 
@@ -184,16 +184,16 @@ export function Lucky9GamblingTable({
               inset 0 0 30px rgba(34, 197, 94, 0.15),
               0 6px 24px rgba(0,0,0,0.5)
             `,
-            background: 'radial-gradient(ellipse at 50% 30%, #1a5d3a 0%, #0f4228 40%, #0a2e1c 100%)'
+            background: 'radial-gradient(ellipse at 50% 40%, #1a5d3a 0%, #0f4228 40%, #0a2e1c 100%)'
           }}
         >
           {/* Table Rail - Multi-layer wood effect */}
-          <div className="absolute -inset-[10px] sm:-inset-[12px] rounded-[50%/45%] border-4 border-amber-800/60 pointer-events-none" />
-          <div className="absolute -inset-[6px] sm:-inset-[8px] rounded-[50%/45%] border-2 border-amber-600/30 pointer-events-none" />
-          <div className="absolute -inset-[3px] sm:-inset-[4px] rounded-[50%/45%] border border-amber-500/10 pointer-events-none" />
+          <div className="absolute -inset-[10px] sm:-inset-[12px] rounded-[45%/50%] border-4 border-amber-800/60 pointer-events-none" />
+          <div className="absolute -inset-[6px] sm:-inset-[8px] rounded-[45%/50%] border-2 border-amber-600/30 pointer-events-none" />
+          <div className="absolute -inset-[3px] sm:-inset-[4px] rounded-[45%/50%] border border-amber-500/10 pointer-events-none" />
           
           {/* Felt texture overlay */}
-          <div className="absolute inset-0 rounded-[50%/45%] opacity-40 bg-[radial-gradient(circle_at_50%_30%,transparent_0%,rgba(0,0,0,0.4)_100%)]" />
+          <div className="absolute inset-0 rounded-[45%/50%] opacity-40 bg-[radial-gradient(circle_at_50%_40%,transparent_0%,rgba(0,0,0,0.4)_100%)]" />
           
           {/* Center logo with glow */}
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
@@ -207,7 +207,7 @@ export function Lucky9GamblingTable({
           </div>
           
           {/* Ambient light effect */}
-          <div className="absolute inset-0 rounded-[50%/45%] bg-gradient-to-t from-transparent via-white/5 to-white/10 pointer-events-none" />
+          <div className="absolute inset-0 rounded-[45%/50%] bg-gradient-to-t from-transparent via-white/5 to-white/10 pointer-events-none" />
         </motion.div>
 
         {/* Card Deck at center */}
