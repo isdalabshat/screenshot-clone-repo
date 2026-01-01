@@ -194,7 +194,6 @@ export default function Lucky9Lobby() {
                   <div className="space-y-4">
                     <div className="text-sm text-muted-foreground">
                       <p>🎴 40-card deck (No J, Q, K)</p>
-                      <p>🎯 Natural 9 pays 2:1</p>
                       <p>⏱️ {table.betTimerSeconds}s betting timer</p>
                     </div>
                     <Button 

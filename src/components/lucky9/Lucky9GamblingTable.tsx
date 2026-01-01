@@ -7,7 +7,7 @@ import { Lucky9CardDeck } from './Lucky9CardDeck';
 import { calculateLucky9Value, isNatural9 } from '@/lib/lucky9/deck';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
-import { Crown, Sparkles, Star, AlertTriangle, Eye, Clock } from 'lucide-react';
+import { Crown, Sparkles, Star, AlertTriangle, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface PlayerEmojiState {
@@ -34,7 +34,6 @@ interface Lucky9GamblingTableProps {
   isDealing?: boolean;
   isShowdown?: boolean;
   onGetPlayerSeatPosition?: (playerId: string) => { x: number; y: number } | null;
-  callTimeRemaining?: number | null;
 }
 
 // Position styles for 5 player seats around the vertical oval table (poker-style layout)
@@ -70,8 +69,7 @@ export function Lucky9GamblingTable({
   playerDecisions = {},
   isDealing = false,
   isShowdown = false,
-  onGetPlayerSeatPosition,
-  callTimeRemaining
+  onGetPlayerSeatPosition
 }: Lucky9GamblingTableProps) {
   const nonBankerPlayers = players.filter(p => !p.isBanker);
   
@@ -213,27 +211,6 @@ export function Lucky9GamblingTable({
           <div className="absolute inset-0 rounded-[45%/50%] bg-gradient-to-t from-transparent via-white/5 to-white/10 pointer-events-none" />
         </motion.div>
 
-        {/* Call Time Timer Display - Visible to all players */}
-        {callTimeRemaining !== null && callTimeRemaining > 0 && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="absolute top-[20%] left-1/2 -translate-x-1/2 z-25 pointer-events-none"
-          >
-            <div className="bg-gradient-to-r from-red-900/90 to-red-800/90 border-2 border-red-500/60 rounded-xl px-4 py-2 shadow-lg shadow-red-500/30">
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-red-400 animate-pulse" />
-                <div className="text-center">
-                  <div className="text-[10px] text-red-300 font-medium uppercase tracking-wider">Call Time</div>
-                  <div className="text-xl font-bold text-red-400 tabular-nums">
-                    {Math.floor(callTimeRemaining / 60).toString().padStart(2, '0')}:{(callTimeRemaining % 60).toString().padStart(2, '0')}
-                  </div>
-                </div>
-                <Clock className="h-4 w-4 text-red-400 animate-pulse" />
-              </div>
-            </div>
-          </motion.div>
-        )}
 
         {/* Card Deck at center - even smaller size */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-5 scale-50">

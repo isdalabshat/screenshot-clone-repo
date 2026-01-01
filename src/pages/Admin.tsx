@@ -99,11 +99,18 @@ export default function Admin() {
   };
 
   const resetFees = async () => {
-    await supabase.from('collected_fees').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    await supabase.from('lucky9_fees').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    setTotalFees(0);
-    setTotalLucky9Fees(0);
-    toast({ title: 'Success', description: 'All fees have been reset!' });
+    // Delete ALL fee records from database
+    const { error: pokerError } = await supabase.from('collected_fees').delete().gte('fee_amount', 0);
+    const { error: lucky9Error } = await supabase.from('lucky9_fees').delete().gte('fee_amount', 0);
+    
+    if (pokerError || lucky9Error) {
+      console.error('Error deleting fees:', pokerError, lucky9Error);
+      toast({ title: 'Error', description: 'Failed to reset some fees', variant: 'destructive' });
+    } else {
+      setTotalFees(0);
+      setTotalLucky9Fees(0);
+      toast({ title: 'Success', description: 'All fees have been reset!' });
+    }
   };
 
   const handleCashRequest = async (requestId: string, approve: boolean, userId: string, amount: number, type: string) => {
