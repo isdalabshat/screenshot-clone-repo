@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Coins, Play, Layers } from 'lucide-react';
+import { CashInOutButtons } from '@/components/CashInOutButtons';
 import { Lucky9Table, Lucky9Game, Lucky9Player } from '@/types/lucky9';
 import { Lucky9BetPanel } from '@/components/lucky9/Lucky9BetPanel';
 import { Lucky9ActionButtons } from '@/components/lucky9/Lucky9ActionButtons';
@@ -598,12 +599,17 @@ export default function Lucky9TablePage() {
               <p className="text-[10px] text-muted-foreground">₱{table.minBet} - ₱{table.maxBet}</p>
             </div>
           </div>
-          {myPlayer && (
-            <div className="flex items-center gap-1.5 bg-black/50 px-3 py-1.5 rounded-lg border border-yellow-500/30">
-              <Coins className="h-4 w-4 text-yellow-400" />
-              <span className="text-sm font-bold text-yellow-400">₱{myPlayer.stack.toLocaleString()}</span>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            {/* Cash In/Out Buttons */}
+            {user && profile && <CashInOutButtons userId={user.id} userChips={profile.chips} />}
+            
+            {myPlayer && (
+              <div className="flex items-center gap-1.5 bg-black/50 px-3 py-1.5 rounded-lg border border-yellow-500/30">
+                <Coins className="h-4 w-4 text-yellow-400" />
+                <span className="text-sm font-bold text-yellow-400">₱{myPlayer.stack.toLocaleString()}</span>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 

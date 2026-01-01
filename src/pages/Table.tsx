@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { ArrowLeft, LogOut, Coins, Volume2, VolumeX, Coffee, UserMinus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
+import { CashInOutButtons } from '@/components/CashInOutButtons';
 
 export default function Table() {
   const { tableId } = useParams<{ tableId: string }>();
@@ -618,6 +619,9 @@ export default function Table() {
             >
               {soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
             </Button>
+
+            {/* Cash In/Out Buttons */}
+            {user && profile && <CashInOutButtons userId={user.id} userChips={profile.chips} />}
 
             {isJoined && currentPlayer && (
               <div className="flex items-center gap-1 bg-black/50 px-2 py-1 rounded-lg border border-yellow-500/30">

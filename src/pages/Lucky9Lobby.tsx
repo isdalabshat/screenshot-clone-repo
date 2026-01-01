@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Users, Coins, LogOut, Shield, ArrowLeft } from 'lucide-react';
 import { Lucky9Table } from '@/types/lucky9';
 import { motion } from 'framer-motion';
+import { CashInOutButtons } from '@/components/CashInOutButtons';
 
 export default function Lucky9Lobby() {
   const navigate = useNavigate();
@@ -100,7 +101,7 @@ export default function Lucky9Lobby() {
       <header className="border-b border-purple-500/30 bg-card/50 backdrop-blur sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center flex-wrap gap-3">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate('/lobby')}>
+            <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <span className="text-4xl">🎴</span>
@@ -114,6 +115,9 @@ export default function Lucky9Lobby() {
               <Coins className="h-5 w-5 text-yellow-400" />
               <span className="font-bold text-yellow-400">₱{profile.chips.toLocaleString()}</span>
             </div>
+            
+            {/* Cash In/Out Buttons */}
+            {user && <CashInOutButtons userId={user.id} userChips={profile.chips} />}
             
             <div className="text-muted-foreground text-sm">
               <span className="text-foreground font-medium">{profile.username}</span>
