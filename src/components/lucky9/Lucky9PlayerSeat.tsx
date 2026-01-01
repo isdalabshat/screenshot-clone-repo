@@ -1,11 +1,13 @@
+import { useState, useEffect } from 'react';
 import { Lucky9Player } from '@/types/lucky9';
 import { Lucky9RevealableCard } from './Lucky9RevealableCard';
 import { Lucky9PlayerAvatar } from './Lucky9PlayerAvatar';
 import { calculateLucky9Value, isNatural9 } from '@/lib/lucky9/deck';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Check, X, Clock, Sparkles } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface Lucky9PlayerSeatProps {
   player: Lucky9Player;
@@ -22,6 +24,7 @@ interface Lucky9PlayerSeatProps {
   currentEmoji?: string | null;
   currentDecision?: 'hirit' | 'good' | null;
   showNaturalBadge?: boolean;
+  isWinner?: boolean;
 }
 
 export function Lucky9PlayerSeat({ 
@@ -38,8 +41,18 @@ export function Lucky9PlayerSeat({
   onCardReveal,
   currentEmoji,
   currentDecision,
-  showNaturalBadge
+  showNaturalBadge,
+  isWinner
 }: Lucky9PlayerSeatProps) {
+  const [showDecision, setShowDecision] = useState(false);
+
+  useEffect(() => {
+    if (currentDecision) {
+      setShowDecision(true);
+      const timer = setTimeout(() => setShowDecision(false), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [currentDecision]);
   const cards = player.cards || [];
   const handValue = cards.length > 0 ? calculateLucky9Value(cards) : null;
   const isNatural = cards.length === 2 && isNatural9(cards);
@@ -68,14 +81,15 @@ export function Lucky9PlayerSeat({
       
       {/* Seat cushion effect */}
       <div className={`relative bg-gradient-to-br from-slate-800/95 via-slate-900/95 to-slate-800/95 backdrop-blur rounded-lg p-1.5 border-2 ${getSeatBorder()}`}>
-      {/* Player Avatar with emoji/decision */}
+      {/* Player Avatar with emoji and win indicator */}
       <div className="flex items-center gap-1 mb-1">
         <Lucky9PlayerAvatar
           username={player.username}
           isMe={isMe}
           size="sm"
           currentEmoji={currentEmoji}
-          currentDecision={currentDecision}
+          isWinner={isWinner}
+          isNaturalWinner={isWinner && player.isNatural}
         />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-0.5">
@@ -85,6 +99,31 @@ export function Lucky9PlayerSeat({
           <span className="text-yellow-400 font-mono text-[8px]">₱{player.stack}</span>
         </div>
       </div>
+
+      {/* Decision indicator (Hirit/Good) - OUTSIDE avatar panel */}
+      <AnimatePresence>
+        {showDecision && currentDecision && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.5, y: -10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.5, y: -10 }}
+            className="absolute -top-6 left-1/2 -translate-x-1/2 z-40"
+          >
+            <motion.div
+              animate={{ scale: [1, 1.1, 1] }}
+              transition={{ repeat: 2, duration: 0.3 }}
+              className={cn(
+                'px-2 py-0.5 rounded-full text-[10px] font-bold uppercase whitespace-nowrap shadow-lg',
+                currentDecision === 'hirit' 
+                  ? 'bg-gradient-to-r from-green-500 to-emerald-400 text-white' 
+                  : 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black'
+              )}
+            >
+              {currentDecision === 'hirit' ? '🎴 Hirit!' : '✋ Good!'}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Bet display */}
       {player.currentBet > 0 && (

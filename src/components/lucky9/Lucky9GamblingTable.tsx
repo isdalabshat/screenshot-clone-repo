@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Lucky9Player, Lucky9Game } from '@/types/lucky9';
 import { Lucky9PlayerSeat } from './Lucky9PlayerSeat';
 import { Lucky9RevealableCard } from './Lucky9RevealableCard';
@@ -7,6 +8,7 @@ import { calculateLucky9Value, isNatural9 } from '@/lib/lucky9/deck';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 import { Crown, Sparkles, Star, AlertTriangle } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface PlayerEmojiState {
   [playerId: string]: string | null;
@@ -67,6 +69,21 @@ export function Lucky9GamblingTable({
   
   const isBettingPhase = game?.status === 'betting';
 
+  // Track banker decision display
+  const [showBankerDecision, setShowBankerDecision] = useState(false);
+  const bankerDecision = playerDecisions[banker?.userId || ''];
+
+  useEffect(() => {
+    if (bankerDecision) {
+      setShowBankerDecision(true);
+      const timer = setTimeout(() => setShowBankerDecision(false), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [bankerDecision]);
+
+  // Check if banker is winner
+  const bankerIsWinner = isGameFinished && (banker?.result === 'win' || banker?.result === 'natural_win');
+
   return (
     <div className="relative w-full max-w-md mx-auto px-1">
       {/* Banker's Total Exposure Indicator - During Betting Phase */}
@@ -107,7 +124,7 @@ export function Lucky9GamblingTable({
             className={`relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 backdrop-blur rounded-xl p-2 border-2 transition-all ${
               isBankerTurn 
                 ? 'border-yellow-400 shadow-md shadow-yellow-500/30' 
-                : isGameFinished && banker.result === 'win'
+                : bankerIsWinner
                   ? 'border-green-400 shadow-md shadow-green-500/30'
                   : isGameFinished && banker.result === 'lose'
                     ? 'border-red-400/50'
@@ -116,6 +133,31 @@ export function Lucky9GamblingTable({
           >
             {/* Background decoration */}
             <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-amber-500/10 to-transparent rounded-full blur-2xl" />
+            
+            {/* Banker decision indicator - OUTSIDE panel */}
+            <AnimatePresence>
+              {showBankerDecision && bankerDecision && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.5, y: -10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.5, y: -10 }}
+                  className="absolute -top-6 left-1/2 -translate-x-1/2 z-40"
+                >
+                  <motion.div
+                    animate={{ scale: [1, 1.1, 1] }}
+                    transition={{ repeat: 2, duration: 0.3 }}
+                    className={cn(
+                      'px-3 py-1 rounded-full text-xs font-bold uppercase whitespace-nowrap shadow-lg',
+                      bankerDecision === 'hirit' 
+                        ? 'bg-gradient-to-r from-green-500 to-emerald-400 text-white' 
+                        : 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black'
+                    )}
+                  >
+                    {bankerDecision === 'hirit' ? '🎴 Hirit!' : '✋ Good!'}
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
             
             <div className="relative flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0 flex-shrink">
@@ -126,7 +168,8 @@ export function Lucky9GamblingTable({
                     isMe={isCurrentUserBanker}
                     size="sm"
                     currentEmoji={playerEmojis[banker.userId] || null}
-                    currentDecision={playerDecisions[banker.userId] || null}
+                    isWinner={bankerIsWinner}
+                    isNaturalWinner={bankerIsWinner && bankerIsNatural}
                   />
                   <motion.div 
                     className="absolute -top-0.5 -right-0.5"
@@ -199,11 +242,11 @@ export function Lucky9GamblingTable({
                   className="text-right flex-shrink-0"
                 >
                   <Badge className={`text-[8px] font-bold ${
-                    banker.result === 'win' ? 'bg-gradient-to-r from-green-500 to-emerald-400' : 
+                    banker.result === 'win' || banker.result === 'natural_win' ? 'bg-gradient-to-r from-green-500 to-emerald-400' : 
                     banker.result === 'lose' ? 'bg-gradient-to-r from-red-500 to-red-400' : 
                     'bg-slate-500'
                   }`}>
-                    {banker.result === 'win' ? '🏆' : banker.result === 'lose' ? '💔' : '↔'}
+                    {banker.result === 'win' || banker.result === 'natural_win' ? '🏆' : banker.result === 'lose' ? '💔' : '↔'}
                   </Badge>
                   {banker.winnings !== 0 && (
                     <motion.div 
@@ -308,6 +351,7 @@ export function Lucky9GamblingTable({
             const isMe = player.userId === currentUserId;
             // MANDATORY REVEAL: All cards shown when game finished, otherwise only player sees their own
             const shouldShowCards = isMe || showAllCards;
+            const playerIsWinner = isGameFinished && (player.result === 'win' || player.result === 'natural_win');
             
             return (
               <motion.div
@@ -331,6 +375,7 @@ export function Lucky9GamblingTable({
                   currentEmoji={playerEmojis[player.userId] || null}
                   currentDecision={playerDecisions[player.userId] || null}
                   showNaturalBadge={player.isNatural}
+                  isWinner={playerIsWinner}
                 />
               </motion.div>
             );

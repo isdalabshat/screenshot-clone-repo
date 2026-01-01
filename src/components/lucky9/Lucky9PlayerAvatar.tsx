@@ -9,8 +9,9 @@ interface Lucky9PlayerAvatarProps {
   isBanker?: boolean;
   isMe?: boolean;
   currentEmoji?: string | null;
-  currentDecision?: 'hirit' | 'good' | null;
   size?: 'sm' | 'md' | 'lg';
+  isWinner?: boolean;
+  isNaturalWinner?: boolean;
 }
 
 export function Lucky9PlayerAvatar({
@@ -18,11 +19,11 @@ export function Lucky9PlayerAvatar({
   isBanker = false,
   isMe = false,
   currentEmoji,
-  currentDecision,
-  size = 'md'
+  size = 'md',
+  isWinner = false,
+  isNaturalWinner = false
 }: Lucky9PlayerAvatarProps) {
   const [showEmoji, setShowEmoji] = useState(false);
-  const [showDecision, setShowDecision] = useState(false);
 
   useEffect(() => {
     if (currentEmoji) {
@@ -31,14 +32,6 @@ export function Lucky9PlayerAvatar({
       return () => clearTimeout(timer);
     }
   }, [currentEmoji]);
-
-  useEffect(() => {
-    if (currentDecision) {
-      setShowDecision(true);
-      const timer = setTimeout(() => setShowDecision(false), 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [currentDecision]);
 
   const sizeClasses = {
     sm: 'h-8 w-8 text-xs',
@@ -101,26 +94,26 @@ export function Lucky9PlayerAvatar({
         )}
       </AnimatePresence>
 
-      {/* Decision indicator (Hirit/Good) - positioned to the right to avoid overlap */}
+      {/* Winner indicator */}
       <AnimatePresence>
-        {showDecision && currentDecision && (
+        {(isWinner || isNaturalWinner) && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.5, x: 10 }}
-            animate={{ opacity: 1, scale: 1, x: 0 }}
-            exit={{ opacity: 0, scale: 0.5, x: 10 }}
-            className="absolute -right-16 top-1/2 -translate-y-1/2 z-30"
+            initial={{ opacity: 0, scale: 0 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0 }}
+            className="absolute -top-2 -right-2 z-30"
           >
             <motion.div
-              animate={{ scale: [1, 1.05, 1] }}
-              transition={{ repeat: Infinity, duration: 0.4 }}
+              animate={{ scale: [1, 1.2, 1] }}
+              transition={{ repeat: Infinity, duration: 0.8 }}
               className={cn(
-                'px-2 py-0.5 rounded text-[10px] font-bold uppercase whitespace-nowrap shadow-lg',
-                currentDecision === 'hirit' 
-                  ? 'bg-green-500 text-white' 
-                  : 'bg-amber-500 text-white'
+                'px-1.5 py-0.5 rounded-full text-[8px] font-bold uppercase shadow-lg',
+                isNaturalWinner 
+                  ? 'bg-gradient-to-r from-amber-400 to-yellow-300 text-black' 
+                  : 'bg-gradient-to-r from-green-500 to-emerald-400 text-white'
               )}
             >
-              {currentDecision === 'hirit' ? 'Hirit!' : 'Good!'}
+              {isNaturalWinner ? '🏆 9!' : '🎉 WIN'}
             </motion.div>
           </motion.div>
         )}
