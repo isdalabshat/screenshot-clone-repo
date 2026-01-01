@@ -15,6 +15,7 @@ import { Lucky9GamblingTable } from '@/components/lucky9/Lucky9GamblingTable';
 import Lucky9Chat from '@/components/lucky9/Lucky9Chat';
 import Lucky9EmojiReactions from '@/components/lucky9/Lucky9EmojiReactions';
 import { Lucky9WinnerAnimation } from '@/components/lucky9/Lucky9WinnerAnimation';
+import { Lucky9HiritCard, Lucky9DealSequence } from '@/components/lucky9/Lucky9FloatingCard';
 import { useLucky9Sounds } from '@/hooks/useLucky9Sounds';
 
 interface PlayerEmoji {
@@ -52,9 +53,13 @@ export default function Lucky9TablePage() {
   const [playerEmojis, setPlayerEmojis] = useState<PlayerEmojiState>({});
   const [playerDecisions, setPlayerDecisions] = useState<PlayerDecisionState>({});
   const [isDealing, setIsDealing] = useState(false);
+  const [isShowdown, setIsShowdown] = useState(false);
+  const [showHiritAnimation, setShowHiritAnimation] = useState(false);
+  const [showDealSequence, setShowDealSequence] = useState(false);
 
   const hasJoined = useRef(false);
   const prevGameStatus = useRef<string | null>(null);
+  const deckRef = useRef<HTMLDivElement>(null);
 
   const fetchTable = useCallback(async () => {
     if (!tableId) return;
@@ -240,21 +245,33 @@ export default function Lucky9TablePage() {
         case 'player_turns':
           if (prevStatus === 'betting' || prevStatus === 'dealing') {
             setIsDealing(true);
+            setShowDealSequence(true);
             playSound('shuffle');
             setTimeout(() => {
               playDealSequence(players.filter(p => p.betAccepted).length * 2);
-              setTimeout(() => setIsDealing(false), 1000);
+              setTimeout(() => {
+                setIsDealing(false);
+                setShowDealSequence(false);
+              }, 1000);
             }, 300);
           }
           break;
         case 'showdown':
+          setIsShowdown(true);
           playSound('showdown');
           break;
         case 'finished':
-          // Check for winners
+          // Keep showdown visible, show winner animation after a delay
           const gameWinners = players.filter(p => p.winnings > 0);
           if (gameWinners.length > 0) {
             playSound('win');
+            setTimeout(() => {
+              setWinners(gameWinners.map(p => ({
+                username: p.username,
+                winnings: p.winnings
+              })));
+              setShowWinnerAnimation(true);
+            }, 1500);
           }
           break;
       }
@@ -387,6 +404,7 @@ export default function Lucky9TablePage() {
     if (!game) return;
     setIsProcessing(true);
     setIsDealing(true);
+    setShowDealSequence(true);
     playSound('shuffle');
 
     const { data, error } = await supabase.functions.invoke('lucky9-game', {
@@ -402,7 +420,10 @@ export default function Lucky9TablePage() {
         playDealSequence(players.filter(p => p.betAccepted).length * 2 + 2);
       }, 300);
     }
-    setTimeout(() => setIsDealing(false), 1500);
+    setTimeout(() => {
+      setIsDealing(false);
+      setShowDealSequence(false);
+    }, 1500);
     setIsProcessing(false);
   };
 
@@ -418,7 +439,11 @@ export default function Lucky9TablePage() {
 
     if (playerAction === 'draw') {
       setIsDealing(true);
-      setTimeout(() => setIsDealing(false), 500);
+      setShowHiritAnimation(true);
+      setTimeout(() => {
+        setIsDealing(false);
+        setShowHiritAnimation(false);
+      }, 500);
     }
 
     const action = myPlayer.isBanker ? 'banker_action' : 'player_action';
@@ -439,6 +464,10 @@ export default function Lucky9TablePage() {
 
   const resetRound = async () => {
     if (!tableId) return;
+    // Clear showdown state
+    setIsShowdown(false);
+    setShowWinnerAnimation(false);
+    setWinners([]);
     await supabase.functions.invoke('lucky9-game', { body: { action: 'reset_round', tableId } });
   };
 
@@ -474,36 +503,44 @@ export default function Lucky9TablePage() {
     return () => { supabase.removeChannel(channel); };
   }, [tableId, fetchGame, fetchPlayers]);
 
-  // Handle showdown and finished states
+  // Handle showdown and finished states - showdown stays until new round
   useEffect(() => {
     if (game?.status === 'showdown') {
-      // 3 second showdown before moving to finished
+      setIsShowdown(true);
       playSound('showdown');
     }
     
     if (game?.status === 'finished') {
-      // Wait 3 seconds for showdown display, then show winner animation
-      const showdownTimeout = setTimeout(() => {
+      // Keep showdown visible until reset
+      setIsShowdown(true);
+      
+      // Show winner animation after a short delay
+      const winnerTimeout = setTimeout(() => {
         const gameWinners = players.filter(p => p.winnings > 0).map(p => ({
           username: p.username,
           winnings: p.winnings
         }));
-        if (gameWinners.length > 0) {
+        if (gameWinners.length > 0 && !showWinnerAnimation) {
           setWinners(gameWinners);
           setShowWinnerAnimation(true);
           playSound('win');
         }
-      }, 3000); // 3 second showdown
+      }, 1000);
       
-      // Reset after additional time
-      const resetTimeout = setTimeout(resetRound, 8000); // 3s showdown + 5s winner animation
+      // Reset round after showing results - extend time for showdown display
+      const resetTimeout = setTimeout(resetRound, 6000);
       
       return () => {
-        clearTimeout(showdownTimeout);
+        clearTimeout(winnerTimeout);
         clearTimeout(resetTimeout);
       };
     }
-  }, [game?.status, players, playSound]);
+    
+    // Reset showdown when game resets (no game or betting phase)
+    if (!game || game.status === 'betting') {
+      setIsShowdown(false);
+    }
+  }, [game?.status, players, playSound, showWinnerAnimation]);
 
   const banker = players.find(p => p.isBanker);
   const nonBankerPlayers = players.filter(p => !p.isBanker);
@@ -609,6 +646,15 @@ export default function Lucky9TablePage() {
           playerEmojis={playerEmojis}
           playerDecisions={playerDecisions}
           isDealing={isDealing}
+          isShowdown={isShowdown}
+        />
+
+        {/* Floating card animations */}
+        <Lucky9HiritCard
+          isAnimating={showHiritAnimation}
+          deckPosition={{ x: window.innerWidth / 2 - 25, y: window.innerHeight / 2 - 50 }}
+          targetPosition={{ x: window.innerWidth / 2 - 25, y: window.innerHeight - 200 }}
+          onComplete={() => setShowHiritAnimation(false)}
         />
 
         {/* Banker controls */}
