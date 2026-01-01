@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Coins, Play, Layers, Eye } from 'lucide-react';
+import { ArrowLeft, Coins, Play, Layers, Eye, Clock } from 'lucide-react';
 import { CashInOutButtons } from '@/components/CashInOutButtons';
 import { Lucky9Table, Lucky9Game, Lucky9Player, Lucky9Role } from '@/types/lucky9';
 import { Lucky9BetPanel } from '@/components/lucky9/Lucky9BetPanel';
@@ -58,6 +58,7 @@ export default function Lucky9TablePage() {
   const [isSpectator, setIsSpectator] = useState(false);
   const [forceSpectatorMode, setForceSpectatorMode] = useState(false);
   const [hiritTargetPlayerId, setHiritTargetPlayerId] = useState<string | null>(null);
+  const [callTimeRemaining, setCallTimeRemaining] = useState<number | null>(null);
 
   const hasJoined = useRef(false);
   const prevGameStatus = useRef<string | null>(null);
@@ -79,7 +80,10 @@ export default function Lucky9TablePage() {
         maxBet: data.max_bet,
         maxPlayers: data.max_players,
         isActive: data.is_active,
-        betTimerSeconds: data.bet_timer_seconds
+        betTimerSeconds: data.bet_timer_seconds,
+        callTimeMinutes: data.call_time_minutes,
+        callTimeStartedAt: data.call_time_started_at,
+        callTimeBankerId: data.call_time_banker_id
       });
     }
   }, [tableId]);
@@ -360,9 +364,21 @@ export default function Lucky9TablePage() {
     if (!myPlayer) return;
 
     const action = myPlayer.isBanker ? 'banker_leave' : 'player_leave';
-    await supabase.functions.invoke('lucky9-game', {
+    const { data, error } = await supabase.functions.invoke('lucky9-game', {
       body: { action, tableId, userId: user?.id }
     });
+    
+    // Check for Call Time restriction error
+    if (data?.callTimeActive) {
+      playSound('betRejected');
+      // Show toast or alert - user can't leave during call time
+      return;
+    }
+    
+    if (error) {
+      console.error('Leave table error:', error);
+      return;
+    }
     
     navigate('/lucky9');
   };
@@ -573,6 +589,34 @@ export default function Lucky9TablePage() {
 
     return () => { supabase.removeChannel(channel); };
   }, [tableId, fetchGame, fetchPlayers]);
+
+  // Track Call Time remaining
+  useEffect(() => {
+    if (!table?.callTimeStartedAt || !table?.callTimeMinutes) {
+      setCallTimeRemaining(null);
+      return;
+    }
+
+    const updateCallTime = () => {
+      const startTime = new Date(table.callTimeStartedAt!).getTime();
+      const endTime = startTime + table.callTimeMinutes! * 60 * 1000;
+      const now = Date.now();
+      const remaining = Math.max(0, Math.floor((endTime - now) / 1000));
+      
+      if (remaining <= 0) {
+        setCallTimeRemaining(null);
+        // Refetch table to get updated call time status
+        fetchTable();
+      } else {
+        setCallTimeRemaining(remaining);
+      }
+    };
+
+    updateCallTime();
+    const interval = setInterval(updateCallTime, 1000);
+
+    return () => clearInterval(interval);
+  }, [table?.callTimeStartedAt, table?.callTimeMinutes, fetchTable]);
 
   // Handle calculating state - immediate check and transition to revealing
   const calculatingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -808,7 +852,14 @@ export default function Lucky9TablePage() {
       <header className="border-b border-green-500/30 bg-slate-900/90 backdrop-blur sticky top-0 z-20">
         <div className="flex justify-between items-center px-2 py-1.5">
           <div className="flex items-center gap-1.5">
-            <Button variant="ghost" size="icon" onClick={leaveTable} className="h-7 w-7">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={leaveTable} 
+              className="h-7 w-7"
+              disabled={!myPlayer?.isBanker && callTimeRemaining !== null && callTimeRemaining > 0}
+              title={!myPlayer?.isBanker && callTimeRemaining ? "Cannot leave during Call Time" : undefined}
+            >
               <ArrowLeft className="h-3.5 w-3.5" />
             </Button>
             <div>
@@ -817,6 +868,16 @@ export default function Lucky9TablePage() {
             </div>
           </div>
           <div className="flex items-center gap-1.5">
+            {/* Call Time indicator */}
+            {callTimeRemaining !== null && callTimeRemaining > 0 && (
+              <div className="flex items-center gap-1 bg-red-900/50 px-2 py-1 rounded-lg border border-red-500/50 animate-pulse">
+                <Clock className="h-3 w-3 text-red-400" />
+                <span className="text-xs font-bold text-red-400">
+                  {Math.floor(callTimeRemaining / 60)}:{(callTimeRemaining % 60).toString().padStart(2, '0')}
+                </span>
+              </div>
+            )}
+            
             {/* Cash In/Out Buttons */}
             {user && profile && <CashInOutButtons userId={user.id} userChips={profile.chips} />}
             

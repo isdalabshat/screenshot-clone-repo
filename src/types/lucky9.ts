@@ -6,6 +6,9 @@ export interface Lucky9Table {
   maxPlayers: number;
   isActive: boolean;
   betTimerSeconds: number;
+  callTimeMinutes: number | null;
+  callTimeStartedAt: string | null;
+  callTimeBankerId: string | null;
 }
 
 export interface Lucky9Game {

@@ -401,6 +401,9 @@ export type Database = {
       lucky9_tables: {
         Row: {
           bet_timer_seconds: number
+          call_time_banker_id: string | null
+          call_time_minutes: number | null
+          call_time_started_at: string | null
           created_at: string
           id: string
           is_active: boolean
@@ -411,6 +414,9 @@ export type Database = {
         }
         Insert: {
           bet_timer_seconds?: number
+          call_time_banker_id?: string | null
+          call_time_minutes?: number | null
+          call_time_started_at?: string | null
           created_at?: string
           id?: string
           is_active?: boolean
@@ -421,6 +427,9 @@ export type Database = {
         }
         Update: {
           bet_timer_seconds?: number
+          call_time_banker_id?: string | null
+          call_time_minutes?: number | null
+          call_time_started_at?: string | null
           created_at?: string
           id?: string
           is_active?: boolean

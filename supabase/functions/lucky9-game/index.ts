@@ -476,6 +476,13 @@ serve(async (req) => {
           });
         }
 
+        // Get table to check call time settings
+        const { data: tableData } = await supabase
+          .from('lucky9_tables')
+          .select('call_time_minutes, call_time_started_at, call_time_banker_id')
+          .eq('id', game.table_id)
+          .single();
+
         // Get all active players with ACCEPTED bets only
         const { data: players } = await supabase
           .from('lucky9_players')
@@ -504,6 +511,19 @@ serve(async (req) => {
           return new Response(JSON.stringify({ error: 'No players with accepted bets' }), {
             status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           });
+        }
+
+        // Activate Call Time if configured and not already active
+        // Call time activates when banker starts the first round
+        if (tableData?.call_time_minutes && !tableData.call_time_started_at) {
+          console.log('Activating Call Time:', tableData.call_time_minutes, 'minutes for banker:', banker.user_id);
+          await supabase
+            .from('lucky9_tables')
+            .update({
+              call_time_started_at: new Date().toISOString(),
+              call_time_banker_id: banker.user_id
+            })
+            .eq('id', game.table_id);
         }
 
         // Create and shuffle deck
@@ -1195,7 +1215,18 @@ serve(async (req) => {
 
       case 'banker_leave': {
         // When banker leaves mid-game, banker is marked as loss and all players win their bets
+        // ALSO: Banker leaving ends Call Time immediately
         console.log('Banker leaving table:', tableId);
+
+        // Clear Call Time when banker leaves
+        await supabase
+          .from('lucky9_tables')
+          .update({
+            call_time_started_at: null,
+            call_time_banker_id: null
+          })
+          .eq('id', tableId);
+        console.log('Call Time ended - banker left');
 
         // Get active game
         const { data: currentGame } = await supabase
@@ -1302,14 +1333,40 @@ serve(async (req) => {
             .eq('id', bankerPlayer.id);
         }
 
-        return new Response(JSON.stringify({ success: true, bankerLeft: true }), {
+        return new Response(JSON.stringify({ success: true, bankerLeft: true, callTimeEnded: true }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
       case 'player_leave': {
         // When a player leaves mid-game, they are marked as loss and banker wins their bet
+        // BUT: Players CANNOT leave during Call Time (only banker can)
         console.log('Player leaving table:', tableId, 'userId:', userId);
+
+        // Check Call Time - players cannot leave during active call time
+        const { data: tableCallTime } = await supabase
+          .from('lucky9_tables')
+          .select('call_time_minutes, call_time_started_at, call_time_banker_id')
+          .eq('id', tableId)
+          .single();
+
+        if (tableCallTime?.call_time_started_at && tableCallTime.call_time_minutes) {
+          const callTimeStart = new Date(tableCallTime.call_time_started_at);
+          const callTimeEnd = new Date(callTimeStart.getTime() + tableCallTime.call_time_minutes * 60 * 1000);
+          const now = new Date();
+          
+          if (now < callTimeEnd) {
+            const remainingMinutes = Math.ceil((callTimeEnd.getTime() - now.getTime()) / 60000);
+            console.log('Player blocked from leaving - Call Time active, remaining:', remainingMinutes, 'minutes');
+            return new Response(JSON.stringify({ 
+              error: `Call Time is active. You cannot leave for ${remainingMinutes} more minute(s). Only the banker can leave during Call Time.`,
+              callTimeActive: true,
+              remainingMinutes
+            }), {
+              status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+        }
 
         // Get the player
         const { data: player } = await supabase
