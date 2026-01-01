@@ -555,16 +555,23 @@ export default function Lucky9TablePage() {
   }, [tableId, fetchGame, fetchPlayers]);
 
   // Handle calculating state - 1 sec delay then transition to revealing
-  const calculatingHandled = useRef(false);
   const calculatingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastCalculatingGameId = useRef<string | null>(null);
   
   useEffect(() => {
-    if (game?.status === 'calculating' && !calculatingHandled.current) {
-      calculatingHandled.current = true;
-      console.log('Calculating winner... 1 sec delay');
+    // Only handle if this is a new calculating state for this game
+    if (game?.status === 'calculating' && game?.id && lastCalculatingGameId.current !== game.id) {
+      lastCalculatingGameId.current = game.id;
+      console.log('Calculating winner... 1 sec delay for game:', game.id);
+      
+      // Clear any existing timeout
+      if (calculatingTimeoutRef.current) {
+        clearTimeout(calculatingTimeoutRef.current);
+      }
       
       // After 1 second, update to 'revealing' status
       calculatingTimeoutRef.current = setTimeout(async () => {
+        console.log('Transitioning to revealing for game:', game.id);
         await supabase
           .from('lucky9_games')
           .update({ status: 'revealing' })
@@ -572,8 +579,9 @@ export default function Lucky9TablePage() {
       }, 1000);
     }
     
-    if (game?.status !== 'calculating') {
-      calculatingHandled.current = false;
+    // Reset when game ends or changes
+    if (game?.status === 'finished' || !game) {
+      lastCalculatingGameId.current = null;
     }
     
     return () => {
@@ -584,13 +592,14 @@ export default function Lucky9TablePage() {
   }, [game?.status, game?.id]);
 
   // Handle revealing state - show all cards for 5 seconds, then finish
-  const revealingHandled = useRef(false);
   const revealingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastRevealingGameId = useRef<string | null>(null);
   
   useEffect(() => {
-    if (game?.status === 'revealing' && !revealingHandled.current) {
-      revealingHandled.current = true;
-      console.log('Revealing all cards for 5 seconds...');
+    // Only handle if this is a new revealing state for this game
+    if (game?.status === 'revealing' && game?.id && lastRevealingGameId.current !== game.id) {
+      lastRevealingGameId.current = game.id;
+      console.log('Revealing all cards for 5 seconds... game:', game.id);
       
       // Play win sound if there are winners
       const gameWinners = players.filter(p => p.winnings > 0);
@@ -598,9 +607,14 @@ export default function Lucky9TablePage() {
         playSound('win');
       }
       
+      // Clear any existing timeout
+      if (revealingTimeoutRef.current) {
+        clearTimeout(revealingTimeoutRef.current);
+      }
+      
       // After 5 seconds, mark as finished and reset
       revealingTimeoutRef.current = setTimeout(async () => {
-        console.log('5 seconds reveal complete - finishing game');
+        console.log('5 seconds reveal complete - finishing game:', game.id);
         await supabase
           .from('lucky9_games')
           .update({ status: 'finished' })
@@ -608,14 +622,14 @@ export default function Lucky9TablePage() {
         
         // Wait a moment then reset
         setTimeout(() => {
-          revealingHandled.current = false;
           resetRound();
         }, 500);
       }, 5000);
     }
     
-    if (game?.status !== 'revealing') {
-      revealingHandled.current = false;
+    // Reset when game ends or changes
+    if (game?.status === 'finished' || !game) {
+      lastRevealingGameId.current = null;
     }
     
     return () => {
