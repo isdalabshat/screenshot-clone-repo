@@ -72,6 +72,8 @@ export function Lucky9PlayerSeat({
   return (
     <motion.div 
       className={`relative min-w-[90px] max-w-[105px] transition-all`}
+      data-player-seat={player.id}
+      data-player-user-id={player.userId}
       animate={isCurrentTurn ? { scale: [1, 1.02, 1] } : {}}
       transition={{ repeat: isCurrentTurn ? Infinity : 0, duration: 1.5 }}
     >

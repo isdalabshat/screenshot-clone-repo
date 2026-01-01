@@ -29,8 +29,8 @@ export function Lucky9ActionButtons({ onDraw, onStand, canDraw, disabled, onTime
       setTimeLeft(prev => {
         const newTime = prev - 1;
         
-        // Play clock tick sound for last 15 seconds
-        if (lastSecond.current !== newTime && newTime > 0 && newTime <= 15) {
+        // Play clock tick sound every second
+        if (lastSecond.current !== newTime && newTime > 0) {
           playSound('clockTick');
         }
         lastSecond.current = newTime;

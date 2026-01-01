@@ -176,43 +176,54 @@ export function Lucky9HiritCard({
   targetPlayerId,
   onComplete 
 }: Lucky9HiritCardProps) {
+  const [animationComplete, setAnimationComplete] = useState(false);
+
+  useEffect(() => {
+    if (isAnimating) {
+      setAnimationComplete(false);
+      // Auto-hide after animation duration
+      const timer = setTimeout(() => {
+        setAnimationComplete(true);
+        onComplete?.();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isAnimating, onComplete]);
+
+  if (!isAnimating || animationComplete) return null;
+
   return (
-    <AnimatePresence onExitComplete={onComplete}>
-      {isAnimating && (
-        <motion.div
-          className="fixed z-50 pointer-events-none"
-          initial={{ 
-            left: deckPosition.x,
-            top: deckPosition.y,
-            scale: 1.2,
-            rotate: 0,
-            opacity: 1
-          }}
-          animate={{ 
-            left: targetPosition.x,
-            top: targetPosition.y,
-            scale: 0.8,
-            rotate: 10,
-            opacity: 1
-          }}
-          exit={{ opacity: 0, scale: 0.5 }}
-          transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
-        >
-          <div className="w-14 h-[76px] rounded-lg bg-gradient-to-br from-red-700 via-red-800 to-red-900 border-2 border-amber-500 shadow-2xl shadow-amber-500/30 overflow-hidden">
-            <div className="w-full h-full p-1 relative">
-              <div className="absolute inset-0.5 border border-amber-500/50 rounded-sm" />
-              <div className="w-full h-full flex items-center justify-center">
-                <div className="text-amber-400/60 text-xl font-bold">L9</div>
-              </div>
-            </div>
+    <motion.div
+      className="fixed z-[100] pointer-events-none"
+      initial={{ 
+        left: deckPosition.x,
+        top: deckPosition.y,
+        scale: 1.2,
+        rotate: 0,
+        opacity: 1
+      }}
+      animate={{ 
+        left: targetPosition.x,
+        top: targetPosition.y,
+        scale: 0.8,
+        rotate: 10,
+        opacity: 1
+      }}
+      transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+    >
+      <div className="w-14 h-[76px] rounded-lg bg-gradient-to-br from-red-700 via-red-800 to-red-900 border-2 border-amber-500 shadow-2xl shadow-amber-500/30 overflow-hidden">
+        <div className="w-full h-full p-1 relative">
+          <div className="absolute inset-0.5 border border-amber-500/50 rounded-sm" />
+          <div className="w-full h-full flex items-center justify-center">
+            <div className="text-amber-400/60 text-xl font-bold">L9</div>
           </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+        </div>
+      </div>
+    </motion.div>
   );
 }
 
-// Helper function to get seat position by player ID
+// Helper function to get seat position by player ID - searches by user ID as well
 export function getPlayerSeatPosition(playerId: string, isBanker: boolean = false): { x: number; y: number } | null {
   if (isBanker) {
     const bankerSeat = document.querySelector('[data-banker-seat="true"]');
@@ -221,11 +232,17 @@ export function getPlayerSeatPosition(playerId: string, isBanker: boolean = fals
       return { x: rect.left + rect.width / 2 - 25, y: rect.top + rect.height / 2 - 35 };
     }
   } else {
-    const playerSeat = document.querySelector(`[data-player-seat="${playerId}"]`);
+    // Try to find by player ID first
+    let playerSeat = document.querySelector(`[data-player-seat="${playerId}"]`);
+    // Also try by user-id attribute
+    if (!playerSeat) {
+      playerSeat = document.querySelector(`[data-player-user-id="${playerId}"]`);
+    }
     if (playerSeat) {
       const rect = playerSeat.getBoundingClientRect();
       return { x: rect.left + rect.width / 2 - 25, y: rect.top + rect.height / 2 - 35 };
     }
   }
-  return null;
+  // Fallback to center of screen
+  return { x: window.innerWidth / 2 - 25, y: window.innerHeight / 2 - 35 };
 }

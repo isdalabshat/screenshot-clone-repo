@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Plus, Edit, Coins, Users, Shield, Trash2, DollarSign, Check, X, Image } from 'lucide-react';
+import { ArrowLeft, Plus, Edit, Coins, Users, Shield, Trash2, DollarSign, Check, X, Image, History } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface UserProfile { id: string; userId: string; username: string; chips: number; }
@@ -177,8 +177,9 @@ export default function Admin() {
               <Card className="border-amber-700/30"><CardHeader><CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" />Active Tables</CardTitle></CardHeader><CardContent><p className="text-4xl font-bold">{tables.filter(t => t.isActive).length + lucky9Tables.filter(t => t.isActive).length}</p></CardContent></Card>
               <Card className="border-amber-700/30"><CardHeader><CardTitle className="flex items-center gap-2"><Coins className="h-5 w-5 text-yellow-400" />Pending Requests</CardTitle></CardHeader><CardContent><p className="text-4xl font-bold text-yellow-400">{cashRequests.length}</p></CardContent></Card>
             </div>
-            <div className="mt-4">
+            <div className="mt-4 flex gap-2">
               <Button variant="destructive" onClick={resetFees}><Trash2 className="h-4 w-4 mr-2" />Reset All Fees</Button>
+              <Button onClick={() => navigate('/admin/transactions')} className="bg-blue-600 hover:bg-blue-700"><History className="h-4 w-4 mr-2" />Transaction History</Button>
             </div>
           </TabsContent>
 
