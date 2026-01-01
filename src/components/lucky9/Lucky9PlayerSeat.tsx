@@ -1,6 +1,5 @@
 import { Lucky9Player } from '@/types/lucky9';
 import { Lucky9RevealableCard } from './Lucky9RevealableCard';
-import { Lucky9ChipStack } from './Lucky9BetAnimation';
 import { Lucky9PlayerAvatar } from './Lucky9PlayerAvatar';
 import { calculateLucky9Value, isNatural9 } from '@/lib/lucky9/deck';
 import { Badge } from '@/components/ui/badge';
@@ -48,72 +47,79 @@ export function Lucky9PlayerSeat({
 
   return (
     <motion.div 
-      className={`relative bg-slate-900/95 backdrop-blur rounded-xl p-2 min-w-[110px] border-2 transition-all ${
+      className={`relative bg-slate-900/90 backdrop-blur rounded-lg p-2 min-w-[100px] max-w-[130px] border transition-all ${
         isCurrentTurn 
-          ? 'border-green-400 shadow-lg shadow-green-500/40' 
+          ? 'border-green-400 shadow-md shadow-green-500/30' 
           : isMe 
-            ? 'border-blue-500/70' 
+            ? 'border-blue-500/50' 
             : player.betAccepted === true 
-              ? 'border-green-500/50'
+              ? 'border-green-500/40'
               : player.betAccepted === false
-                ? 'border-red-500/50'
-                : 'border-slate-700'
+                ? 'border-red-500/40'
+                : 'border-slate-600/50'
       }`}
       animate={isCurrentTurn ? { scale: [1, 1.02, 1] } : {}}
       transition={{ repeat: isCurrentTurn ? Infinity : 0, duration: 1.5 }}
     >
-      {/* Player Avatar with emoji/decision */}
-      <div className="flex items-center justify-between gap-2 mb-1.5">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <Lucky9PlayerAvatar
-            username={player.username}
-            isMe={isMe}
-            size="sm"
-            currentEmoji={currentEmoji}
-            currentDecision={currentDecision}
-          />
-          <span className="text-xs font-medium text-white truncate">{player.username}</span>
+      {/* Player Avatar with emoji/decision - larger decision display */}
+      <div className="flex items-center gap-1.5 mb-1">
+        <Lucky9PlayerAvatar
+          username={player.username}
+          isMe={isMe}
+          size="sm"
+          currentEmoji={currentEmoji}
+          currentDecision={currentDecision}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] font-medium text-white truncate">{player.username}</span>
+            {isMe && <Badge className="bg-blue-500 text-[7px] px-0.5 py-0">YOU</Badge>}
+          </div>
+          <span className="text-yellow-400 font-mono text-[9px]">₱{player.stack}</span>
         </div>
-        {isMe && <Badge className="bg-blue-500 text-[9px] px-1">YOU</Badge>}
       </div>
 
-      {/* Stack and bet */}
-      <div className="flex items-center justify-between text-[10px] mb-1.5">
-        <span className="text-yellow-400 font-mono">₱{player.stack}</span>
-        {player.currentBet > 0 && (
-          <div className="flex items-center gap-1">
-            <span className="text-green-400 font-mono">₱{player.currentBet}</span>
-            {player.betAccepted === true && <Check className="h-3 w-3 text-green-400" />}
-            {player.betAccepted === false && <X className="h-3 w-3 text-red-400" />}
-            {player.betAccepted === null && <Clock className="h-3 w-3 text-yellow-400 animate-pulse" />}
+      {/* BIG Bet display with prominent chip visual */}
+      {player.currentBet > 0 && (
+        <motion.div 
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          className="bg-gradient-to-r from-green-900/80 to-emerald-900/80 rounded-md px-2 py-1 mb-1.5 border border-green-500/30"
+        >
+          <div className="flex items-center justify-center gap-1.5">
+            <div className="w-4 h-4 rounded-full bg-gradient-to-br from-green-400 to-green-600 border-2 border-green-300 shadow-sm flex items-center justify-center">
+              <span className="text-[6px] font-bold text-white">₱</span>
+            </div>
+            <span className="text-green-300 font-bold text-sm">₱{player.currentBet}</span>
+            {player.betAccepted === true && <Check className="h-4 w-4 text-green-400" />}
+            {player.betAccepted === false && <X className="h-4 w-4 text-red-400" />}
+            {player.betAccepted === null && <Clock className="h-4 w-4 text-yellow-400 animate-pulse" />}
           </div>
-        )}
-      </div>
+        </motion.div>
+      )}
 
       {/* Banker bet acceptance controls */}
       {showBetControls && onAcceptBet && onRejectBet && (
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="flex gap-1 mb-1.5"
+          className="flex gap-1 mb-1"
         >
           <Button
             size="sm"
             onClick={() => onAcceptBet(player.id)}
             disabled={isProcessing}
-            className="flex-1 h-7 px-2 bg-green-600 hover:bg-green-500 text-white text-[10px]"
+            className="flex-1 h-6 px-1.5 bg-green-600 hover:bg-green-500 text-white text-[9px]"
           >
-            <Check className="h-3 w-3 mr-1" />
-            Accept
+            <Check className="h-3 w-3" />
           </Button>
           <Button
             size="sm"
             onClick={() => onRejectBet(player.id)}
             disabled={isProcessing}
-            className="flex-1 h-7 px-2 bg-red-600 hover:bg-red-500 text-white text-[10px]"
+            className="flex-1 h-6 px-1.5 bg-red-600 hover:bg-red-500 text-white text-[9px]"
           >
-            <X className="h-3 w-3 mr-1" />
-            Reject
+            <X className="h-3 w-3" />
           </Button>
         </motion.div>
       )}
@@ -122,20 +128,20 @@ export function Lucky9PlayerSeat({
       {!isBankerView && player.currentBet > 0 && gameStatus === 'betting' && (
         <div className="text-center mb-1">
           {player.betAccepted === null && (
-            <Badge className="bg-yellow-600 text-[8px]">Pending</Badge>
+            <Badge className="bg-yellow-600 text-[7px] px-1">Pending</Badge>
           )}
           {player.betAccepted === true && (
-            <Badge className="bg-green-600 text-[8px]">Accepted</Badge>
+            <Badge className="bg-green-600 text-[7px] px-1">✓ Accepted</Badge>
           )}
           {player.betAccepted === false && (
-            <Badge className="bg-red-600 text-[8px]">Rejected</Badge>
+            <Badge className="bg-red-600 text-[7px] px-1">✗ Rejected</Badge>
           )}
         </div>
       )}
 
       {/* Cards */}
       {cards.length > 0 && (
-        <div className="flex gap-1 justify-center mb-1">
+        <div className="flex gap-0.5 justify-center mb-1">
           {cards.map((card, i) => (
             <Lucky9RevealableCard 
               key={i} 
@@ -150,13 +156,6 @@ export function Lucky9PlayerSeat({
         </div>
       )}
 
-      {/* Bet chip stack */}
-      {player.currentBet > 0 && gameStatus !== 'betting' && (
-        <div className="absolute -top-6 left-1/2 -translate-x-1/2">
-          <Lucky9ChipStack amount={player.currentBet} small />
-        </div>
-      )}
-
       {/* Hand value - only show if cards visible */}
       {showCards && handValue !== null && (
         <motion.div 
@@ -165,22 +164,22 @@ export function Lucky9PlayerSeat({
           className="text-center"
         >
           {isNatural && (
-            <Badge className="bg-amber-500 text-black text-[9px] px-1 mb-0.5">Natural!</Badge>
+            <Badge className="bg-amber-500 text-black text-[8px] px-1 mb-0.5">Natural!</Badge>
           )}
-          <div className={`text-base font-bold ${handValue === 9 ? 'text-amber-400' : 'text-white'}`}>
+          <div className={`text-lg font-bold ${handValue === 9 ? 'text-amber-400' : 'text-white'}`}>
             {handValue}
           </div>
         </motion.div>
       )}
 
-      {/* Turn indicator */}
+      {/* Turn indicator - BIGGER */}
       {isCurrentTurn && (
         <motion.div
           animate={{ opacity: [0.7, 1, 0.7] }}
           transition={{ repeat: Infinity, duration: 1 }}
         >
-          <Badge className="bg-green-500 text-black w-full justify-center text-[9px] mt-1">
-            {isMe ? 'Your Turn!' : 'Playing...'}
+          <Badge className="bg-green-500 text-black w-full justify-center text-[10px] font-bold py-0.5 mt-1">
+            {isMe ? '🎯 Your Turn!' : '⏳ Playing...'}
           </Badge>
         </motion.div>
       )}

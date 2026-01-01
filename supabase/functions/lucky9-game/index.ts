@@ -701,9 +701,9 @@ serve(async (req) => {
           })
           .eq('id', gameId);
 
-        // Calculate results
+        // Calculate results - Natural 9 (before hirit) wins ties
         const bankerValue = calculateLucky9Value(bankerCards);
-        const bankerIsNatural = banker.is_natural;
+        const bankerIsNatural = banker.is_natural; // Had 9 with initial 2 cards
 
         // Get all players with accepted bets
         const { data: players } = await supabase
@@ -719,28 +719,52 @@ serve(async (req) => {
 
         for (const player of players || []) {
           const playerValue = calculateLucky9Value(player.cards || []);
+          const playerIsNatural = player.is_natural; // Had 9 with initial 2 cards
           let result: string;
           let winnings = 0;
 
-          if (player.is_natural && !bankerIsNatural) {
+          // Case 1: Player has natural 9, banker doesn't - player wins with bonus
+          if (playerIsNatural && !bankerIsNatural) {
             result = 'natural_win';
             winnings = player.current_bet * 3;
             bankerTotalLoss += player.current_bet * 2;
-          } else if (bankerIsNatural && !player.is_natural) {
+          } 
+          // Case 2: Banker has natural 9, player doesn't - banker wins
+          else if (bankerIsNatural && !playerIsNatural) {
             result = 'lose';
             winnings = 0;
             bankerTotalWin += player.current_bet;
-          } else if (playerValue > bankerValue) {
+          }
+          // Case 3: Both have same value (tie scenarios)
+          else if (playerValue === bankerValue) {
+            // Tiebreaker: Natural 9 beats non-natural 9
+            if (playerIsNatural && !bankerIsNatural) {
+              // Player had natural 9, banker got 9 after hirit - player wins
+              result = 'natural_win';
+              winnings = player.current_bet * 3;
+              bankerTotalLoss += player.current_bet * 2;
+            } else if (bankerIsNatural && !playerIsNatural) {
+              // Banker had natural 9, player got 9 after hirit - banker wins
+              result = 'lose';
+              winnings = 0;
+              bankerTotalWin += player.current_bet;
+            } else {
+              // Both natural or both non-natural with same value - push
+              result = 'push';
+              winnings = player.current_bet;
+            }
+          }
+          // Case 4: Player has higher value
+          else if (playerValue > bankerValue) {
             result = 'win';
             winnings = player.current_bet * 2;
             bankerTotalLoss += player.current_bet;
-          } else if (playerValue < bankerValue) {
+          } 
+          // Case 5: Banker has higher value
+          else {
             result = 'lose';
             winnings = 0;
             bankerTotalWin += player.current_bet;
-          } else {
-            result = 'push';
-            winnings = player.current_bet;
           }
 
           await supabase

@@ -101,26 +101,29 @@ export function Lucky9PlayerAvatar({
         )}
       </AnimatePresence>
 
-      {/* Decision indicator (Hirit/Good) */}
+      {/* Decision indicator (Hirit/Good) - BIGGER and more prominent */}
       <AnimatePresence>
         {showDecision && currentDecision && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.5, y: 5 }}
+            initial={{ opacity: 0, scale: 0.5, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.5 }}
-            className="absolute -top-6 left-1/2 -translate-x-1/2 z-20"
+            exit={{ opacity: 0, scale: 0.5, y: -10 }}
+            className="absolute -top-10 left-1/2 -translate-x-1/2 z-30"
           >
             <motion.div
-              animate={{ y: [-2, 2, -2] }}
-              transition={{ repeat: Infinity, duration: 0.6 }}
+              animate={{ 
+                y: [-3, 3, -3],
+                scale: [1, 1.1, 1]
+              }}
+              transition={{ repeat: Infinity, duration: 0.5 }}
               className={cn(
-                'px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide shadow-lg',
+                'px-3 py-1 rounded-lg text-sm font-bold uppercase tracking-wider shadow-xl border-2',
                 currentDecision === 'hirit' 
-                  ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white' 
-                  : 'bg-gradient-to-r from-amber-500 to-orange-500 text-white'
+                  ? 'bg-gradient-to-r from-green-500 to-emerald-400 text-white border-green-300 shadow-green-500/50' 
+                  : 'bg-gradient-to-r from-amber-500 to-orange-400 text-white border-amber-300 shadow-amber-500/50'
               )}
             >
-              {currentDecision === 'hirit' ? 'Hirit!' : 'Good!'}
+              {currentDecision === 'hirit' ? '🃏 Hirit!' : '✋ Good!'}
             </motion.div>
           </motion.div>
         )}
