@@ -85,26 +85,45 @@ export function Lucky9PlayerSeat({
       <div className="absolute -inset-1.5 rounded-xl bg-gradient-to-b from-amber-900/40 via-amber-800/20 to-amber-900/40 blur-[1px]" />
       <div className="absolute -inset-1 rounded-xl border-2 border-amber-700/40 bg-gradient-to-b from-amber-950/60 to-slate-950/60" />
       
-      {/* Seat cushion effect */}
+      {/* Seat cushion effect - Square layout for current user, compact for others */}
       <div className={cn(
         "relative bg-gradient-to-br from-slate-800/95 via-slate-900/95 to-slate-800/95 backdrop-blur rounded-lg border-2",
-        isCompact ? "p-0.5 min-w-[60px] max-w-[65px]" : "p-0.5 min-w-[70px] max-w-[80px]",
+        isMe 
+          ? "p-1 w-[85px] h-[85px] flex flex-col justify-between" // Square for current user
+          : isCompact 
+            ? "p-0.5 min-w-[60px] max-w-[65px]" 
+            : "p-0.5 min-w-[70px] max-w-[80px]",
         getSeatBorder()
       )}>
-        {/* Player Avatar and info */}
-        <div className={cn("flex items-center gap-0.5", "mb-0.5")}>
+        {/* Player Avatar and info - Horizontal for current user, vertical for others */}
+        <div className={cn(
+          "flex items-center gap-0.5",
+          isMe ? "flex-row justify-between" : "mb-0.5"
+        )}>
           <Lucky9PlayerAvatar
             username={player.username}
             isMe={isMe}
-            size="xs"
+            size={isMe ? "sm" : "xs"}
             currentEmoji={currentEmoji}
           />
-          <div className="min-w-0 flex-1 overflow-hidden">
-            <div className="flex items-center gap-0.5">
-              <span className={cn("font-medium text-white truncate block", isCompact ? "text-[6px] max-w-[25px]" : "text-[7px] max-w-[30px]")}>{player.username}</span>
+          <div className={cn(
+            "min-w-0 overflow-hidden",
+            isMe ? "flex-1 text-right" : "flex-1"
+          )}>
+            <div className={cn(
+              "flex items-center gap-0.5",
+              isMe ? "justify-end" : ""
+            )}>
               {isMe && <Badge className="bg-blue-500 px-0.5 py-0 flex-shrink-0 text-[5px]">YOU</Badge>}
+              <span className={cn(
+                "font-medium text-white truncate block",
+                isMe ? "text-[8px] max-w-[40px]" : isCompact ? "text-[6px] max-w-[25px]" : "text-[7px] max-w-[30px]"
+              )}>{player.username}</span>
             </div>
-            <span className={cn("text-yellow-400 font-mono block", isCompact ? "text-[5px]" : "text-[6px]")}>₱{player.stack}</span>
+            <span className={cn(
+              "text-yellow-400 font-mono block font-bold",
+              isMe ? "text-[8px]" : isCompact ? "text-[5px]" : "text-[6px]"
+            )}>₱{player.stack}</span>
           </div>
         </div>
 
@@ -218,9 +237,12 @@ export function Lucky9PlayerSeat({
           </div>
         )}
 
-        {/* Cards - smaller for other players */}
+        {/* Cards - larger for current user, smaller for others */}
         {cards.length > 0 && (
-          <div className={cn("flex justify-center mb-0.5", isCompact ? "gap-0 -space-x-1" : "gap-0.5")}>
+          <div className={cn(
+            "flex justify-center",
+            isMe ? "gap-0.5 my-0.5" : isCompact ? "gap-0 -space-x-1 mb-0.5" : "gap-0.5 mb-0.5"
+          )}>
             {cards.map((card, i) => (
               <Lucky9RevealableCard 
                 key={i} 
@@ -228,8 +250,8 @@ export function Lucky9PlayerSeat({
                 hidden={!showCards}
                 canReveal={canRevealCards}
                 delay={i * 0.1} 
-                small
-                extraSmall={isCompact}
+                small={!isMe}
+                extraSmall={isCompact && !isMe}
                 onReveal={() => onCardReveal?.(i)}
               />
             ))}
@@ -241,7 +263,7 @@ export function Lucky9PlayerSeat({
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="text-center"
+            className={cn("text-center", isMe ? "flex items-center justify-center gap-1" : "")}
           >
             {(isNatural || showNaturalBadge) && (
               <motion.div
@@ -249,13 +271,20 @@ export function Lucky9PlayerSeat({
                 animate={{ scale: [1, 1.1, 1] }}
                 transition={{ repeat: Infinity, duration: 1.5 }}
               >
-                <Badge className="bg-gradient-to-r from-amber-500 to-yellow-400 text-black text-[6px] px-1 mb-0.5 flex items-center gap-0.5">
-                  <Sparkles className="h-2 w-2" />
+                <Badge className={cn(
+                  "bg-gradient-to-r from-amber-500 to-yellow-400 text-black flex items-center gap-0.5",
+                  isMe ? "text-[7px] px-1.5" : "text-[6px] px-1 mb-0.5"
+                )}>
+                  <Sparkles className={isMe ? "h-2.5 w-2.5" : "h-2 w-2"} />
                   9!
                 </Badge>
               </motion.div>
             )}
-            <div className={`text-base font-bold ${handValue === 9 ? 'text-amber-400' : 'text-white'}`}>
+            <div className={cn(
+              "font-bold",
+              isMe ? "text-lg" : "text-base",
+              handValue === 9 ? 'text-amber-400' : 'text-white'
+            )}>
               {handValue}
             </div>
           </motion.div>

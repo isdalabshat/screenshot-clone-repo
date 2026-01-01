@@ -37,14 +37,14 @@ interface Lucky9GamblingTableProps {
 }
 
 // Position styles for 5 player seats around the vertical oval table (poker-style layout)
-// Position 0 = bottom center (current user), positions arranged clockwise
+// Position 0 = bottom center (current user - square panel), positions arranged clockwise
 // Increased spacing to prevent avatar overlap - moved even further out
 const seatPositionStyles: Record<number, string> = {
-  0: 'bottom-[-2%] left-1/2 -translate-x-1/2',    // Bottom center - current user
-  1: 'bottom-[28%] left-[-12%]',                   // Bottom left - moved even further out
-  2: 'top-[15%] left-[-12%]',                      // Top left - moved even further out
-  3: 'top-[15%] right-[-12%]',                     // Top right - moved even further out
-  4: 'bottom-[28%] right-[-12%]',                  // Bottom right - moved even further out
+  0: 'bottom-[-8%] left-1/2 -translate-x-1/2',    // Bottom center - current user (moved down for square panel)
+  1: 'bottom-[32%] left-[-14%]',                   // Bottom left - moved further out
+  2: 'top-[12%] left-[-14%]',                      // Top left - moved further out
+  3: 'top-[12%] right-[-14%]',                     // Top right - moved further out
+  4: 'bottom-[32%] right-[-14%]',                  // Bottom right - moved further out
 };
 
 // Get display position based on user's actual position (rotate so user is always at bottom)
