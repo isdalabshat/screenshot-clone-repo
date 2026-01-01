@@ -59,6 +59,7 @@ export default function Lucky9TablePage() {
   const [dealTargets, setDealTargets] = useState<{ x: number; y: number }[]>([]);
   const [isSpectator, setIsSpectator] = useState(false);
   const [forceSpectatorMode, setForceSpectatorMode] = useState(false);
+  const [forceSpectatorReason, setForceSpectatorReason] = useState<'balance' | 'full'>('balance');
   const [hiritTargetPlayerId, setHiritTargetPlayerId] = useState<string | null>(null);
   const [callTimeRemaining, setCallTimeRemaining] = useState<number | null>(null);
 
@@ -351,6 +352,7 @@ export default function Lucky9TablePage() {
     } else if (data?.error?.includes('Insufficient balance')) {
       // Force spectator mode if balance too low
       setForceSpectatorMode(true);
+      setForceSpectatorReason('balance');
       setShowRoleDialog(true);
     }
     setIsProcessing(false);
@@ -577,14 +579,30 @@ export default function Lucky9TablePage() {
         hasJoined.current = true;
         const exists = await checkExistingPlayer();
         if (!exists) {
-          const { data } = await supabase.from('lucky9_players').select('is_banker').eq('table_id', tableId).eq('is_active', true);
-          setHasBanker(data?.some(p => p.is_banker) || false);
+          // Check if table is full
+          const { data: activePlayers } = await supabase
+            .from('lucky9_players')
+            .select('is_banker')
+            .eq('table_id', tableId)
+            .eq('is_active', true);
+          
+          const playerCount = activePlayers?.length || 0;
+          const tableMaxPlayers = table?.maxPlayers || 8;
+          
+          setHasBanker(activePlayers?.some(p => p.is_banker) || false);
+          
+          // If table is full, force spectator mode
+          if (playerCount >= tableMaxPlayers) {
+            setForceSpectatorMode(true);
+            setForceSpectatorReason('full');
+          }
+          
           setShowRoleDialog(true);
         }
       }
     };
     initPlayer();
-  }, [user, tableId, checkExistingPlayer]);
+  }, [user, tableId, checkExistingPlayer, table?.maxPlayers]);
 
   useEffect(() => {
     if (!tableId) return;
@@ -874,7 +892,7 @@ export default function Lucky9TablePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-950 via-slate-900 to-green-950 pb-28 overflow-x-hidden">
-      <Lucky9RoleDialog open={showRoleDialog} hasBanker={hasBanker} onSelectRole={joinTable} onCancel={() => navigate('/lucky9')} forceSpectator={forceSpectatorMode} />
+      <Lucky9RoleDialog open={showRoleDialog} hasBanker={hasBanker} onSelectRole={joinTable} onCancel={() => navigate('/lucky9')} forceSpectator={forceSpectatorMode} forceSpectatorReason={forceSpectatorReason} />
 
       {/* Compact header for mobile */}
       <header className="border-b border-green-500/30 bg-slate-900/90 backdrop-blur sticky top-0 z-20">
