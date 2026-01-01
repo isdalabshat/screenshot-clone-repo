@@ -248,7 +248,7 @@ export default function PokerTableComponent({
           className="absolute top-3 sm:top-4 left-1/2 -translate-x-1/2 text-emerald-400/30 font-bold text-sm sm:text-lg tracking-[0.3em] sm:tracking-[0.4em] uppercase select-none"
           style={{ textShadow: '0 0 20px rgba(16, 185, 129, 0.3)' }}
         >
-          JD CLUB
+          ALL-IN CLUB
         </motion.div>
 
         {/* Center area */}

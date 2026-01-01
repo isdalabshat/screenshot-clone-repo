@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* JD Club Design System - Premium Poker Theme */
+/* All-in Club Design System - Premium Poker Theme */
 
 @layer base {
   :root {
@@ -36,7 +36,7 @@
 
     --radius: 0.75rem;
 
-    /* JD Club Custom Colors */
+    /* All-in Club Custom Colors */
     --poker-green: 160 60% 30%;
     --poker-green-light: 160 50% 40%;
     --poker-felt: 160 45% 25%;
@@ -85,7 +85,7 @@
     --input: 160 20% 20%;
     --ring: 160 60% 45%;
 
-    /* JD Club Custom Colors */
+    /* All-in Club Custom Colors */
     --poker-green: 160 55% 25%;
     --poker-green-light: 160 50% 35%;
     --poker-felt: 160 40% 20%;

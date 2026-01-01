@@ -103,7 +103,7 @@ export default function Lobby() {
             </Button>
             <span className="text-4xl">🃏</span>
             <div>
-              <h1 className="text-2xl font-bold text-primary">JD Club</h1>
+              <h1 className="text-2xl font-bold text-primary">All-in Club</h1>
               <p className="text-xs text-muted-foreground">Texas Hold'em</p>
             </div>
           </div>

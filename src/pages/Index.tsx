@@ -69,7 +69,7 @@ export default function Index() {
             </motion.div>
             <div>
               <h1 className="text-2xl font-bold bg-gradient-to-r from-green-400 via-emerald-300 to-green-500 bg-clip-text text-transparent">
-                JD Club
+                All-in Club
               </h1>
               <p className="text-xs text-green-400/60">Premium Casino</p>
             </div>
