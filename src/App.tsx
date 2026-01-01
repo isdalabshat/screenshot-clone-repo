@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import Lobby from "./pages/Lobby";
 import Table from "./pages/Table";
 import Admin from "./pages/Admin";
+import TransactionHistory from "./pages/TransactionHistory";
 import NotFound from "./pages/NotFound";
 import Lucky9Lobby from "./pages/Lucky9Lobby";
 import Lucky9Table from "./pages/Lucky9Table";
@@ -29,6 +30,7 @@ function App() {
               <Route path="/lobby" element={<Lobby />} />
               <Route path="/table/:tableId" element={<Table />} />
               <Route path="/admin" element={<Admin />} />
+              <Route path="/admin/transactions" element={<TransactionHistory />} />
               <Route path="/lucky9" element={<Lucky9Lobby />} />
               <Route path="/lucky9/:tableId" element={<Lucky9Table />} />
               <Route path="*" element={<NotFound />} />

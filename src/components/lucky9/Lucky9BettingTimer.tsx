@@ -19,8 +19,8 @@ export function Lucky9BettingTimer({ bettingEndsAt, onTimeUp }: Lucky9BettingTim
       const now = Date.now();
       const remaining = Math.max(0, Math.ceil((endTime - now) / 1000));
       
-      // Play clock tick sound when seconds change
-      if (lastSecond.current !== remaining && remaining > 0 && remaining <= 15) {
+      // Play clock tick sound every second
+      if (lastSecond.current !== remaining && remaining > 0) {
         playSound('clockTick');
       }
       lastSecond.current = remaining;
