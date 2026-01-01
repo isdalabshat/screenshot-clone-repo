@@ -95,21 +95,21 @@ export default function Lucky9Chat({ tableId, userId, username }: Lucky9ChatProp
 
   return (
     <>
-      {/* Chat Toggle Button */}
+      {/* Chat Toggle Button - positioned above bottom panels */}
       <Button
         variant="outline"
         size="icon"
         className={cn(
-          'fixed bottom-4 right-[72px] z-50 h-10 w-10 rounded-full shadow-lg',
+          'fixed bottom-32 right-14 z-40 h-9 w-9 rounded-full shadow-lg',
           'bg-green-600 hover:bg-green-700 border-green-500',
           unreadCount > 0 && 'animate-pulse'
         )}
         onClick={() => setIsOpen(!isOpen)}
       >
         {isOpen ? (
-          <X className="h-4 w-4 text-white" />
+          <X className="h-3.5 w-3.5 text-white" />
         ) : (
-          <MessageCircle className="h-4 w-4 text-white" />
+          <MessageCircle className="h-3.5 w-3.5 text-white" />
         )}
         {unreadCount > 0 && !isOpen && (
           <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center text-[10px]">
@@ -118,14 +118,14 @@ export default function Lucky9Chat({ tableId, userId, username }: Lucky9ChatProp
         )}
       </Button>
 
-      {/* Chat Panel */}
+      {/* Chat Panel - positioned above bottom panels */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-16 right-4 z-50 w-64 sm:w-72 h-64 sm:h-72 bg-slate-900/95 backdrop-blur border border-green-700/30 rounded-lg shadow-xl flex flex-col"
+            className="fixed bottom-44 right-4 z-40 w-60 sm:w-68 h-56 sm:h-64 bg-slate-900/95 backdrop-blur border border-green-700/30 rounded-lg shadow-xl flex flex-col"
           >
             {/* Header */}
             <div className="px-3 py-2 border-b border-green-700/30 flex items-center justify-between">
