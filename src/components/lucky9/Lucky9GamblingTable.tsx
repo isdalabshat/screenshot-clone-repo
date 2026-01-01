@@ -259,7 +259,7 @@ export function Lucky9GamblingTable({
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               className={cn(
-                "relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 backdrop-blur rounded-lg p-0.5 border-2 transition-all min-w-[70px] max-w-[80px]",
+                "relative overflow-visible bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 backdrop-blur rounded-lg p-0.5 border-2 transition-all min-w-[80px] max-w-[95px]",
                 isBankerTurn 
                   ? 'border-yellow-400 shadow-md shadow-yellow-500/30' 
                   : bankerIsWinner
@@ -318,10 +318,17 @@ export function Lucky9GamblingTable({
                     </motion.div>
                   </div>
                   <div className="min-w-0 text-center">
-                    <div className="flex items-center gap-0.5 justify-center">
+                    <div className="flex items-center gap-0.5 justify-center flex-wrap">
                       <span className="font-bold text-amber-400 text-[6px] truncate max-w-[30px]">{banker.username}</span>
                       {isCurrentUserBanker && (
-                        <Badge className="bg-purple-500/80 text-[5px] px-0.5 py-0">YOU</Badge>
+                        <motion.div
+                          animate={{ scale: [1, 1.1, 1] }}
+                          transition={{ repeat: Infinity, duration: 1.5 }}
+                        >
+                          <Badge className="bg-gradient-to-r from-purple-500 to-indigo-500 text-[6px] px-1 py-0 font-bold shadow-lg shadow-purple-500/30">
+                            🎰 BANKER (YOU)
+                          </Badge>
+                        </motion.div>
                       )}
                     </div>
                     <span className="text-yellow-400 font-mono text-[6px] font-bold">₱{banker.stack.toLocaleString()}</span>
@@ -329,9 +336,9 @@ export function Lucky9GamblingTable({
                 </div>
 
 
-                {/* Banker Cards */}
+                {/* Banker Cards - allow overflow for 3 cards */}
                 {bankerCards.length > 0 && (
-                  <div className="flex gap-0.5 items-center justify-center">
+                  <div className="flex gap-0.5 items-center justify-center overflow-visible -mx-1">
                     {bankerCards.map((card, i) => {
                       const shouldShow = showAllCards || isCurrentUserBanker;
                       const canReveal = isCurrentUserBanker && isBankerTurn && !banker?.hasActed;
