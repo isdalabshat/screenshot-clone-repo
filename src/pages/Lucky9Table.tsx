@@ -802,6 +802,8 @@ export default function Lucky9TablePage() {
     return () => {
       if (calculatingTimeoutRef.current) clearTimeout(calculatingTimeoutRef.current);
       if (revealingTimeoutRef.current) clearTimeout(revealingTimeoutRef.current);
+      if (stuckGameTimeoutRef.current) clearTimeout(stuckGameTimeoutRef.current);
+      if (stuckPhaseTimeoutRef.current) clearTimeout(stuckPhaseTimeoutRef.current);
     };
   }, []);
 
@@ -819,10 +821,10 @@ export default function Lucky9TablePage() {
       stuckGameTimeoutRef.current = setTimeout(async () => {
         console.warn('Failsafe triggered: Game stuck in', game.status, '- forcing reset');
         try {
-          await supabase
-            .from('lucky9_games')
-            .update({ status: 'finished' })
-            .eq('id', game.id);
+          // Use the force_finish action to properly return bets
+          await supabase.functions.invoke('lucky9-game', {
+            body: { action: 'force_finish', gameId: game.id, tableId }
+          });
           
           setTimeout(() => {
             resetRound();
@@ -845,7 +847,47 @@ export default function Lucky9TablePage() {
         clearTimeout(stuckGameTimeoutRef.current);
       }
     };
-  }, [game?.status, game?.id]);
+  }, [game?.status, game?.id, tableId]);
+
+  // Additional failsafe: Check for stuck games in any phase (betting, player_turns, banker_turn)
+  const stuckPhaseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  useEffect(() => {
+    if (game?.status === 'betting' || game?.status === 'player_turns' || game?.status === 'banker_turn') {
+      // Clear existing timeout
+      if (stuckPhaseTimeoutRef.current) {
+        clearTimeout(stuckPhaseTimeoutRef.current);
+      }
+      
+      // Set failsafe - if game is stuck in these phases for 2 minutes, force finish
+      stuckPhaseTimeoutRef.current = setTimeout(async () => {
+        console.warn('Phase failsafe triggered: Game stuck in', game.status, 'for 2 minutes');
+        try {
+          await supabase.functions.invoke('lucky9-game', {
+            body: { action: 'force_finish', gameId: game.id, tableId }
+          });
+          
+          setTimeout(() => {
+            resetRound();
+            processedGameIds.current.clear();
+          }, 500);
+        } catch (err) {
+          console.error('Phase failsafe error:', err);
+        }
+      }, 120000); // 2 minutes
+    } else {
+      if (stuckPhaseTimeoutRef.current) {
+        clearTimeout(stuckPhaseTimeoutRef.current);
+        stuckPhaseTimeoutRef.current = null;
+      }
+    }
+    
+    return () => {
+      if (stuckPhaseTimeoutRef.current) {
+        clearTimeout(stuckPhaseTimeoutRef.current);
+      }
+    };
+  }, [game?.status, game?.id, tableId]);
 
   const banker = players.find(p => p.isBanker);
   const nonBankerPlayers = players.filter(p => !p.isBanker);

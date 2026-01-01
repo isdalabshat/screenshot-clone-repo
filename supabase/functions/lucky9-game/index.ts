@@ -1534,6 +1534,105 @@ serve(async (req) => {
         });
       }
 
+      case 'force_finish': {
+        // Force finish a stuck game - returns all pending bets
+        console.log('Force finishing stuck game:', gameId);
+
+        if (!gameId) {
+          return new Response(JSON.stringify({ error: 'Missing gameId' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Get the game
+        const { data: stuckGame } = await supabase
+          .from('lucky9_games')
+          .select('*')
+          .eq('id', gameId)
+          .single();
+
+        if (!stuckGame) {
+          return new Response(JSON.stringify({ error: 'Game not found' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Return pending bets to all players
+        const { data: allPlayers } = await supabase
+          .from('lucky9_players')
+          .select('*')
+          .eq('game_id', gameId)
+          .eq('is_active', true);
+
+        for (const player of allPlayers || []) {
+          if (player.current_bet > 0 && !player.result) {
+            // Return bet to player's stack
+            await supabase
+              .from('lucky9_players')
+              .update({ 
+                stack: player.stack + player.current_bet,
+                current_bet: 0,
+                result: 'push',
+                winnings: player.current_bet
+              })
+              .eq('id', player.id);
+          }
+        }
+
+        // Mark game as finished
+        await supabase
+          .from('lucky9_games')
+          .update({ status: 'finished' })
+          .eq('id', gameId);
+
+        console.log('Stuck game force finished and bets returned');
+
+        return new Response(JSON.stringify({ success: true, forceFinished: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      case 'check_stuck_game': {
+        // Check if a game is stuck and needs force finishing
+        console.log('Checking for stuck game at table:', tableId);
+
+        const { data: activeGame } = await supabase
+          .from('lucky9_games')
+          .select('*')
+          .eq('table_id', tableId)
+          .neq('status', 'finished')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!activeGame) {
+          return new Response(JSON.stringify({ success: true, noActiveGame: true }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Check if game is older than 2 minutes
+        const gameAge = Date.now() - new Date(activeGame.updated_at).getTime();
+        const isStuck = gameAge > 2 * 60 * 1000; // 2 minutes
+
+        if (isStuck) {
+          console.log('Game is stuck - age:', Math.floor(gameAge / 1000), 'seconds');
+          return new Response(JSON.stringify({ 
+            success: true, 
+            isStuck: true, 
+            gameId: activeGame.id,
+            status: activeGame.status,
+            ageSeconds: Math.floor(gameAge / 1000)
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        return new Response(JSON.stringify({ success: true, isStuck: false }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
       default:
         return new Response(JSON.stringify({ error: 'Unknown action' }), {
           status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
