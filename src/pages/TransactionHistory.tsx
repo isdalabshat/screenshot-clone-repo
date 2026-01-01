@@ -11,6 +11,17 @@ import { ArrowLeft, ArrowDownCircle, ArrowUpCircle, Search, Trash2 } from 'lucid
 import { Input } from '@/components/ui/input';
 import { motion } from 'framer-motion';
 import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 interface Transaction {
   id: string;
@@ -193,10 +204,29 @@ export default function TransactionHistory() {
               <TabsTrigger value="cash_out">Cash Out</TabsTrigger>
             </TabsList>
           </Tabs>
-          <Button variant="destructive" onClick={resetTransactions} className="shrink-0">
-            <Trash2 className="h-4 w-4 mr-2" />
-            Clear History
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" className="shrink-0">
+                <Trash2 className="h-4 w-4 mr-2" />
+                Clear History
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Clear Transaction History?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete all approved and rejected transactions. 
+                  Pending requests will be preserved. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={resetTransactions} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  Yes, Clear History
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
 
         {/* Transactions Table */}
