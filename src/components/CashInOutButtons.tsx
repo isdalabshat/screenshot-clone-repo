@@ -21,6 +21,7 @@ export function CashInOutButtons({ userId, userChips }: CashInOutButtonsProps) {
   const [proofPreview, setProofPreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmittingCashOut, setIsSubmittingCashOut] = useState(false);
+  const [gcashNumber, setGcashNumber] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -85,7 +86,8 @@ export function CashInOutButtons({ userId, userChips }: CashInOutButtonsProps) {
         user_id: userId,
         request_type: type,
         amount: cashAmount,
-        proof_image_url: proofUrl
+        proof_image_url: proofUrl,
+        gcash_number: type === 'cash_out' ? gcashNumber : null
       });
 
     setIsUploading(false);
@@ -103,6 +105,7 @@ export function CashInOutButtons({ userId, userChips }: CashInOutButtonsProps) {
       setCashAmount(1000);
       setProofImage(null);
       setProofPreview(null);
+      setGcashNumber('');
     }
   };
 
@@ -188,6 +191,17 @@ export function CashInOutButtons({ userId, userChips }: CashInOutButtonsProps) {
           </DialogHeader>
           <div className="space-y-4">
             <div>
+              <Label>GCash Number</Label>
+              <Input
+                type="tel"
+                placeholder="09XXXXXXXXX"
+                value={gcashNumber}
+                onChange={(e) => setGcashNumber(e.target.value.replace(/[^0-9]/g, '').slice(0, 11))}
+                maxLength={11}
+              />
+              <p className="text-xs text-muted-foreground mt-1">Enter your GCash number for payout</p>
+            </div>
+            <div>
               <Label>Amount (Max: {userChips})</Label>
               <Input
                 type="number"
@@ -200,7 +214,7 @@ export function CashInOutButtons({ userId, userChips }: CashInOutButtonsProps) {
             <Button 
               onClick={() => handleCashRequest('cash_out')} 
               className="w-full bg-orange-600 hover:bg-orange-700 disabled:opacity-50"
-              disabled={cashAmount > userChips || isSubmittingCashOut}
+              disabled={cashAmount > userChips || isSubmittingCashOut || gcashNumber.length !== 11}
             >
               {isSubmittingCashOut ? 'Submitting...' : 'Submit Request'}
             </Button>

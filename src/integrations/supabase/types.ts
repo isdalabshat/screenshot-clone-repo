@@ -19,6 +19,7 @@ export type Database = {
           admin_notes: string | null
           amount: number
           created_at: string
+          gcash_number: string | null
           id: string
           processed_at: string | null
           processed_by: string | null
@@ -31,6 +32,7 @@ export type Database = {
           admin_notes?: string | null
           amount: number
           created_at?: string
+          gcash_number?: string | null
           id?: string
           processed_at?: string | null
           processed_by?: string | null
@@ -43,6 +45,7 @@ export type Database = {
           admin_notes?: string | null
           amount?: number
           created_at?: string
+          gcash_number?: string | null
           id?: string
           processed_at?: string | null
           processed_by?: string | null
