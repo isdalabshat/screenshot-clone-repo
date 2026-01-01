@@ -101,29 +101,26 @@ export function Lucky9PlayerAvatar({
         )}
       </AnimatePresence>
 
-      {/* Decision indicator (Hirit/Good) - BIGGER and more prominent */}
+      {/* Decision indicator (Hirit/Good) - positioned to the right to avoid overlap */}
       <AnimatePresence>
         {showDecision && currentDecision && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.5, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.5, y: -10 }}
-            className="absolute -top-10 left-1/2 -translate-x-1/2 z-30"
+            initial={{ opacity: 0, scale: 0.5, x: 10 }}
+            animate={{ opacity: 1, scale: 1, x: 0 }}
+            exit={{ opacity: 0, scale: 0.5, x: 10 }}
+            className="absolute -right-16 top-1/2 -translate-y-1/2 z-30"
           >
             <motion.div
-              animate={{ 
-                y: [-3, 3, -3],
-                scale: [1, 1.1, 1]
-              }}
-              transition={{ repeat: Infinity, duration: 0.5 }}
+              animate={{ scale: [1, 1.05, 1] }}
+              transition={{ repeat: Infinity, duration: 0.4 }}
               className={cn(
-                'px-3 py-1 rounded-lg text-sm font-bold uppercase tracking-wider shadow-xl border-2',
+                'px-2 py-0.5 rounded text-[10px] font-bold uppercase whitespace-nowrap shadow-lg',
                 currentDecision === 'hirit' 
-                  ? 'bg-gradient-to-r from-green-500 to-emerald-400 text-white border-green-300 shadow-green-500/50' 
-                  : 'bg-gradient-to-r from-amber-500 to-orange-400 text-white border-amber-300 shadow-amber-500/50'
+                  ? 'bg-green-500 text-white' 
+                  : 'bg-amber-500 text-white'
               )}
             >
-              {currentDecision === 'hirit' ? '🃏 Hirit!' : '✋ Good!'}
+              {currentDecision === 'hirit' ? 'Hirit!' : 'Good!'}
             </motion.div>
           </motion.div>
         )}
