@@ -16,7 +16,6 @@ import Lucky9Chat from '@/components/lucky9/Lucky9Chat';
 import Lucky9EmojiReactions from '@/components/lucky9/Lucky9EmojiReactions';
 import { Lucky9HiritCard, Lucky9DealSequence, getPlayerSeatPosition } from '@/components/lucky9/Lucky9FloatingCard';
 import { useLucky9Sounds } from '@/hooks/useLucky9Sounds';
-import { useLucky9Sounds } from '@/hooks/useLucky9Sounds';
 
 interface PlayerEmoji {
   id: string;
@@ -258,24 +257,26 @@ export default function Lucky9TablePage() {
       })
       .on('broadcast', { event: 'hirit_card' }, ({ payload }) => {
         // Show hirit animation to all players - animate to the correct player/banker
+        setIsDealing(true);
+        setShowHiritAnimation(true);
+        setHiritTargetPlayerId(payload.playerId);
+        
+        // Get position of the player/banker who did hirit
+        setTimeout(() => {
+          const pos = getPlayerSeatPosition(payload.playerId, payload.isBanker);
+          setHiritTargetPosition(pos || { x: window.innerWidth / 2 - 25, y: window.innerHeight - 200 });
+        }, 50);
+        
         if (payload.userId !== user?.id) {
-          setIsDealing(true);
-          setShowHiritAnimation(true);
-          setHiritTargetPlayerId(payload.playerId);
-          
-          // Get position of the player/banker who did hirit
-          setTimeout(() => {
-            const pos = getPlayerSeatPosition(payload.playerId, payload.isBanker);
-            setHiritTargetPosition(pos || { x: window.innerWidth / 2 - 25, y: window.innerHeight - 200 });
-          }, 50);
-          
           playSound('hirit');
-          setTimeout(() => {
-            setIsDealing(false);
-            setShowHiritAnimation(false);
-            setHiritTargetPlayerId(null);
-          }, 500);
         }
+        
+        // Clear animation after completion
+        setTimeout(() => {
+          setIsDealing(false);
+          setShowHiritAnimation(false);
+          setHiritTargetPlayerId(null);
+        }, 600);
       })
       .subscribe();
 
@@ -464,10 +465,12 @@ export default function Lucky9TablePage() {
     if (playerAction === 'draw') {
       setIsDealing(true);
       setShowHiritAnimation(true);
-      setHiritTargetPosition({ x: window.innerWidth / 2 - 25, y: window.innerHeight - 200 });
+      
+      // Calculate position first
+      const myPos = getPlayerSeatPosition(myPlayer.id, myPlayer.isBanker);
+      setHiritTargetPosition(myPos || { x: window.innerWidth / 2 - 25, y: window.innerHeight - 200 });
       
       // Broadcast hirit animation to all players with target position
-      const myPos = getPlayerSeatPosition(myPlayer.id, myPlayer.isBanker);
       await supabase.channel(`lucky9-decisions-${tableId}`).send({
         type: 'broadcast',
         event: 'hirit_card',
@@ -479,8 +482,11 @@ export default function Lucky9TablePage() {
         }
       });
       
-      // Show animation for self
-      setHiritTargetPosition(myPos || { x: window.innerWidth / 2 - 25, y: window.innerHeight - 200 });
+      // Animation handled by broadcast subscriber - clear after delay
+      setTimeout(() => {
+        setIsDealing(false);
+        setShowHiritAnimation(false);
+      }, 600);
     }
 
     const action = myPlayer.isBanker ? 'banker_action' : 'player_action';
@@ -494,10 +500,12 @@ export default function Lucky9TablePage() {
         playSound('deal');
       }
     }
-    // Handle auto-kicked players
+    // Handle auto-kicked players - redirect to spectator mode instead of lobby
     if (data?.kickedPlayers && data.kickedPlayers.length > 0) {
       if (data.kickedPlayers.includes(user?.id)) {
-        setTimeout(() => navigate('/lucky9'), 2000);
+        setMyPlayer(null);
+        setIsSpectator(true);
+        playSound('spectatorJoin');
       }
     }
     setIsProcessing(false);

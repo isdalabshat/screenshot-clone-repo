@@ -16,7 +16,7 @@ import { motion } from 'framer-motion';
 
 interface UserProfile { id: string; userId: string; username: string; chips: number; }
 interface PokerTableData { id: string; name: string; smallBlind: number; bigBlind: number; handsPlayed: number; maxHands: number; isActive: boolean; }
-interface CashRequest { id: string; userId: string; username: string; requestType: string; amount: number; status: string; createdAt: string; proofImageUrl?: string; }
+interface CashRequest { id: string; userId: string; username: string; requestType: string; amount: number; status: string; createdAt: string; proofImageUrl?: string; gcashNumber?: string; }
 interface Lucky9TableData { id: string; name: string; minBet: number; maxBet: number; maxPlayers: number; isActive: boolean; }
 
 export default function Admin() {
@@ -77,7 +77,7 @@ export default function Admin() {
     if (requests) {
       const { data: profiles } = await supabase.from('profiles').select('user_id, username');
       const userMap = new Map(profiles?.map(p => [p.user_id, p.username]) || []);
-      setCashRequests(requests.map(r => ({ id: r.id, userId: r.user_id, username: userMap.get(r.user_id) || 'Unknown', requestType: r.request_type, amount: r.amount, status: r.status, createdAt: r.created_at, proofImageUrl: r.proof_image_url })));
+      setCashRequests(requests.map(r => ({ id: r.id, userId: r.user_id, username: userMap.get(r.user_id) || 'Unknown', requestType: r.request_type, amount: r.amount, status: r.status, createdAt: r.created_at, proofImageUrl: r.proof_image_url, gcashNumber: r.gcash_number })));
     }
   };
 
@@ -202,7 +202,7 @@ export default function Admin() {
               <CardHeader><CardTitle>Pending Cash Requests</CardTitle><CardDescription>Approve or reject cash in/out requests</CardDescription></CardHeader>
               <CardContent>
                 {cashRequests.length === 0 ? <p className="text-muted-foreground text-center py-8">No pending requests</p> : (
-                  <Table><TableHeader><TableRow><TableHead>User</TableHead><TableHead>Type</TableHead><TableHead>Amount</TableHead><TableHead>Proof</TableHead><TableHead>Date</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader><TableBody>{cashRequests.map((req) => (<TableRow key={req.id}><TableCell>{req.username}</TableCell><TableCell><Badge className={req.requestType === 'cash_in' ? 'bg-green-600' : 'bg-orange-600'}>{req.requestType === 'cash_in' ? 'Cash In' : 'Cash Out'}</Badge></TableCell><TableCell className="font-mono">{req.amount.toLocaleString()}</TableCell><TableCell>{req.proofImageUrl ? (<Dialog><DialogTrigger asChild><Button variant="ghost" size="sm"><Image className="h-4 w-4 mr-1" />View</Button></DialogTrigger><DialogContent className="max-w-2xl"><DialogHeader><DialogTitle>Payment Proof - {req.username}</DialogTitle></DialogHeader><img src={req.proofImageUrl} alt="Payment proof" className="max-h-[70vh] w-auto mx-auto rounded-lg" /></DialogContent></Dialog>) : <span className="text-muted-foreground text-xs">N/A</span>}</TableCell><TableCell className="text-sm">{new Date(req.createdAt).toLocaleDateString()}</TableCell><TableCell><div className="flex gap-1"><Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleCashRequest(req.id, true, req.userId, req.amount, req.requestType)}><Check className="h-4 w-4" /></Button><Button size="sm" variant="destructive" onClick={() => handleCashRequest(req.id, false, req.userId, req.amount, req.requestType)}><X className="h-4 w-4" /></Button></div></TableCell></TableRow>))}</TableBody></Table>
+                  <Table><TableHeader><TableRow><TableHead>User</TableHead><TableHead>Type</TableHead><TableHead>Amount</TableHead><TableHead>GCash/Proof</TableHead><TableHead>Date</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader><TableBody>{cashRequests.map((req) => (<TableRow key={req.id}><TableCell>{req.username}</TableCell><TableCell><Badge className={req.requestType === 'cash_in' ? 'bg-green-600' : 'bg-orange-600'}>{req.requestType === 'cash_in' ? 'Cash In' : 'Cash Out'}</Badge></TableCell><TableCell className="font-mono">{req.amount.toLocaleString()}</TableCell><TableCell>{req.requestType === 'cash_out' ? (<span className="font-mono text-blue-400 font-bold">{req.gcashNumber || 'N/A'}</span>) : req.proofImageUrl ? (<Dialog><DialogTrigger asChild><Button variant="ghost" size="sm"><Image className="h-4 w-4 mr-1" />View</Button></DialogTrigger><DialogContent className="max-w-2xl"><DialogHeader><DialogTitle>Payment Proof - {req.username}</DialogTitle></DialogHeader><img src={req.proofImageUrl} alt="Payment proof" className="max-h-[70vh] w-auto mx-auto rounded-lg" /></DialogContent></Dialog>) : <span className="text-muted-foreground text-xs">N/A</span>}</TableCell><TableCell className="text-sm">{new Date(req.createdAt).toLocaleDateString()}</TableCell><TableCell><div className="flex gap-1"><Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleCashRequest(req.id, true, req.userId, req.amount, req.requestType)}><Check className="h-4 w-4" /></Button><Button size="sm" variant="destructive" onClick={() => handleCashRequest(req.id, false, req.userId, req.amount, req.requestType)}><X className="h-4 w-4" /></Button></div></TableCell></TableRow>))}</TableBody></Table>
                 )}
               </CardContent>
             </Card>

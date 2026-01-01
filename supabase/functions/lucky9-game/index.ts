@@ -551,11 +551,11 @@ serve(async (req) => {
         if (bankerNatural || anyPlayerNatural) {
           console.log('Natural 9 detected! Going straight to showdown');
           
-          // Update game to showdown immediately
+          // Update game - all cards visible now for natural wins
           await supabase
             .from('lucky9_games')
             .update({
-              status: 'showdown',
+              status: 'calculating',
               dealer_cards: bankerCards,
               dealer_hidden_card: null,
               current_player_position: null,
@@ -643,10 +643,10 @@ serve(async (req) => {
             })
             .eq('id', banker.id);
 
-          // Mark game as finished
+          // Mark game as calculating first (will transition to revealing on client)
           await supabase
             .from('lucky9_games')
-            .update({ status: 'finished' })
+            .update({ status: 'calculating' })
             .eq('id', gameId);
 
           return new Response(JSON.stringify({ 
@@ -958,11 +958,8 @@ serve(async (req) => {
           })
           .eq('id', banker.id);
 
-        // Update game status to 'revealing' - cards are visible for 5 seconds before 'finished'
-        await supabase
-          .from('lucky9_games')
-          .update({ status: 'revealing' })
-          .eq('id', gameId);
+        // Game status is already 'calculating' - client will transition to 'revealing' after 1 sec
+        // The calculation has been done, but we let client handle the timed transitions
 
         // Check for zero balance and auto-kick players/banker
         const kickedPlayers: string[] = [];
