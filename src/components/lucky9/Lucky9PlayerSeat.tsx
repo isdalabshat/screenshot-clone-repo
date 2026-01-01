@@ -5,7 +5,7 @@ import { calculateLucky9Value, isNatural9 } from '@/lib/lucky9/deck';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
-import { Check, X, Clock } from 'lucide-react';
+import { Check, X, Clock, Sparkles } from 'lucide-react';
 
 interface Lucky9PlayerSeatProps {
   player: Lucky9Player;
@@ -21,6 +21,7 @@ interface Lucky9PlayerSeatProps {
   onCardReveal?: (cardIndex: number) => void;
   currentEmoji?: string | null;
   currentDecision?: 'hirit' | 'good' | null;
+  showNaturalBadge?: boolean;
 }
 
 export function Lucky9PlayerSeat({ 
@@ -36,7 +37,8 @@ export function Lucky9PlayerSeat({
   canRevealCards,
   onCardReveal,
   currentEmoji,
-  currentDecision
+  currentDecision,
+  showNaturalBadge
 }: Lucky9PlayerSeatProps) {
   const cards = player.cards || [];
   const handValue = cards.length > 0 ? calculateLucky9Value(cards) : null;
@@ -163,8 +165,17 @@ export function Lucky9PlayerSeat({
           animate={{ opacity: 1 }}
           className="text-center"
         >
-          {isNatural && (
-            <Badge className="bg-amber-500 text-black text-[8px] px-1 mb-0.5">Natural!</Badge>
+          {(isNatural || showNaturalBadge) && (
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: [1, 1.1, 1] }}
+              transition={{ repeat: Infinity, duration: 1.5 }}
+            >
+              <Badge className="bg-gradient-to-r from-amber-500 to-yellow-400 text-black text-[8px] px-1 mb-0.5 flex items-center gap-0.5">
+                <Sparkles className="h-2 w-2" />
+                Natural 9!
+              </Badge>
+            </motion.div>
           )}
           <div className={`text-lg font-bold ${handValue === 9 ? 'text-amber-400' : 'text-white'}`}>
             {handValue}

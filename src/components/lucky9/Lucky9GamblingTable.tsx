@@ -1,13 +1,12 @@
 import { Lucky9Player, Lucky9Game } from '@/types/lucky9';
 import { Lucky9PlayerSeat } from './Lucky9PlayerSeat';
 import { Lucky9RevealableCard } from './Lucky9RevealableCard';
-import { Lucky9ChipStack } from './Lucky9BetAnimation';
 import { Lucky9PlayerAvatar } from './Lucky9PlayerAvatar';
 import { Lucky9CardDeck } from './Lucky9CardDeck';
 import { calculateLucky9Value, isNatural9 } from '@/lib/lucky9/deck';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
-import { Crown } from 'lucide-react';
+import { Crown, Sparkles } from 'lucide-react';
 
 interface PlayerEmojiState {
   [playerId: string]: string | null;
@@ -30,6 +29,7 @@ interface Lucky9GamblingTableProps {
   playerEmojis?: PlayerEmojiState;
   playerDecisions?: PlayerDecisionState;
   isDealing?: boolean;
+  isShowdown?: boolean;
 }
 
 export function Lucky9GamblingTable({ 
@@ -44,16 +44,22 @@ export function Lucky9GamblingTable({
   onCardReveal,
   playerEmojis = {},
   playerDecisions = {},
-  isDealing = false
+  isDealing = false,
+  isShowdown = false
 }: Lucky9GamblingTableProps) {
   const nonBankerPlayers = players.filter(p => !p.isBanker);
-  const showAllCards = game?.status === 'showdown' || game?.status === 'finished';
+  
+  // Showdown: show all cards, including during showdown and finished states
+  const showAllCards = isShowdown || game?.status === 'showdown' || game?.status === 'finished';
   
   const bankerCards = banker?.cards || [];
   const bankerValue = bankerCards.length > 0 ? calculateLucky9Value(bankerCards) : null;
   const bankerIsNatural = bankerCards.length === 2 && isNatural9(bankerCards);
   const isBankerTurn = game?.status === 'banker_turn';
   const isCurrentUserBanker = banker?.userId === currentUserId;
+  
+  // Check if any player or banker has natural 9 - reveal their cards to all
+  const anyNatural9 = bankerIsNatural || nonBankerPlayers.some(p => p.isNatural);
 
   return (
     <div className="relative w-full max-w-lg mx-auto">
@@ -92,7 +98,8 @@ export function Lucky9GamblingTable({
               {bankerCards.length > 0 && (
                 <div className="flex gap-1 items-center">
                   {bankerCards.map((card, i) => {
-                    const shouldHide = !showAllCards && !isCurrentUserBanker;
+                    // Show banker cards if: showdown, finished, banker is me, OR banker has natural 9
+                    const shouldHide = !showAllCards && !isCurrentUserBanker && !bankerIsNatural;
                     const canReveal = isCurrentUserBanker && isBankerTurn && !banker?.hasActed;
                     return (
                       <Lucky9RevealableCard 
@@ -106,9 +113,20 @@ export function Lucky9GamblingTable({
                       />
                     );
                   })}
-                  {(showAllCards || isCurrentUserBanker) && bankerValue !== null && (
+                  {(showAllCards || isCurrentUserBanker || bankerIsNatural) && bankerValue !== null && (
                     <div className="ml-2 text-center">
-                      {bankerIsNatural && <Badge className="bg-amber-500 text-black text-[8px]">Natural!</Badge>}
+                      {bankerIsNatural && (
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: [1, 1.1, 1] }}
+                          transition={{ repeat: Infinity, duration: 1.5 }}
+                        >
+                          <Badge className="bg-gradient-to-r from-amber-500 to-yellow-400 text-black text-[8px] flex items-center gap-0.5">
+                            <Sparkles className="h-2.5 w-2.5" />
+                            Natural 9!
+                          </Badge>
+                        </motion.div>
+                      )}
                       <div className={`text-lg font-bold ${bankerValue === 9 ? 'text-amber-400' : 'text-white'}`}>
                         {bankerValue}
                       </div>
@@ -187,6 +205,8 @@ export function Lucky9GamblingTable({
           {nonBankerPlayers.map((player, index) => {
             const isCurrentTurn = game?.status === 'player_turns' && game.currentPlayerPosition === player.position;
             const isMe = player.userId === currentUserId;
+            // Show cards if: it's me, showdown, player has natural 9
+            const shouldShowCards = isMe || showAllCards || player.isNatural;
             
             return (
               <motion.div
@@ -198,7 +218,7 @@ export function Lucky9GamblingTable({
                 <Lucky9PlayerSeat
                   player={player}
                   isCurrentTurn={isCurrentTurn}
-                  showCards={isMe || showAllCards}
+                  showCards={shouldShowCards}
                   gameStatus={game?.status || 'betting'}
                   isMe={isMe}
                   isBankerView={isBankerView}
@@ -209,6 +229,7 @@ export function Lucky9GamblingTable({
                   onCardReveal={(cardIndex) => onCardReveal?.(player.id, cardIndex)}
                   currentEmoji={playerEmojis[player.userId] || null}
                   currentDecision={playerDecisions[player.userId] || null}
+                  showNaturalBadge={player.isNatural}
                 />
               </motion.div>
             );

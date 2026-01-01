@@ -455,9 +455,11 @@ serve(async (req) => {
         let deckIndex = 0;
 
         // Deal 2 cards to each player with accepted bets
+        let anyPlayerNatural = false;
         for (const player of players) {
           const cards = [deck[deckIndex++], deck[deckIndex++]];
           const natural = isNatural9(cards);
+          if (natural) anyPlayerNatural = true;
           
           await supabase
             .from('lucky9_players')
@@ -486,6 +488,121 @@ serve(async (req) => {
           })
           .eq('id', banker.id);
 
+        // Store remaining deck
+        const remainingDeck = deck.slice(deckIndex);
+
+        // Check if anyone has natural 9 - if so, go directly to showdown
+        if (bankerNatural || anyPlayerNatural) {
+          console.log('Natural 9 detected! Going straight to showdown');
+          
+          // Update game to showdown immediately
+          await supabase
+            .from('lucky9_games')
+            .update({
+              status: 'showdown',
+              dealer_cards: bankerCards,
+              dealer_hidden_card: null,
+              current_player_position: null,
+              betting_ends_at: null
+            })
+            .eq('id', gameId);
+
+          // Calculate results immediately
+          const bankerValue = calculateLucky9Value(bankerCards);
+          let bankerTotalWin = 0;
+          let bankerTotalLoss = 0;
+
+          for (const player of players) {
+            const playerCards = [deck[(players.indexOf(player)) * 2], deck[(players.indexOf(player)) * 2 + 1]];
+            const playerValue = calculateLucky9Value(playerCards);
+            const playerIsNatural = isNatural9(playerCards);
+            
+            // Get player's current bet
+            const { data: currentPlayer } = await supabase
+              .from('lucky9_players')
+              .select('current_bet, stack')
+              .eq('id', player.id)
+              .single();
+            
+            const currentBet = currentPlayer?.current_bet || 0;
+            const currentStack = currentPlayer?.stack || 0;
+            
+            let result: string;
+            let winnings = 0;
+
+            // Natural 9 wins logic
+            if (playerIsNatural && !bankerNatural) {
+              result = 'natural_win';
+              winnings = currentBet * 3;
+              bankerTotalLoss += currentBet * 2;
+            } else if (bankerNatural && !playerIsNatural) {
+              result = 'lose';
+              winnings = 0;
+              bankerTotalWin += currentBet;
+            } else if (playerValue === bankerValue) {
+              if (playerIsNatural && !bankerNatural) {
+                result = 'natural_win';
+                winnings = currentBet * 3;
+                bankerTotalLoss += currentBet * 2;
+              } else if (bankerNatural && !playerIsNatural) {
+                result = 'lose';
+                winnings = 0;
+                bankerTotalWin += currentBet;
+              } else {
+                result = 'push';
+                winnings = currentBet;
+              }
+            } else if (playerValue > bankerValue) {
+              result = 'win';
+              winnings = currentBet * 2;
+              bankerTotalLoss += currentBet;
+            } else {
+              result = 'lose';
+              winnings = 0;
+              bankerTotalWin += currentBet;
+            }
+
+            await supabase
+              .from('lucky9_players')
+              .update({ 
+                result,
+                winnings,
+                stack: currentStack + winnings,
+                has_acted: true,
+                has_stood: true
+              })
+              .eq('id', player.id);
+          }
+
+          // Update banker
+          const newBankerStack = banker.stack + bankerTotalWin - bankerTotalLoss;
+          await supabase
+            .from('lucky9_players')
+            .update({ 
+              stack: newBankerStack,
+              result: bankerTotalWin > bankerTotalLoss ? 'win' : bankerTotalWin < bankerTotalLoss ? 'lose' : 'push',
+              winnings: bankerTotalWin - bankerTotalLoss,
+              has_acted: true,
+              has_stood: true
+            })
+            .eq('id', banker.id);
+
+          // Mark game as finished
+          await supabase
+            .from('lucky9_games')
+            .update({ status: 'finished' })
+            .eq('id', gameId);
+
+          return new Response(JSON.stringify({ 
+            success: true, 
+            gameId,
+            remainingDeck,
+            naturalWin: true
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
         // Find first player to act (skip naturals)
         const firstPlayer = players.find(p => {
           const idx = players.indexOf(p);
@@ -493,10 +610,7 @@ serve(async (req) => {
           return !isNatural9(playerCards);
         });
 
-        // Store remaining deck
-        const remainingDeck = deck.slice(deckIndex);
-
-        // Update game
+        // Update game - normal flow
         await supabase
           .from('lucky9_games')
           .update({
