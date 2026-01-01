@@ -71,7 +71,7 @@ export function Lucky9PlayerSeat({
 
   return (
     <motion.div 
-      className={`relative min-w-[90px] max-w-[105px] transition-all`}
+      className={`relative w-[100px] flex-shrink-0 transition-all`}
       data-player-seat={player.id}
       data-player-user-id={player.userId}
       animate={isCurrentTurn ? { scale: [1, 1.02, 1] } : {}}
@@ -91,12 +91,12 @@ export function Lucky9PlayerSeat({
           size="sm"
           currentEmoji={currentEmoji}
         />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 overflow-hidden">
           <div className="flex items-center gap-0.5">
-            <span className="text-[9px] font-medium text-white truncate max-w-[50px]">{player.username}</span>
-            {isMe && <Badge className="bg-blue-500 text-[6px] px-0.5 py-0">YOU</Badge>}
+            <span className="text-[9px] font-medium text-white truncate block max-w-[45px]">{player.username}</span>
+            {isMe && <Badge className="bg-blue-500 text-[6px] px-0.5 py-0 flex-shrink-0">YOU</Badge>}
           </div>
-          <span className="text-yellow-400 font-mono text-[8px]">₱{player.stack}</span>
+          <span className="text-yellow-400 font-mono text-[8px] block">₱{player.stack}</span>
         </div>
         {/* Win indicator - outside beside avatar */}
         <AnimatePresence>

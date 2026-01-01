@@ -112,7 +112,7 @@ export function Lucky9GamblingTable({
   }, [nonBankerPlayers, currentUserId, isSpectator]);
 
   return (
-    <div className="relative w-full max-w-md mx-auto px-1">
+    <div className="relative w-full max-w-md mx-auto px-2">
       {/* Spectator indicator */}
       {isSpectator && (
         <motion.div
@@ -407,8 +407,8 @@ export function Lucky9GamblingTable({
       </div>
 
       {/* Player positions - Mobile optimized with centered user perspective */}
-      <div className="mt-2 px-1">
-        <div className="flex flex-wrap justify-center gap-1.5">
+      <div className="mt-3 px-1">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-w-[340px] mx-auto">
           {orderedPlayers.map((player, index) => {
             const isCurrentTurn = game?.status === 'player_turns' && game.currentPlayerPosition === player.position;
             const isMe = player.userId === currentUserId;
