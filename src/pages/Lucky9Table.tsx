@@ -496,53 +496,61 @@ export default function Lucky9TablePage() {
   // Handle showdown/finished state - show cards and winner animation for exactly 5 seconds
   const resultsShownRef = useRef(false);
   const resultsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastGameIdRef = useRef<string | null>(null);
   
   useEffect(() => {
-    // Trigger on showdown OR finished status - this ensures we catch results
-    const isResultsPhase = game?.status === 'finished' || game?.status === 'showdown';
+    // Trigger on finished status
+    const isResultsPhase = game?.status === 'finished';
+    const gameId = game?.id || null;
     
-    if (isResultsPhase && !resultsShownRef.current) {
+    // Only trigger once per game - use game ID to track
+    if (isResultsPhase && gameId && lastGameIdRef.current !== gameId) {
+      lastGameIdRef.current = gameId;
       resultsShownRef.current = true;
       
       // Clear any existing timeout
       if (resultsTimeoutRef.current) {
         clearTimeout(resultsTimeoutRef.current);
+        resultsTimeoutRef.current = null;
       }
       
-      // Show winner animation after a very short delay to let UI update
-      setTimeout(() => {
-        const gameWinners = players.filter(p => p.winnings > 0).map(p => ({
-          username: p.username,
-          winnings: p.winnings
-        }));
-        if (gameWinners.length > 0) {
-          setWinners(gameWinners);
-          setShowWinnerAnimation(true);
-          playSound('win');
-        }
-      }, 200);
+      console.log('Results phase started - will show for 5 seconds');
+      
+      // Show winner animation immediately
+      const gameWinners = players.filter(p => p.winnings > 0).map(p => ({
+        username: p.username,
+        winnings: p.winnings
+      }));
+      if (gameWinners.length > 0) {
+        setWinners(gameWinners);
+        setShowWinnerAnimation(true);
+        playSound('win');
+      }
       
       // Reset round after EXACTLY 5 seconds of showing results
       resultsTimeoutRef.current = setTimeout(() => {
-        console.log('5 seconds elapsed - resetting round');
+        console.log('5 seconds elapsed - resetting round now');
         resultsShownRef.current = false;
+        setShowWinnerAnimation(false);
+        setWinners([]);
         resetRound();
       }, 5000);
     }
     
-    // Reset flag when game is no longer in results phase
-    if (!isResultsPhase && game?.status !== 'betting' && game?.status !== 'player_turns' && game?.status !== 'banker_turn') {
-      // Only reset when truly not in game
-    } else if (!isResultsPhase) {
-      resultsShownRef.current = false;
-    }
-    
+    // Cleanup on unmount only
     return () => {
-      if (resultsTimeoutRef.current && !isResultsPhase) {
+      // Don't clear timeout on re-renders, only on unmount
+    };
+  }, [game?.status, game?.id]);
+  
+  // Cleanup timeout on component unmount
+  useEffect(() => {
+    return () => {
+      if (resultsTimeoutRef.current) {
         clearTimeout(resultsTimeoutRef.current);
       }
     };
-  }, [game?.status, players]);
+  }, []);
 
   const banker = players.find(p => p.isBanker);
   const nonBankerPlayers = players.filter(p => !p.isBanker);
@@ -751,7 +759,8 @@ export default function Lucky9TablePage() {
           onDraw={() => handlePlayerAction('draw')} 
           onStand={() => handlePlayerAction('stand')} 
           canDraw={(myPlayer?.cards.length || 0) < 3} 
-          disabled={isProcessing} 
+          disabled={isProcessing}
+          onTimeout={() => handlePlayerAction('stand')}
         />
       )}
 
