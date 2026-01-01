@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { Coins, LogOut, Shield, Sparkles } from 'lucide-react';
 import { useEffect } from 'react';
+import { CashInOutButtons } from '@/components/CashInOutButtons';
 
 export default function Index() {
   const navigate = useNavigate();
@@ -56,7 +57,7 @@ export default function Index() {
 
       {/* Header */}
       <header className="border-b border-green-500/20 bg-slate-900/80 backdrop-blur-xl sticky top-0 z-20">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+        <div className="container mx-auto px-4 py-4 flex justify-between items-center flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <motion.div 
               initial={{ rotate: 0 }}
@@ -73,11 +74,15 @@ export default function Index() {
               <p className="text-xs text-green-400/60">Premium Casino</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2 bg-black/60 px-4 py-2 rounded-xl border border-yellow-500/40 shadow-lg shadow-yellow-500/10">
               <Coins className="h-5 w-5 text-yellow-400" />
               <span className="font-bold text-yellow-400">₱{profile.chips.toLocaleString()}</span>
             </div>
+            
+            {/* Cash In/Out Buttons */}
+            {user && <CashInOutButtons userId={user.id} userChips={profile.chips} />}
+            
             <span className="text-green-300/80 text-sm hidden sm:block">{profile.username}</span>
             {profile.isAdmin && (
               <Button
