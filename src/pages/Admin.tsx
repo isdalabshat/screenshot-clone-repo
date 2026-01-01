@@ -19,6 +19,7 @@ interface PokerTableData { id: string; name: string; smallBlind: number; bigBlin
 interface CashRequest { id: string; userId: string; username: string; requestType: string; amount: number; status: string; createdAt: string; proofImageUrl?: string; gcashNumber?: string; }
 interface Lucky9TableData { id: string; name: string; minBet: number; maxBet: number; maxPlayers: number; isActive: boolean; }
 
+
 export default function Admin() {
   const navigate = useNavigate();
   const { profile, isLoading } = useAuth();
@@ -171,9 +172,10 @@ export default function Admin() {
           <TabsList className="grid w-full grid-cols-5"><TabsTrigger value="dashboard">Dashboard</TabsTrigger><TabsTrigger value="tables">Poker</TabsTrigger><TabsTrigger value="lucky9">Lucky 9</TabsTrigger><TabsTrigger value="users">Users</TabsTrigger><TabsTrigger value="requests">Cash Requests</TabsTrigger></TabsList>
 
           <TabsContent value="dashboard">
-            <div className="grid gap-6 md:grid-cols-4">
+            <div className="grid gap-6 md:grid-cols-5">
               <Card className="border-amber-700/30"><CardHeader><CardTitle className="flex items-center gap-2"><DollarSign className="h-5 w-5 text-green-400" />Poker Fees</CardTitle></CardHeader><CardContent><p className="text-4xl font-bold text-green-400">{totalFees.toLocaleString()}</p><p className="text-sm text-muted-foreground">10% rake on pots</p></CardContent></Card>
               <Card className="border-purple-700/30"><CardHeader><CardTitle className="flex items-center gap-2"><DollarSign className="h-5 w-5 text-purple-400" />Lucky 9 Fees</CardTitle></CardHeader><CardContent><p className="text-4xl font-bold text-purple-400">{totalLucky9Fees.toLocaleString()}</p><p className="text-sm text-muted-foreground">10% on winnings</p></CardContent></Card>
+              <Card className="border-cyan-700/30"><CardHeader><CardTitle className="flex items-center gap-2"><Coins className="h-5 w-5 text-cyan-400" />Total Player Balance</CardTitle></CardHeader><CardContent><p className="text-4xl font-bold text-cyan-400">₱{users.reduce((sum, u) => sum + u.chips, 0).toLocaleString()}</p><p className="text-sm text-muted-foreground">{users.length} players</p></CardContent></Card>
               <Card className="border-amber-700/30"><CardHeader><CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" />Active Tables</CardTitle></CardHeader><CardContent><p className="text-4xl font-bold">{tables.filter(t => t.isActive).length + lucky9Tables.filter(t => t.isActive).length}</p></CardContent></Card>
               <Card className="border-amber-700/30"><CardHeader><CardTitle className="flex items-center gap-2"><Coins className="h-5 w-5 text-yellow-400" />Pending Requests</CardTitle></CardHeader><CardContent><p className="text-4xl font-bold text-yellow-400">{cashRequests.length}</p></CardContent></Card>
             </div>

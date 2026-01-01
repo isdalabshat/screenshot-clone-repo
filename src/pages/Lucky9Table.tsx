@@ -339,6 +339,12 @@ export default function Lucky9TablePage() {
   };
 
   const leaveTable = async () => {
+    // Allow spectators to leave without having a player record
+    if (isSpectator) {
+      navigate('/lucky9');
+      return;
+    }
+    
     if (!myPlayer) return;
 
     const action = myPlayer.isBanker ? 'banker_leave' : 'player_leave';
@@ -641,8 +647,9 @@ export default function Lucky9TablePage() {
   const playersWithPendingBets = nonBankerPlayers.filter(p => p.currentBet > 0 && p.betAccepted === null);
   const playersWithAcceptedBets = nonBankerPlayers.filter(p => p.currentBet > 0 && p.betAccepted === true);
   
-  // Banker can start betting only when there are players and no active game
-  const canStartBetting = !game && myPlayer?.isBanker && nonBankerPlayers.length >= 1;
+  // Banker can start betting only when there are at least one non-banker player and no active game
+  const hasActivePlayers = nonBankerPlayers.filter(p => p.isActive && p.stack > 0).length >= 1;
+  const canStartBetting = !game && myPlayer?.isBanker && hasActivePlayers;
   
   // Banker can deal cards when all pending bets are decided and at least one bet is accepted
   const canDealCards = game?.status === 'betting' && myPlayer?.isBanker && playersWithPendingBets.length === 0 && playersWithAcceptedBets.length > 0;

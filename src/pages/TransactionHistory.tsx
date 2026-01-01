@@ -7,9 +7,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, ArrowDownCircle, ArrowUpCircle, Search } from 'lucide-react';
+import { ArrowLeft, ArrowDownCircle, ArrowUpCircle, Search, Trash2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { motion } from 'framer-motion';
+import { useToast } from '@/hooks/use-toast';
 
 interface Transaction {
   id: string;
@@ -27,6 +28,7 @@ interface Transaction {
 export default function TransactionHistory() {
   const navigate = useNavigate();
   const { profile, isLoading } = useAuth();
+  const { toast } = useToast();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState<'all' | 'cash_in' | 'cash_out'>('all');
@@ -80,6 +82,13 @@ export default function TransactionHistory() {
     .reduce((sum, t) => sum + t.amount, 0);
 
   const pendingCount = transactions.filter(t => t.status === 'pending').length;
+
+  const resetTransactions = async () => {
+    // Only delete approved/rejected transactions, keep pending ones
+    await supabase.from('cash_requests').delete().in('status', ['approved', 'rejected']);
+    toast({ title: 'Success', description: 'Transaction history cleared (pending requests preserved)' });
+    fetchTransactions();
+  };
 
   if (isLoading || !profile?.isAdmin) {
     return (
@@ -184,6 +193,10 @@ export default function TransactionHistory() {
               <TabsTrigger value="cash_out">Cash Out</TabsTrigger>
             </TabsList>
           </Tabs>
+          <Button variant="destructive" onClick={resetTransactions} className="shrink-0">
+            <Trash2 className="h-4 w-4 mr-2" />
+            Clear History
+          </Button>
         </div>
 
         {/* Transactions Table */}
