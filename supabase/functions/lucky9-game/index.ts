@@ -220,10 +220,22 @@ serve(async (req) => {
           });
         }
 
-        // Check if banker has enough balance to cover the bet
-        if (banker.stack < player.current_bet) {
+        // Get all currently accepted bets to calculate total exposure
+        const { data: acceptedBets } = await supabase
+          .from('lucky9_players')
+          .select('current_bet')
+          .eq('table_id', tableId)
+          .eq('is_active', true)
+          .eq('is_banker', false)
+          .eq('bet_accepted', true);
+
+        const totalAcceptedBets = (acceptedBets || []).reduce((sum, p) => sum + (p.current_bet || 0), 0);
+        const newTotalExposure = totalAcceptedBets + player.current_bet;
+
+        // Check if banker has enough balance to cover ALL accepted bets (worst case: all players win)
+        if (banker.stack < newTotalExposure) {
           return new Response(JSON.stringify({ 
-            error: `Insufficient balance. You need ₱${player.current_bet} to accept this bet.` 
+            error: `Cannot accept bet. Your balance (₱${banker.stack.toLocaleString()}) must cover all accepted bets (₱${newTotalExposure.toLocaleString()}) if all players win.` 
           }), {
             status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           });
