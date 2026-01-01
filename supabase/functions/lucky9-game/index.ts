@@ -1033,7 +1033,7 @@ serve(async (req) => {
       }
 
       case 'banker_leave': {
-        // When banker leaves mid-game, all players win their bets
+        // When banker leaves mid-game, banker is marked as loss and all players win their bets
         console.log('Banker leaving table:', tableId);
 
         // Get active game
@@ -1046,7 +1046,25 @@ serve(async (req) => {
           .limit(1)
           .maybeSingle();
 
-        if (currentGame) {
+        // Get banker before we process
+        const { data: bankerPlayer } = await supabase
+          .from('lucky9_players')
+          .select('*')
+          .eq('table_id', tableId)
+          .eq('user_id', userId)
+          .eq('is_banker', true)
+          .single();
+
+        if (currentGame && bankerPlayer) {
+          // Mark banker as LOSS
+          await supabase
+            .from('lucky9_players')
+            .update({ 
+              result: 'lose',
+              winnings: 0
+            })
+            .eq('id', bankerPlayer.id);
+
           // Get all players with accepted bets
           const { data: players } = await supabase
             .from('lucky9_players')
@@ -1099,14 +1117,7 @@ serve(async (req) => {
             .eq('id', currentGame.id);
         }
 
-        // Get banker to delete and return chips
-        const { data: bankerPlayer } = await supabase
-          .from('lucky9_players')
-          .select('*')
-          .eq('table_id', tableId)
-          .eq('user_id', userId)
-          .eq('is_banker', true)
-          .single();
+        // Return banker chips to profile and delete (use already fetched bankerPlayer)
 
         if (bankerPlayer) {
           // Return chips to profile
@@ -1136,7 +1147,7 @@ serve(async (req) => {
       }
 
       case 'player_leave': {
-        // When a player leaves mid-game, banker wins their bet
+        // When a player leaves mid-game, they are marked as loss and banker wins their bet
         console.log('Player leaving table:', tableId, 'userId:', userId);
 
         // Get the player
@@ -1165,6 +1176,15 @@ serve(async (req) => {
           .maybeSingle();
 
         if (currentGame && player.current_bet > 0 && player.bet_accepted === true) {
+          // Mark player as LOSS before deleting (for history/display)
+          await supabase
+            .from('lucky9_players')
+            .update({ 
+              result: 'lose',
+              winnings: 0
+            })
+            .eq('id', player.id);
+
           // Get the banker
           const { data: banker } = await supabase
             .from('lucky9_players')
@@ -1177,7 +1197,8 @@ serve(async (req) => {
             await supabase
               .from('lucky9_players')
               .update({ 
-                stack: banker.stack + player.current_bet
+                stack: banker.stack + player.current_bet,
+                winnings: (banker.winnings || 0) + player.current_bet
               })
               .eq('id', banker.id);
           }
@@ -1210,7 +1231,7 @@ serve(async (req) => {
           }
         }
 
-        // Return remaining stack to profile
+        // Return remaining stack to profile (stack only, bet was forfeited)
         const { data: profile } = await supabase
           .from('profiles')
           .select('chips')
@@ -1230,7 +1251,7 @@ serve(async (req) => {
           .delete()
           .eq('id', player.id);
 
-        return new Response(JSON.stringify({ success: true }), {
+        return new Response(JSON.stringify({ success: true, playerMarkedAsLoss: true }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }

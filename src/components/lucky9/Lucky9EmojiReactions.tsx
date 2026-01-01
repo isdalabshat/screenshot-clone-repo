@@ -154,7 +154,7 @@ export default function Lucky9EmojiReactions({ tableId, userId, username, isJoin
   const canSendEmojis = isJoined && userId && username;
 
   return (
-    <div className="fixed bottom-4 right-4 z-50">
+    <div className="fixed bottom-32 right-4 z-40">
       {canSendEmojis && (
         <>
           <motion.button
@@ -163,12 +163,12 @@ export default function Lucky9EmojiReactions({ tableId, userId, username, isJoin
             onClick={() => setIsOpen(!isOpen)}
             disabled={cooldown}
             className={cn(
-              'w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-green-700 shadow-lg flex items-center justify-center border-2 border-green-400/50 transition-all',
+              'w-9 h-9 rounded-full bg-gradient-to-br from-green-500 to-green-700 shadow-lg flex items-center justify-center border-2 border-green-400/50 transition-all',
               cooldown && 'opacity-50 cursor-not-allowed',
               isOpen && 'ring-2 ring-green-400 ring-offset-2 ring-offset-background'
             )}
           >
-            <span className="text-lg">{cooldown ? '⏳' : '😀'}</span>
+            <span className="text-base">{cooldown ? '⏳' : '😀'}</span>
           </motion.button>
 
           <AnimatePresence>
@@ -177,19 +177,19 @@ export default function Lucky9EmojiReactions({ tableId, userId, username, isJoin
                 initial={{ opacity: 0, scale: 0.8, y: 10 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.8, y: 10 }}
-                className="absolute bottom-14 right-0 bg-card/95 backdrop-blur-lg rounded-xl p-3 shadow-xl border border-green-500/30 min-w-[140px]"
+                className="absolute bottom-12 right-0 bg-card/95 backdrop-blur-lg rounded-xl p-2 shadow-xl border border-green-500/30 min-w-[120px]"
               >
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-1.5">
                   {EMOJIS.map((emoji) => (
                     <motion.button
                       key={emoji.id}
                       whileHover={{ scale: 1.15 }}
                       whileTap={{ scale: 0.9 }}
                       onClick={() => sendEmoji(emoji)}
-                      className="w-10 h-10 rounded-lg bg-slate-800/70 hover:bg-slate-700 flex items-center justify-center transition-colors"
+                      className="w-8 h-8 rounded-lg bg-slate-800/70 hover:bg-slate-700 flex items-center justify-center transition-colors"
                       title={emoji.name}
                     >
-                      <span className="text-xl">{emoji.emoji}</span>
+                      <span className="text-lg">{emoji.emoji}</span>
                     </motion.button>
                   ))}
                 </div>

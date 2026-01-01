@@ -209,7 +209,7 @@ export default function Lucky9TablePage() {
     }, 2000);
   }, [tableId, user?.id, profile?.username]);
 
-  // Subscribe to decisions broadcast
+  // Subscribe to decisions and deal animation broadcast
   useEffect(() => {
     if (!tableId) return;
     
@@ -224,12 +224,42 @@ export default function Lucky9TablePage() {
           }, 2000);
         }
       })
+      .on('broadcast', { event: 'deal_cards' }, ({ payload }) => {
+        // Only non-bankers receive this (banker already triggers locally)
+        if (!myPlayer?.isBanker) {
+          setIsDealing(true);
+          setShowDealSequence(true);
+          playSound('shuffle');
+          
+          // Calculate deal targets for this player's screen
+          const acceptedCount = payload.acceptedCount || 0;
+          const targets: { x: number; y: number }[] = [];
+          for (let i = 0; i < acceptedCount; i++) {
+            const baseX = window.innerWidth / 2 - 100 + (i * 60);
+            const baseY = window.innerHeight - 180;
+            targets.push({ x: baseX, y: baseY });
+          }
+          targets.push({ x: window.innerWidth / 2 - 25, y: 120 });
+          setDealTargets(targets);
+          
+          // Play deal sounds with delay
+          setTimeout(() => {
+            playDealSequence(acceptedCount * 2 + 2);
+          }, 300);
+          
+          setTimeout(() => {
+            setIsDealing(false);
+            setShowDealSequence(false);
+            setDealTargets([]);
+          }, 1500);
+        }
+      })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [tableId, user?.id, playSound]);
+  }, [tableId, user?.id, playSound, playDealSequence, myPlayer?.isBanker]);
 
   // Sound effects based on game state changes - NO deal animation here (handled in startRound)
   useEffect(() => {
@@ -342,7 +372,7 @@ export default function Lucky9TablePage() {
   };
 
   const startRound = async () => {
-    if (!game) return;
+    if (!game || !tableId) return;
     setIsProcessing(true);
     setIsDealing(true);
     setShowDealSequence(true);
@@ -359,6 +389,13 @@ export default function Lucky9TablePage() {
     });
     targets.push({ x: window.innerWidth / 2 - 25, y: 120 });
     setDealTargets(targets);
+
+    // Broadcast deal animation to other players
+    await supabase.channel(`lucky9-decisions-${tableId}`).send({
+      type: 'broadcast',
+      event: 'deal_cards',
+      payload: { acceptedCount: acceptedPlayers.length }
+    });
 
     const { data } = await supabase.functions.invoke('lucky9-game', {
       body: { action: 'start_round', tableId, gameId: game.id }
@@ -456,16 +493,24 @@ export default function Lucky9TablePage() {
     return () => { supabase.removeChannel(channel); };
   }, [tableId, fetchGame, fetchPlayers]);
 
-  // Handle finished state - show cards and winner animation for 5 seconds
-  // Handle finished state - show cards and winner animation for exactly 5 seconds
+  // Handle showdown/finished state - show cards and winner animation for exactly 5 seconds
   const resultsShownRef = useRef(false);
+  const resultsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   useEffect(() => {
-    if (game?.status === 'finished' && !resultsShownRef.current) {
+    // Trigger on showdown OR finished status - this ensures we catch results
+    const isResultsPhase = game?.status === 'finished' || game?.status === 'showdown';
+    
+    if (isResultsPhase && !resultsShownRef.current) {
       resultsShownRef.current = true;
       
-      // Show winner animation after a short delay
-      const winnerTimeout = setTimeout(() => {
+      // Clear any existing timeout
+      if (resultsTimeoutRef.current) {
+        clearTimeout(resultsTimeoutRef.current);
+      }
+      
+      // Show winner animation after a very short delay to let UI update
+      setTimeout(() => {
         const gameWinners = players.filter(p => p.winnings > 0).map(p => ({
           username: p.username,
           winnings: p.winnings
@@ -475,22 +520,29 @@ export default function Lucky9TablePage() {
           setShowWinnerAnimation(true);
           playSound('win');
         }
-      }, 300);
+      }, 200);
       
-      // Reset round after exactly 5 seconds of showing results
-      const resetTimeout = setTimeout(() => {
+      // Reset round after EXACTLY 5 seconds of showing results
+      resultsTimeoutRef.current = setTimeout(() => {
+        console.log('5 seconds elapsed - resetting round');
         resultsShownRef.current = false;
         resetRound();
       }, 5000);
-      
-      return () => {
-        clearTimeout(winnerTimeout);
-        clearTimeout(resetTimeout);
-      };
-    } else if (game?.status !== 'finished') {
+    }
+    
+    // Reset flag when game is no longer in results phase
+    if (!isResultsPhase && game?.status !== 'betting' && game?.status !== 'player_turns' && game?.status !== 'banker_turn') {
+      // Only reset when truly not in game
+    } else if (!isResultsPhase) {
       resultsShownRef.current = false;
     }
-  }, [game?.status]);
+    
+    return () => {
+      if (resultsTimeoutRef.current && !isResultsPhase) {
+        clearTimeout(resultsTimeoutRef.current);
+      }
+    };
+  }, [game?.status, players]);
 
   const banker = players.find(p => p.isBanker);
   const nonBankerPlayers = players.filter(p => !p.isBanker);
