@@ -679,11 +679,8 @@ serve(async (req) => {
             console.log('Lucky 9 natural win fee recorded:', totalFeesCollected);
           }
 
-          // Mark game as calculating first (will transition to revealing on client)
-          await supabase
-            .from('lucky9_games')
-            .update({ status: 'calculating' })
-            .eq('id', gameId);
+          // Game status is already 'calculating' (set at line 558)
+          // Client will transition to 'revealing' after 1 sec
 
           return new Response(JSON.stringify({ 
             success: true, 

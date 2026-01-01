@@ -554,14 +554,14 @@ export default function Lucky9TablePage() {
     return () => { supabase.removeChannel(channel); };
   }, [tableId, fetchGame, fetchPlayers]);
 
-  // Handle calculating state - 1 sec delay then transition to revealing
+  // Handle calculating state - immediate check and transition to revealing
   const calculatingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastCalculatingGameId = useRef<string | null>(null);
+  const processedGameIds = useRef<Set<string>>(new Set());
   
   useEffect(() => {
     // Only handle if this is a new calculating state for this game
-    if (game?.status === 'calculating' && game?.id && lastCalculatingGameId.current !== game.id) {
-      lastCalculatingGameId.current = game.id;
+    if (game?.status === 'calculating' && game?.id && !processedGameIds.current.has(`calc-${game.id}`)) {
+      processedGameIds.current.add(`calc-${game.id}`);
       console.log('Calculating winner... 1 sec delay for game:', game.id);
       
       // Clear any existing timeout
@@ -572,16 +572,16 @@ export default function Lucky9TablePage() {
       // After 1 second, update to 'revealing' status
       calculatingTimeoutRef.current = setTimeout(async () => {
         console.log('Transitioning to revealing for game:', game.id);
-        await supabase
-          .from('lucky9_games')
-          .update({ status: 'revealing' })
-          .eq('id', game.id);
+        try {
+          await supabase
+            .from('lucky9_games')
+            .update({ status: 'revealing' })
+            .eq('id', game.id)
+            .eq('status', 'calculating'); // Only update if still calculating
+        } catch (err) {
+          console.error('Error transitioning to revealing:', err);
+        }
       }, 1000);
-    }
-    
-    // Reset when game ends or changes
-    if (game?.status === 'finished' || !game) {
-      lastCalculatingGameId.current = null;
     }
     
     return () => {
@@ -593,12 +593,11 @@ export default function Lucky9TablePage() {
 
   // Handle revealing state - show all cards for 5 seconds, then finish
   const revealingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastRevealingGameId = useRef<string | null>(null);
   
   useEffect(() => {
     // Only handle if this is a new revealing state for this game
-    if (game?.status === 'revealing' && game?.id && lastRevealingGameId.current !== game.id) {
-      lastRevealingGameId.current = game.id;
+    if (game?.status === 'revealing' && game?.id && !processedGameIds.current.has(`reveal-${game.id}`)) {
+      processedGameIds.current.add(`reveal-${game.id}`);
       console.log('Revealing all cards for 5 seconds... game:', game.id);
       
       // Play win sound if there are winners
@@ -615,21 +614,24 @@ export default function Lucky9TablePage() {
       // After 5 seconds, mark as finished and reset
       revealingTimeoutRef.current = setTimeout(async () => {
         console.log('5 seconds reveal complete - finishing game:', game.id);
-        await supabase
-          .from('lucky9_games')
-          .update({ status: 'finished' })
-          .eq('id', game.id);
-        
-        // Wait a moment then reset
-        setTimeout(() => {
-          resetRound();
-        }, 500);
+        try {
+          await supabase
+            .from('lucky9_games')
+            .update({ status: 'finished' })
+            .eq('id', game.id)
+            .eq('status', 'revealing'); // Only update if still revealing
+          
+          // Wait a moment then reset
+          setTimeout(() => {
+            resetRound();
+            // Clean up processed game IDs for this game
+            processedGameIds.current.delete(`calc-${game.id}`);
+            processedGameIds.current.delete(`reveal-${game.id}`);
+          }, 500);
+        } catch (err) {
+          console.error('Error finishing game:', err);
+        }
       }, 5000);
-    }
-    
-    // Reset when game ends or changes
-    if (game?.status === 'finished' || !game) {
-      lastRevealingGameId.current = null;
     }
     
     return () => {

@@ -8,20 +8,23 @@ interface Lucky9RevealableCardProps {
   canReveal?: boolean;
   delay?: number;
   small?: boolean;
+  extraSmall?: boolean; // Even smaller for other players' cards
   onReveal?: () => void;
 }
 
 // Unified card back design
-function CardBack({ small = false, canReveal = false }: { small?: boolean; canReveal?: boolean }) {
-  const sizeClasses = small 
-    ? 'w-10 h-14' 
-    : 'w-14 h-20 sm:w-16 sm:h-24';
+function CardBack({ small = false, extraSmall = false, canReveal = false }: { small?: boolean; extraSmall?: boolean; canReveal?: boolean }) {
+  const sizeClasses = extraSmall
+    ? 'w-7 h-10'
+    : small 
+      ? 'w-10 h-14' 
+      : 'w-14 h-20 sm:w-16 sm:h-24';
 
   return (
     <div className={`${sizeClasses} rounded-lg bg-gradient-to-br from-red-700 via-red-800 to-red-900 border-2 border-red-500 shadow-lg flex items-center justify-center relative overflow-hidden ${canReveal ? 'cursor-pointer hover:border-yellow-400 hover:shadow-yellow-400/30' : ''}`}>
-      <div className="absolute inset-1 border border-red-400/30 rounded-md" />
+      <div className="absolute inset-0.5 border border-red-400/30 rounded-md" />
       <div className="w-full h-full flex items-center justify-center">
-        <div className="text-red-400/50 font-bold text-lg">L9</div>
+        <div className={`text-red-400/50 font-bold ${extraSmall ? 'text-[8px]' : 'text-lg'}`}>L9</div>
       </div>
       {canReveal && (
         <motion.div
@@ -40,6 +43,7 @@ export function Lucky9RevealableCard({
   canReveal = false,
   delay = 0, 
   small = false,
+  extraSmall = false,
   onReveal
 }: Lucky9RevealableCardProps) {
   const [isRevealed, setIsRevealed] = useState(false);
@@ -48,9 +52,11 @@ export function Lucky9RevealableCard({
   const { rank, suit } = parseCard(card);
   const suitColor = getSuitColor(suit);
   
-  const sizeClasses = small 
-    ? 'w-10 h-14 text-sm' 
-    : 'w-14 h-20 sm:w-16 sm:h-24 text-lg sm:text-xl';
+  const sizeClasses = extraSmall
+    ? 'w-7 h-10 text-[10px]'
+    : small 
+      ? 'w-10 h-14 text-sm' 
+      : 'w-14 h-20 sm:w-16 sm:h-24 text-lg sm:text-xl';
 
   const showFace = !hidden || isRevealed;
 
@@ -79,7 +85,7 @@ export function Lucky9RevealableCard({
         onClick={handleClick}
         className="relative"
       >
-        <CardBack small={small} canReveal={canReveal} />
+        <CardBack small={small} extraSmall={extraSmall} canReveal={canReveal} />
         {canReveal && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -111,7 +117,7 @@ export function Lucky9RevealableCard({
         />
       )}
       <span className={suitColor}>{rank}</span>
-      <span className={`${suitColor} ${small ? 'text-lg' : 'text-2xl'}`}>{suit}</span>
+      <span className={`${suitColor} ${extraSmall ? 'text-sm' : small ? 'text-lg' : 'text-2xl'}`}>{suit}</span>
     </motion.div>
   );
 }
