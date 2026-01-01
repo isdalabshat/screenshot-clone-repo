@@ -3,9 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Coins, Play, Layers } from 'lucide-react';
+import { ArrowLeft, Coins, Play, Layers, Eye } from 'lucide-react';
 import { CashInOutButtons } from '@/components/CashInOutButtons';
-import { Lucky9Table, Lucky9Game, Lucky9Player } from '@/types/lucky9';
+import { Lucky9Table, Lucky9Game, Lucky9Player, Lucky9Role } from '@/types/lucky9';
 import { Lucky9BetPanel } from '@/components/lucky9/Lucky9BetPanel';
 import { Lucky9ActionButtons } from '@/components/lucky9/Lucky9ActionButtons';
 import { Lucky9GameStatus } from '@/components/lucky9/Lucky9GameStatus';
@@ -14,7 +14,8 @@ import { Lucky9BettingTimer } from '@/components/lucky9/Lucky9BettingTimer';
 import { Lucky9GamblingTable } from '@/components/lucky9/Lucky9GamblingTable';
 import Lucky9Chat from '@/components/lucky9/Lucky9Chat';
 import Lucky9EmojiReactions from '@/components/lucky9/Lucky9EmojiReactions';
-import { Lucky9HiritCard, Lucky9DealSequence } from '@/components/lucky9/Lucky9FloatingCard';
+import { Lucky9HiritCard, Lucky9DealSequence, getPlayerSeatPosition } from '@/components/lucky9/Lucky9FloatingCard';
+import { useLucky9Sounds } from '@/hooks/useLucky9Sounds';
 import { useLucky9Sounds } from '@/hooks/useLucky9Sounds';
 
 interface PlayerEmoji {
@@ -53,6 +54,9 @@ export default function Lucky9TablePage() {
   const [hiritTargetPosition, setHiritTargetPosition] = useState({ x: 0, y: 0 });
   const [showDealSequence, setShowDealSequence] = useState(false);
   const [dealTargets, setDealTargets] = useState<{ x: number; y: number }[]>([]);
+  const [isSpectator, setIsSpectator] = useState(false);
+  const [forceSpectatorMode, setForceSpectatorMode] = useState(false);
+  const [hiritTargetPlayerId, setHiritTargetPlayerId] = useState<string | null>(null);
 
   const hasJoined = useRef(false);
   const prevGameStatus = useRef<string | null>(null);
@@ -253,15 +257,23 @@ export default function Lucky9TablePage() {
         }
       })
       .on('broadcast', { event: 'hirit_card' }, ({ payload }) => {
-        // Show hirit animation to all players except the one who triggered it
+        // Show hirit animation to all players - animate to the correct player/banker
         if (payload.userId !== user?.id) {
           setIsDealing(true);
           setShowHiritAnimation(true);
-          setHiritTargetPosition(payload.targetPosition || { x: window.innerWidth / 2 - 25, y: window.innerHeight - 200 });
-          playSound('deal');
+          setHiritTargetPlayerId(payload.playerId);
+          
+          // Get position of the player/banker who did hirit
+          setTimeout(() => {
+            const pos = getPlayerSeatPosition(payload.playerId, payload.isBanker);
+            setHiritTargetPosition(pos || { x: window.innerWidth / 2 - 25, y: window.innerHeight - 200 });
+          }, 50);
+          
+          playSound('hirit');
           setTimeout(() => {
             setIsDealing(false);
             setShowHiritAnimation(false);
+            setHiritTargetPlayerId(null);
           }, 500);
         }
       })
@@ -295,8 +307,17 @@ export default function Lucky9TablePage() {
     }
   }, [game?.status, game?.currentPlayerPosition, myPlayer, playSound]);
 
-  const joinTable = async (role: 'banker' | 'player') => {
+  const joinTable = async (role: Lucky9Role) => {
     if (!user || !tableId || !profile) return;
+    
+    // Handle spectator mode
+    if (role === 'spectator') {
+      setIsSpectator(true);
+      setShowRoleDialog(false);
+      playSound('spectatorJoin');
+      return;
+    }
+    
     setIsProcessing(true);
     setShowRoleDialog(false);
 
@@ -308,6 +329,10 @@ export default function Lucky9TablePage() {
       // Deduct chips from profile
       await supabase.from('profiles').update({ chips: 0 }).eq('user_id', user.id);
       fetchPlayers();
+    } else if (data?.error?.includes('Insufficient balance')) {
+      // Force spectator mode if balance too low
+      setForceSpectatorMode(true);
+      setShowRoleDialog(true);
     }
     setIsProcessing(false);
   };
@@ -441,20 +466,21 @@ export default function Lucky9TablePage() {
       setShowHiritAnimation(true);
       setHiritTargetPosition({ x: window.innerWidth / 2 - 25, y: window.innerHeight - 200 });
       
-      // Broadcast hirit animation to all players
+      // Broadcast hirit animation to all players with target position
+      const myPos = getPlayerSeatPosition(myPlayer.id, myPlayer.isBanker);
       await supabase.channel(`lucky9-decisions-${tableId}`).send({
         type: 'broadcast',
         event: 'hirit_card',
         payload: { 
           userId: user?.id, 
-          targetPosition: { x: window.innerWidth / 2 - 25, y: window.innerHeight - 200 }
+          playerId: myPlayer.id,
+          isBanker: myPlayer.isBanker,
+          targetPosition: myPos || { x: window.innerWidth / 2 - 25, y: window.innerHeight - 200 }
         }
       });
       
-      setTimeout(() => {
-        setIsDealing(false);
-        setShowHiritAnimation(false);
-      }, 500);
+      // Show animation for self
+      setHiritTargetPosition(myPos || { x: window.innerWidth / 2 - 25, y: window.innerHeight - 200 });
     }
 
     const action = myPlayer.isBanker ? 'banker_action' : 'player_action';
@@ -637,7 +663,7 @@ export default function Lucky9TablePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-950 via-slate-900 to-green-950 pb-28 overflow-x-hidden">
-      <Lucky9RoleDialog open={showRoleDialog} hasBanker={hasBanker} onSelectRole={joinTable} onCancel={() => navigate('/lucky9')} />
+      <Lucky9RoleDialog open={showRoleDialog} hasBanker={hasBanker} onSelectRole={joinTable} onCancel={() => navigate('/lucky9')} forceSpectator={forceSpectatorMode} />
 
       {/* Compact header for mobile */}
       <header className="border-b border-green-500/30 bg-slate-900/90 backdrop-blur sticky top-0 z-20">
@@ -688,6 +714,7 @@ export default function Lucky9TablePage() {
           game={game} 
           currentUserId={user?.id}
           isBankerView={iAmBanker}
+          isSpectator={isSpectator}
           onAcceptBet={handleAcceptBet}
           onRejectBet={handleRejectBet}
           isProcessing={isProcessing}
@@ -695,7 +722,7 @@ export default function Lucky9TablePage() {
           playerEmojis={playerEmojis}
           playerDecisions={playerDecisions}
           isDealing={isDealing}
-          isShowdown={game?.status === 'finished'}
+          isShowdown={game?.status === 'finished' || game?.status === 'revealing'}
         />
 
         {/* Floating card animations - Deal Sequence */}

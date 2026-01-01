@@ -40,4 +40,4 @@ export interface Lucky9Player {
 }
 
 export type Lucky9Action = 'draw' | 'stand';
-export type Lucky9Role = 'banker' | 'player';
+export type Lucky9Role = 'banker' | 'player' | 'spectator';

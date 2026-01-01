@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Lucky9Player, Lucky9Game } from '@/types/lucky9';
 import { Lucky9PlayerSeat } from './Lucky9PlayerSeat';
 import { Lucky9RevealableCard } from './Lucky9RevealableCard';
@@ -7,7 +7,7 @@ import { Lucky9CardDeck } from './Lucky9CardDeck';
 import { calculateLucky9Value, isNatural9 } from '@/lib/lucky9/deck';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
-import { Crown, Sparkles, Star, AlertTriangle } from 'lucide-react';
+import { Crown, Sparkles, Star, AlertTriangle, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface PlayerEmojiState {
@@ -24,6 +24,7 @@ interface Lucky9GamblingTableProps {
   game: Lucky9Game | null;
   currentUserId: string | undefined;
   isBankerView?: boolean;
+  isSpectator?: boolean;
   onAcceptBet?: (playerId: string) => void;
   onRejectBet?: (playerId: string) => void;
   isProcessing?: boolean;
@@ -32,6 +33,7 @@ interface Lucky9GamblingTableProps {
   playerDecisions?: PlayerDecisionState;
   isDealing?: boolean;
   isShowdown?: boolean;
+  onGetPlayerSeatPosition?: (playerId: string) => { x: number; y: number } | null;
 }
 
 export function Lucky9GamblingTable({ 
@@ -40,6 +42,7 @@ export function Lucky9GamblingTable({
   game, 
   currentUserId,
   isBankerView,
+  isSpectator = false,
   onAcceptBet,
   onRejectBet,
   isProcessing,
@@ -47,7 +50,8 @@ export function Lucky9GamblingTable({
   playerEmojis = {},
   playerDecisions = {},
   isDealing = false,
-  isShowdown = false
+  isShowdown = false,
+  onGetPlayerSeatPosition
 }: Lucky9GamblingTableProps) {
   const nonBankerPlayers = players.filter(p => !p.isBanker);
   
@@ -84,8 +88,45 @@ export function Lucky9GamblingTable({
   // Check if banker is winner
   const bankerIsWinner = isGameFinished && (banker?.result === 'win' || banker?.result === 'natural_win');
 
+  // Reorder players so current user's seat is in the center
+  const orderedPlayers = useMemo(() => {
+    if (!currentUserId || isSpectator) return nonBankerPlayers;
+    
+    const myIndex = nonBankerPlayers.findIndex(p => p.userId === currentUserId);
+    if (myIndex === -1) return nonBankerPlayers;
+    
+    // Rotate array so current user is in the middle
+    const totalPlayers = nonBankerPlayers.length;
+    const middleIndex = Math.floor(totalPlayers / 2);
+    const shift = myIndex - middleIndex;
+    
+    const reordered = [...nonBankerPlayers];
+    if (shift > 0) {
+      // Move first 'shift' elements to end
+      return [...reordered.slice(shift), ...reordered.slice(0, shift)];
+    } else if (shift < 0) {
+      // Move last '-shift' elements to beginning
+      return [...reordered.slice(shift), ...reordered.slice(0, reordered.length + shift)];
+    }
+    return reordered;
+  }, [nonBankerPlayers, currentUserId, isSpectator]);
+
   return (
     <div className="relative w-full max-w-md mx-auto px-1">
+      {/* Spectator indicator */}
+      {isSpectator && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-2 mx-1"
+        >
+          <div className="bg-gradient-to-r from-slate-800 to-slate-700 border border-blue-500/50 rounded-lg px-3 py-2 flex items-center justify-center gap-2">
+            <Eye className="h-4 w-4 text-blue-400" />
+            <span className="text-blue-300 text-xs font-medium">Spectator Mode</span>
+          </div>
+        </motion.div>
+      )}
+
       {/* Banker's Total Exposure Indicator - During Betting Phase */}
       {isBettingPhase && isCurrentUserBanker && totalExposure > 0 && (
         <motion.div
@@ -130,6 +171,7 @@ export function Lucky9GamblingTable({
                     ? 'border-red-400/50'
                     : 'border-amber-600/40'
             }`}
+            data-banker-seat="true"
           >
             {/* Background decoration */}
             <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-amber-500/10 to-transparent rounded-full blur-2xl" />
@@ -343,10 +385,10 @@ export function Lucky9GamblingTable({
         </AnimatePresence>
       </div>
 
-      {/* Player positions - Mobile optimized */}
+      {/* Player positions - Mobile optimized with centered user perspective */}
       <div className="mt-2 px-1">
         <div className="flex flex-wrap justify-center gap-1.5">
-          {nonBankerPlayers.map((player, index) => {
+          {orderedPlayers.map((player, index) => {
             const isCurrentTurn = game?.status === 'player_turns' && game.currentPlayerPosition === player.position;
             const isMe = player.userId === currentUserId;
             // MANDATORY REVEAL: All cards shown when game finished, otherwise only player sees their own
@@ -356,21 +398,25 @@ export function Lucky9GamblingTable({
             return (
               <motion.div
                 key={player.id}
+                data-player-seat={player.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
+                className={cn(
+                  isMe && !isSpectator && 'ring-2 ring-blue-400/50 rounded-xl'
+                )}
               >
                 <Lucky9PlayerSeat
                   player={player}
                   isCurrentTurn={isCurrentTurn}
                   showCards={shouldShowCards}
                   gameStatus={game?.status || 'betting'}
-                  isMe={isMe}
+                  isMe={isMe && !isSpectator}
                   isBankerView={isBankerView}
                   onAcceptBet={onAcceptBet}
                   onRejectBet={onRejectBet}
                   isProcessing={isProcessing}
-                  canRevealCards={isMe && isCurrentTurn && !player.hasActed}
+                  canRevealCards={isMe && !isSpectator && isCurrentTurn && !player.hasActed}
                   onCardReveal={(cardIndex) => onCardReveal?.(player.id, cardIndex)}
                   currentEmoji={playerEmojis[player.userId] || null}
                   currentDecision={playerDecisions[player.userId] || null}

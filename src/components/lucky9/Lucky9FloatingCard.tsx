@@ -165,6 +165,7 @@ interface Lucky9HiritCardProps {
   isAnimating: boolean;
   deckPosition: { x: number; y: number };
   targetPosition: { x: number; y: number };
+  targetPlayerId?: string;
   onComplete?: () => void;
 }
 
@@ -172,6 +173,7 @@ export function Lucky9HiritCard({
   isAnimating, 
   deckPosition, 
   targetPosition, 
+  targetPlayerId,
   onComplete 
 }: Lucky9HiritCardProps) {
   return (
@@ -208,4 +210,22 @@ export function Lucky9HiritCard({
       )}
     </AnimatePresence>
   );
+}
+
+// Helper function to get seat position by player ID
+export function getPlayerSeatPosition(playerId: string, isBanker: boolean = false): { x: number; y: number } | null {
+  if (isBanker) {
+    const bankerSeat = document.querySelector('[data-banker-seat="true"]');
+    if (bankerSeat) {
+      const rect = bankerSeat.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2 - 25, y: rect.top + rect.height / 2 - 35 };
+    }
+  } else {
+    const playerSeat = document.querySelector(`[data-player-seat="${playerId}"]`);
+    if (playerSeat) {
+      const rect = playerSeat.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2 - 25, y: rect.top + rect.height / 2 - 35 };
+    }
+  }
+  return null;
 }
