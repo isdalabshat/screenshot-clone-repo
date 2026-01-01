@@ -269,9 +269,10 @@ export function useLucky9Sounds() {
         break;
         
       case 'clockTick':
-        // Clock ticking sound - crisp mechanical tick
-        playTone(1200, 0.03, 'square', 0.12);
-        setTimeout(() => playTone(800, 0.02, 'square', 0.08), 15);
+        // Clock ticking sound - deep mechanical clock tick like a grandfather clock
+        playTone(180, 0.06, 'triangle', 0.2);
+        setTimeout(() => playTone(120, 0.04, 'sine', 0.15), 30);
+        setTimeout(() => playNoise(0.02, 0.06), 50);
         break;
     }
   }, [playTone, playNoise, playChord]);
