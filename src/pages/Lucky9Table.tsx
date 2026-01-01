@@ -53,9 +53,9 @@ export default function Lucky9TablePage() {
   const [playerEmojis, setPlayerEmojis] = useState<PlayerEmojiState>({});
   const [playerDecisions, setPlayerDecisions] = useState<PlayerDecisionState>({});
   const [isDealing, setIsDealing] = useState(false);
-  const [isShowdown, setIsShowdown] = useState(false);
   const [showHiritAnimation, setShowHiritAnimation] = useState(false);
   const [showDealSequence, setShowDealSequence] = useState(false);
+  const [dealTargets, setDealTargets] = useState<{ x: number; y: number }[]>([]);
 
   const hasJoined = useRef(false);
   const prevGameStatus = useRef<string | null>(null);
@@ -247,21 +247,35 @@ export default function Lucky9TablePage() {
             setIsDealing(true);
             setShowDealSequence(true);
             playSound('shuffle');
+            
+            // Calculate deal targets based on player positions
+            const acceptedPlayers = players.filter(p => p.betAccepted && !p.isBanker);
+            const targets: { x: number; y: number }[] = [];
+            
+            // Add targets for each accepted player
+            acceptedPlayers.forEach((_, index) => {
+              const baseX = window.innerWidth / 2 - 100 + (index * 60);
+              const baseY = window.innerHeight - 180;
+              targets.push({ x: baseX, y: baseY });
+            });
+            
+            // Add banker target
+            targets.push({ x: window.innerWidth / 2 - 25, y: 120 });
+            
+            setDealTargets(targets);
+            
             setTimeout(() => {
-              playDealSequence(players.filter(p => p.betAccepted).length * 2);
+              playDealSequence(acceptedPlayers.length * 2 + 2);
               setTimeout(() => {
                 setIsDealing(false);
                 setShowDealSequence(false);
-              }, 1000);
+                setDealTargets([]);
+              }, 1200);
             }, 300);
           }
           break;
-        case 'showdown':
-          setIsShowdown(true);
-          playSound('showdown');
-          break;
         case 'finished':
-          // Keep showdown visible, show winner animation after a delay
+          // Show winner animation after showing all cards
           const gameWinners = players.filter(p => p.winnings > 0);
           if (gameWinners.length > 0) {
             playSound('win');
@@ -271,7 +285,7 @@ export default function Lucky9TablePage() {
                 winnings: p.winnings
               })));
               setShowWinnerAnimation(true);
-            }, 1500);
+            }, 1000);
           }
           break;
       }
@@ -407,6 +421,18 @@ export default function Lucky9TablePage() {
     setShowDealSequence(true);
     playSound('shuffle');
 
+    // Calculate deal targets
+    const acceptedPlayers = players.filter(p => p.betAccepted && !p.isBanker);
+    const targets: { x: number; y: number }[] = [];
+    
+    acceptedPlayers.forEach((_, index) => {
+      const baseX = window.innerWidth / 2 - 100 + (index * 60);
+      const baseY = window.innerHeight - 180;
+      targets.push({ x: baseX, y: baseY });
+    });
+    targets.push({ x: window.innerWidth / 2 - 25, y: 120 });
+    setDealTargets(targets);
+
     const { data, error } = await supabase.functions.invoke('lucky9-game', {
       body: { action: 'start_round', tableId, gameId: game.id }
     });
@@ -415,14 +441,14 @@ export default function Lucky9TablePage() {
       toast({ title: 'Error', description: data?.error || error?.message, variant: 'destructive' });
     } else if (data?.remainingDeck) {
       setRemainingDeck(data.remainingDeck);
-      // Play deal sequence
       setTimeout(() => {
-        playDealSequence(players.filter(p => p.betAccepted).length * 2 + 2);
+        playDealSequence(acceptedPlayers.length * 2 + 2);
       }, 300);
     }
     setTimeout(() => {
       setIsDealing(false);
       setShowDealSequence(false);
+      setDealTargets([]);
     }, 1500);
     setIsProcessing(false);
   };
@@ -464,8 +490,6 @@ export default function Lucky9TablePage() {
 
   const resetRound = async () => {
     if (!tableId) return;
-    // Clear showdown state
-    setIsShowdown(false);
     setShowWinnerAnimation(false);
     setWinners([]);
     await supabase.functions.invoke('lucky9-game', { body: { action: 'reset_round', tableId } });
@@ -503,17 +527,9 @@ export default function Lucky9TablePage() {
     return () => { supabase.removeChannel(channel); };
   }, [tableId, fetchGame, fetchPlayers]);
 
-  // Handle showdown and finished states - showdown stays until new round
+  // Handle finished state - show cards and winner animation
   useEffect(() => {
-    if (game?.status === 'showdown') {
-      setIsShowdown(true);
-      playSound('showdown');
-    }
-    
     if (game?.status === 'finished') {
-      // Keep showdown visible until reset
-      setIsShowdown(true);
-      
       // Show winner animation after a short delay
       const winnerTimeout = setTimeout(() => {
         const gameWinners = players.filter(p => p.winnings > 0).map(p => ({
@@ -527,18 +543,13 @@ export default function Lucky9TablePage() {
         }
       }, 1000);
       
-      // Reset round after showing results - extend time for showdown display
-      const resetTimeout = setTimeout(resetRound, 6000);
+      // Reset round after showing results
+      const resetTimeout = setTimeout(resetRound, 5000);
       
       return () => {
         clearTimeout(winnerTimeout);
         clearTimeout(resetTimeout);
       };
-    }
-    
-    // Reset showdown when game resets (no game or betting phase)
-    if (!game || game.status === 'betting') {
-      setIsShowdown(false);
     }
   }, [game?.status, players, playSound, showWinnerAnimation]);
 
@@ -646,10 +657,23 @@ export default function Lucky9TablePage() {
           playerEmojis={playerEmojis}
           playerDecisions={playerDecisions}
           isDealing={isDealing}
-          isShowdown={isShowdown}
+          isShowdown={game?.status === 'finished'}
         />
 
-        {/* Floating card animations */}
+        {/* Floating card animations - Deal Sequence */}
+        {showDealSequence && dealTargets.length > 0 && (
+          <Lucky9DealSequence
+            isDealing={showDealSequence}
+            deckPosition={{ x: window.innerWidth / 2 - 25, y: window.innerHeight / 2 - 50 }}
+            targets={dealTargets}
+            onComplete={() => {
+              setShowDealSequence(false);
+              setDealTargets([]);
+            }}
+          />
+        )}
+
+        {/* Hirit card animation */}
         <Lucky9HiritCard
           isAnimating={showHiritAnimation}
           deckPosition={{ x: window.innerWidth / 2 - 25, y: window.innerHeight / 2 - 50 }}
