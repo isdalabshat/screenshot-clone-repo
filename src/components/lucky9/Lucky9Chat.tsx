@@ -27,25 +27,50 @@ export default function Lucky9Chat({ tableId, userId, username }: Lucky9ChatProp
   const [isOpen, setIsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   useEffect(() => {
-    fetchMessages();
+    // Create channel only once per tableId
+    const channelName = `lucky9-global-chat-${tableId}`;
+    
+    // Clean up existing channel if any
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+    }
 
-    const channel = supabase
-      .channel(`lucky9-chat-${tableId}`)
+    const channel = supabase.channel(channelName);
+    channelRef.current = channel;
+
+    channel
       .on('broadcast', { event: 'chat_message' }, ({ payload }) => {
         const newMsg = payload as ChatMessage;
-        setMessages(prev => [...prev, newMsg]);
+        setMessages(prev => {
+          // Avoid duplicate messages
+          if (prev.some(m => m.id === newMsg.id)) return prev;
+          return [...prev, newMsg];
+        });
         if (!isOpen && newMsg.user_id !== userId) {
           setUnreadCount(prev => prev + 1);
         }
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Lucky9 chat channel status:', status);
+      });
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
     };
-  }, [tableId, isOpen, userId]);
+  }, [tableId]); // Only depend on tableId, not isOpen or userId
+
+  // Update unread count when chat opens
+  useEffect(() => {
+    if (isOpen) {
+      setUnreadCount(0);
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -53,23 +78,12 @@ export default function Lucky9Chat({ tableId, userId, username }: Lucky9ChatProp
     }
   }, [messages]);
 
-  useEffect(() => {
-    if (isOpen) {
-      setUnreadCount(0);
-    }
-  }, [isOpen]);
-
-  const fetchMessages = async () => {
-    // Lucky9 chat uses broadcast only, no persistence needed
-    setMessages([]);
-  };
-
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !userId || !username) return;
+    if (!newMessage.trim() || !userId || !username || !channelRef.current) return;
 
     const msg: ChatMessage = {
-      id: `${Date.now()}-${Math.random()}`,
+      id: `${Date.now()}-${userId}-${Math.random().toString(36).substr(2, 9)}`,
       user_id: userId,
       username: username,
       message: newMessage.trim(),
@@ -80,12 +94,16 @@ export default function Lucky9Chat({ tableId, userId, username }: Lucky9ChatProp
     setMessages(prev => [...prev, msg]);
     setNewMessage('');
 
-    // Broadcast to others
-    await supabase.channel(`lucky9-chat-${tableId}`).send({
-      type: 'broadcast',
-      event: 'chat_message',
-      payload: msg
-    });
+    // Broadcast to all subscribers (including self, but we filter duplicates)
+    try {
+      await channelRef.current.send({
+        type: 'broadcast',
+        event: 'chat_message',
+        payload: msg
+      });
+    } catch (error) {
+      console.error('Failed to send message:', error);
+    }
   };
 
   const formatTime = (dateString: string) => {
@@ -95,7 +113,7 @@ export default function Lucky9Chat({ tableId, userId, username }: Lucky9ChatProp
 
   return (
     <>
-      {/* Chat Toggle Button - positioned above bottom panels */}
+      {/* Chat Toggle Button */}
       <Button
         variant="outline"
         size="icon"
@@ -118,7 +136,7 @@ export default function Lucky9Chat({ tableId, userId, username }: Lucky9ChatProp
         )}
       </Button>
 
-      {/* Chat Panel - positioned above bottom panels */}
+      {/* Chat Panel */}
       <AnimatePresence>
         {isOpen && (
           <motion.div

@@ -36,6 +36,23 @@ interface Lucky9GamblingTableProps {
   onGetPlayerSeatPosition?: (playerId: string) => { x: number; y: number } | null;
 }
 
+// Position styles for 5 player seats around the table (poker-style layout)
+// Position 0 = bottom center (current user), positions arranged clockwise
+const seatPositionStyles: Record<number, string> = {
+  0: 'bottom-[2%] left-1/2 -translate-x-1/2',     // Bottom center - current user
+  1: 'bottom-[20%] left-[5%]',                     // Bottom left
+  2: 'top-[35%] left-[2%]',                        // Left side
+  3: 'top-[35%] right-[2%]',                       // Right side
+  4: 'bottom-[20%] right-[5%]',                    // Bottom right
+};
+
+// Get display position based on user's actual position (rotate so user is always at bottom)
+const getRotatedPosition = (actualPosition: number, userPosition: number, totalPlayers: number): number => {
+  if (totalPlayers === 0) return actualPosition;
+  const offset = userPosition - 1; // Player positions start at 1
+  return ((actualPosition - 1 - offset + totalPlayers) % totalPlayers);
+};
+
 export function Lucky9GamblingTable({ 
   players, 
   banker, 
@@ -88,31 +105,25 @@ export function Lucky9GamblingTable({
   // Check if banker is winner
   const bankerIsWinner = isGameFinished && (banker?.result === 'win' || banker?.result === 'natural_win');
 
-  // Reorder players so current user's seat is in the center
-  const orderedPlayers = useMemo(() => {
-    if (!currentUserId || isSpectator) return nonBankerPlayers;
-    
-    const myIndex = nonBankerPlayers.findIndex(p => p.userId === currentUserId);
-    if (myIndex === -1) return nonBankerPlayers;
-    
-    // Rotate array so current user is in the middle
-    const totalPlayers = nonBankerPlayers.length;
-    const middleIndex = Math.floor(totalPlayers / 2);
-    const shift = myIndex - middleIndex;
-    
-    const reordered = [...nonBankerPlayers];
-    if (shift > 0) {
-      // Move first 'shift' elements to end
-      return [...reordered.slice(shift), ...reordered.slice(0, shift)];
-    } else if (shift < 0) {
-      // Move last '-shift' elements to beginning
-      return [...reordered.slice(shift), ...reordered.slice(0, reordered.length + shift)];
+  // Get current user's position for rotation
+  const currentUserPlayer = nonBankerPlayers.find(p => p.userId === currentUserId);
+  const userPosition = currentUserPlayer?.position ?? 1;
+
+  // Create seat array with rotated positions
+  const seats: (Lucky9Player | undefined)[] = Array(5).fill(undefined);
+  nonBankerPlayers.forEach(player => {
+    if (player.position >= 1 && player.position <= 5) {
+      const displayPosition = isSpectator 
+        ? player.position - 1  // Spectators see players in original positions
+        : getRotatedPosition(player.position, userPosition, 5);
+      if (displayPosition >= 0 && displayPosition < 5) {
+        seats[displayPosition] = player;
+      }
     }
-    return reordered;
-  }, [nonBankerPlayers, currentUserId, isSpectator]);
+  });
 
   return (
-    <div className="relative w-full max-w-md mx-auto px-2">
+    <div className="relative w-full max-w-lg mx-auto px-2">
       {/* Spectator indicator */}
       {isSpectator && (
         <motion.div
@@ -156,198 +167,33 @@ export function Lucky9GamblingTable({
         </motion.div>
       )}
 
-      {/* Banker section - Premium mobile-optimized design */}
-      <div className="mb-2 px-1">
-        {banker ? (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className={`relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 backdrop-blur rounded-xl p-2 border-2 transition-all ${
-              isBankerTurn 
-                ? 'border-yellow-400 shadow-md shadow-yellow-500/30' 
-                : bankerIsWinner
-                  ? 'border-green-400 shadow-md shadow-green-500/30'
-                  : isGameFinished && banker.result === 'lose'
-                    ? 'border-red-400/50'
-                    : 'border-amber-600/40'
-            }`}
-            data-banker-seat="true"
-          >
-            {/* Background decoration */}
-            <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-amber-500/10 to-transparent rounded-full blur-2xl" />
-            
-            {/* Banker decision indicator - OUTSIDE panel */}
-            <AnimatePresence>
-              {showBankerDecision && bankerDecision && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.5, y: -10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.5, y: -10 }}
-                  className="absolute -top-6 left-1/2 -translate-x-1/2 z-40"
-                >
-                  <motion.div
-                    animate={{ scale: [1, 1.1, 1] }}
-                    transition={{ repeat: 2, duration: 0.3 }}
-                    className={cn(
-                      'px-3 py-1 rounded-full text-xs font-bold uppercase whitespace-nowrap shadow-lg',
-                      bankerDecision === 'hirit' 
-                        ? 'bg-gradient-to-r from-green-500 to-emerald-400 text-white' 
-                        : 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black'
-                    )}
-                  >
-                    {bankerDecision === 'hirit' ? '🎴 Hirit!' : '✋ Good!'}
-                  </motion.div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-            
-            <div className="relative flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0 flex-shrink">
-                <div className="relative flex-shrink-0">
-                  <Lucky9PlayerAvatar
-                    username={banker.username}
-                    isBanker
-                    isMe={isCurrentUserBanker}
-                    size="sm"
-                    currentEmoji={playerEmojis[banker.userId] || null}
-                  />
-                  <motion.div 
-                    className="absolute -top-0.5 -right-0.5"
-                    animate={{ rotate: [0, 10, -10, 0] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                  >
-                    <Crown className="h-3 w-3 text-amber-400 fill-amber-400" />
-                  </motion.div>
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1">
-                    <span className="font-bold text-amber-400 text-xs truncate max-w-[60px]">{banker.username}</span>
-                    {isCurrentUserBanker && (
-                      <Badge className="bg-purple-500/80 text-[7px] px-1 py-0">YOU</Badge>
-                    )}
-                  </div>
-                  <span className="text-yellow-400 font-mono text-[10px] font-bold">₱{banker.stack.toLocaleString()}</span>
-                </div>
-                {/* Banker win indicator - outside beside avatar */}
-                <AnimatePresence>
-                  {bankerIsWinner && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0, x: -10 }}
-                      animate={{ opacity: 1, scale: 1, x: 0 }}
-                      exit={{ opacity: 0, scale: 0 }}
-                    >
-                      <motion.div
-                        animate={{ scale: [1, 1.15, 1] }}
-                        transition={{ repeat: Infinity, duration: 0.8 }}
-                        className={cn(
-                          'px-1.5 py-0.5 rounded-full text-[7px] font-bold shadow-lg whitespace-nowrap',
-                          bankerIsNatural
-                            ? 'bg-gradient-to-r from-amber-400 to-yellow-300 text-black'
-                            : 'bg-gradient-to-r from-green-500 to-emerald-400 text-white'
-                        )}
-                      >
-                        {bankerIsNatural ? '🏆9!' : '🎉WIN'}
-                      </motion.div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-
-              {/* Banker Cards - MANDATORY: Always visible when game finished */}
-              {bankerCards.length > 0 && (
-                <div className="flex gap-1 items-center flex-shrink-0">
-                  {bankerCards.map((card, i) => {
-                    const shouldShow = showAllCards || isCurrentUserBanker;
-                    const canReveal = isCurrentUserBanker && isBankerTurn && !banker?.hasActed;
-                    return (
-                      <Lucky9RevealableCard 
-                        key={i} 
-                        card={card} 
-                        hidden={!shouldShow}
-                        canReveal={canReveal}
-                        delay={i * 0.1} 
-                        small
-                        onReveal={() => onCardReveal?.(banker?.id || '', i)}
-                      />
-                    );
-                  })}
-                  {(showAllCards || isCurrentUserBanker) && bankerValue !== null && (
-                    <div className="ml-1 text-center">
-                      {bankerIsNatural && (
-                        <motion.div
-                          initial={{ scale: 0 }}
-                          animate={{ scale: [1, 1.1, 1] }}
-                          transition={{ repeat: Infinity, duration: 1.5 }}
-                        >
-                          <Badge className="bg-gradient-to-r from-amber-500 to-yellow-400 text-black text-[6px] flex items-center gap-0.5 shadow-lg px-1">
-                            <Sparkles className="h-2 w-2" />
-                            9!
-                          </Badge>
-                        </motion.div>
-                      )}
-                      <motion.div 
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        className={`text-lg font-bold ${bankerValue === 9 ? 'text-amber-400' : 'text-white'}`}
-                      >
-                        {bankerValue}
-                      </motion.div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Banker result with animation */}
-              {banker.result && isGameFinished && (
-                <motion.div 
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  className="text-right flex-shrink-0"
-                >
-                  <Badge className={`text-[8px] font-bold ${
-                    banker.result === 'win' || banker.result === 'natural_win' ? 'bg-gradient-to-r from-green-500 to-emerald-400' : 
-                    banker.result === 'lose' ? 'bg-gradient-to-r from-red-500 to-red-400' : 
-                    'bg-slate-500'
-                  }`}>
-                    {banker.result === 'win' || banker.result === 'natural_win' ? '🏆' : banker.result === 'lose' ? '💔' : '↔'}
-                  </Badge>
-                  {banker.winnings !== 0 && (
-                    <motion.div 
-                      initial={{ y: 10, opacity: 0 }}
-                      animate={{ y: 0, opacity: 1 }}
-                      className={`text-[10px] font-bold ${banker.winnings > 0 ? 'text-green-400' : 'text-red-400'}`}
-                    >
-                      {banker.winnings > 0 ? '+' : ''}₱{banker.winnings.toLocaleString()}
-                    </motion.div>
-                  )}
-                </motion.div>
-              )}
-            </div>
-          </motion.div>
-        ) : (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="bg-slate-900/50 rounded-xl p-3 border-2 border-dashed border-amber-500/30 text-center"
-          >
-            <div className="flex items-center justify-center gap-2 text-amber-400/60">
-              <Crown className="h-4 w-4" />
-              <span className="text-xs font-medium">Waiting for Banker...</span>
-            </div>
-          </motion.div>
-        )}
-      </div>
-
-      {/* Table felt - Landscape rectangle for mobile */}
-      <div className="relative w-full aspect-[16/9] max-w-[320px] mx-auto">
+      {/* Main Table Container - Poker style oval table */}
+      <div className="relative w-full aspect-[4/3] max-w-[400px] mx-auto">
+        {/* Ambient glow effect */}
+        <div className="absolute inset-0 bg-gradient-radial from-green-900/20 via-transparent to-transparent pointer-events-none" />
+        
+        {/* Table Surface with Premium Felt - Oval shape like poker */}
         <motion.div 
-          initial={{ scale: 0.9, opacity: 0 }}
+          initial={{ scale: 0.95, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className="absolute inset-0 rounded-2xl bg-gradient-to-b from-green-600 via-green-700 to-green-900 border-4 border-amber-700 shadow-xl shadow-black/60"
+          className="absolute inset-6 sm:inset-8 rounded-[50%/45%] border-[10px] sm:border-[12px] border-amber-900/95 shadow-2xl"
+          style={{
+            boxShadow: `
+              inset 0 0 80px rgba(0,0,0,0.6), 
+              0 0 50px rgba(0,0,0,0.7), 
+              inset 0 0 30px rgba(34, 197, 94, 0.15),
+              0 6px 24px rgba(0,0,0,0.5)
+            `,
+            background: 'radial-gradient(ellipse at 50% 30%, #1a5d3a 0%, #0f4228 40%, #0a2e1c 100%)'
+          }}
         >
-          {/* Inner border decorations */}
-          <div className="absolute inset-2 rounded-xl border border-amber-600/30" />
-          <div className="absolute inset-4 rounded-lg border border-green-500/30" />
+          {/* Table Rail - Multi-layer wood effect */}
+          <div className="absolute -inset-[10px] sm:-inset-[12px] rounded-[50%/45%] border-4 border-amber-800/60 pointer-events-none" />
+          <div className="absolute -inset-[6px] sm:-inset-[8px] rounded-[50%/45%] border-2 border-amber-600/30 pointer-events-none" />
+          <div className="absolute -inset-[3px] sm:-inset-[4px] rounded-[50%/45%] border border-amber-500/10 pointer-events-none" />
+          
+          {/* Felt texture overlay */}
+          <div className="absolute inset-0 rounded-[50%/45%] opacity-40 bg-[radial-gradient(circle_at_50%_30%,transparent_0%,rgba(0,0,0,0.4)_100%)]" />
           
           {/* Center logo with glow */}
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
@@ -355,16 +201,16 @@ export function Lucky9GamblingTable({
               animate={{ opacity: [0.15, 0.25, 0.15] }}
               transition={{ duration: 3, repeat: Infinity }}
             >
-              <div className="text-green-400/30 text-base font-bold tracking-wider">LUCKY</div>
-              <div className="text-green-400/40 text-2xl font-black">9</div>
+              <div className="text-green-400/30 text-sm font-bold tracking-wider">LUCKY</div>
+              <div className="text-green-400/40 text-3xl font-black">9</div>
             </motion.div>
           </div>
           
           {/* Ambient light effect */}
-          <div className="absolute inset-0 rounded-2xl bg-gradient-to-t from-transparent via-white/5 to-white/10 pointer-events-none" />
+          <div className="absolute inset-0 rounded-[50%/45%] bg-gradient-to-t from-transparent via-white/5 to-white/10 pointer-events-none" />
         </motion.div>
 
-        {/* Card Deck with glow */}
+        {/* Card Deck at center */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-5">
           <motion.div
             animate={{ 
@@ -404,58 +250,247 @@ export function Lucky9GamblingTable({
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
 
-      {/* Player positions - Mobile optimized with centered user perspective */}
-      <div className="mt-3 px-1">
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-w-[340px] mx-auto">
-          {orderedPlayers.map((player, index) => {
-            const isCurrentTurn = game?.status === 'player_turns' && game.currentPlayerPosition === player.position;
-            const isMe = player.userId === currentUserId;
-            // MANDATORY REVEAL: All cards shown when game finished, otherwise only player sees their own
-            const shouldShowCards = isMe || showAllCards;
-            const playerIsWinner = isGameFinished && (player.result === 'win' || player.result === 'natural_win');
-            
-            return (
-              <motion.div
-                key={player.id}
-                data-player-seat={player.id}
-                data-player-user-id={player.userId}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className={cn(
-                  isMe && !isSpectator && 'ring-2 ring-blue-400/50 rounded-xl'
+        {/* Banker at top center */}
+        <div className="absolute top-[2%] left-1/2 -translate-x-1/2 z-10">
+          {banker ? (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={cn(
+                "relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 backdrop-blur rounded-xl p-2 border-2 transition-all min-w-[120px]",
+                isBankerTurn 
+                  ? 'border-yellow-400 shadow-md shadow-yellow-500/30' 
+                  : bankerIsWinner
+                    ? 'border-green-400 shadow-md shadow-green-500/30'
+                    : isGameFinished && banker.result === 'lose'
+                      ? 'border-red-400/50'
+                      : 'border-amber-600/40'
+              )}
+              data-banker-seat="true"
+            >
+              {/* Background decoration */}
+              <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-amber-500/10 to-transparent rounded-full blur-xl" />
+              
+              {/* Banker decision indicator */}
+              <AnimatePresence>
+                {showBankerDecision && bankerDecision && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.5, y: -10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.5, y: -10 }}
+                    className="absolute -top-6 left-1/2 -translate-x-1/2 z-40"
+                  >
+                    <motion.div
+                      animate={{ scale: [1, 1.1, 1] }}
+                      transition={{ repeat: 2, duration: 0.3 }}
+                      className={cn(
+                        'px-3 py-1 rounded-full text-xs font-bold uppercase whitespace-nowrap shadow-lg',
+                        bankerDecision === 'hirit' 
+                          ? 'bg-gradient-to-r from-green-500 to-emerald-400 text-white' 
+                          : 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black'
+                      )}
+                    >
+                      {bankerDecision === 'hirit' ? '🎴 Hirit!' : '✋ Good!'}
+                    </motion.div>
+                  </motion.div>
                 )}
-              >
-                <Lucky9PlayerSeat
-                  player={player}
-                  isCurrentTurn={isCurrentTurn}
-                  showCards={shouldShowCards}
-                  gameStatus={game?.status || 'betting'}
-                  isMe={isMe && !isSpectator}
-                  isBankerView={isBankerView}
-                  onAcceptBet={onAcceptBet}
-                  onRejectBet={onRejectBet}
-                  isProcessing={isProcessing}
-                  canRevealCards={isMe && !isSpectator && isCurrentTurn && !player.hasActed}
-                  onCardReveal={(cardIndex) => onCardReveal?.(player.id, cardIndex)}
-                  currentEmoji={playerEmojis[player.userId] || null}
-                  currentDecision={playerDecisions[player.userId] || null}
-                  showNaturalBadge={player.isNatural}
-                  isWinner={playerIsWinner}
-                />
-              </motion.div>
-            );
-          })}
+              </AnimatePresence>
+              
+              <div className="relative flex flex-col items-center gap-1">
+                {/* Avatar and info */}
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-shrink-0">
+                    <Lucky9PlayerAvatar
+                      username={banker.username}
+                      isBanker
+                      isMe={isCurrentUserBanker}
+                      size="sm"
+                      currentEmoji={playerEmojis[banker.userId] || null}
+                    />
+                    <motion.div 
+                      className="absolute -top-0.5 -right-0.5"
+                      animate={{ rotate: [0, 10, -10, 0] }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                    >
+                      <Crown className="h-3 w-3 text-amber-400 fill-amber-400" />
+                    </motion.div>
+                  </div>
+                  <div className="min-w-0 text-center">
+                    <div className="flex items-center gap-1 justify-center">
+                      <span className="font-bold text-amber-400 text-xs truncate max-w-[50px]">{banker.username}</span>
+                      {isCurrentUserBanker && (
+                        <Badge className="bg-purple-500/80 text-[7px] px-1 py-0">YOU</Badge>
+                      )}
+                    </div>
+                    <span className="text-yellow-400 font-mono text-[10px] font-bold">₱{banker.stack.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                {/* Banker Cards */}
+                {bankerCards.length > 0 && (
+                  <div className="flex gap-1 items-center justify-center">
+                    {bankerCards.map((card, i) => {
+                      const shouldShow = showAllCards || isCurrentUserBanker;
+                      const canReveal = isCurrentUserBanker && isBankerTurn && !banker?.hasActed;
+                      return (
+                        <Lucky9RevealableCard 
+                          key={i} 
+                          card={card} 
+                          hidden={!shouldShow}
+                          canReveal={canReveal}
+                          delay={i * 0.1} 
+                          small
+                          onReveal={() => onCardReveal?.(banker?.id || '', i)}
+                        />
+                      );
+                    })}
+                    {(showAllCards || isCurrentUserBanker) && bankerValue !== null && (
+                      <div className="ml-1 text-center">
+                        {bankerIsNatural && (
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: [1, 1.1, 1] }}
+                            transition={{ repeat: Infinity, duration: 1.5 }}
+                          >
+                            <Badge className="bg-gradient-to-r from-amber-500 to-yellow-400 text-black text-[6px] flex items-center gap-0.5 shadow-lg px-1">
+                              <Sparkles className="h-2 w-2" />
+                              9!
+                            </Badge>
+                          </motion.div>
+                        )}
+                        <motion.div 
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          className={`text-lg font-bold ${bankerValue === 9 ? 'text-amber-400' : 'text-white'}`}
+                        >
+                          {bankerValue}
+                        </motion.div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Banker result with animation */}
+                {banker.result && isGameFinished && (
+                  <motion.div 
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="text-center"
+                  >
+                    <Badge className={`text-[8px] font-bold ${
+                      banker.result === 'win' || banker.result === 'natural_win' ? 'bg-gradient-to-r from-green-500 to-emerald-400' : 
+                      banker.result === 'lose' ? 'bg-gradient-to-r from-red-500 to-red-400' : 
+                      'bg-slate-500'
+                    }`}>
+                      {banker.result === 'win' || banker.result === 'natural_win' ? '🏆' : banker.result === 'lose' ? '💔' : '↔'}
+                    </Badge>
+                    {banker.winnings !== 0 && (
+                      <motion.div 
+                        initial={{ y: 10, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        className={`text-[10px] font-bold ${banker.winnings > 0 ? 'text-green-400' : 'text-red-400'}`}
+                      >
+                        {banker.winnings > 0 ? '+' : ''}₱{banker.winnings.toLocaleString()}
+                      </motion.div>
+                    )}
+                  </motion.div>
+                )}
+
+                {/* Winner indicator */}
+                <AnimatePresence>
+                  {bankerIsWinner && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0 }}
+                    >
+                      <motion.div
+                        animate={{ scale: [1, 1.15, 1] }}
+                        transition={{ repeat: Infinity, duration: 0.8 }}
+                        className={cn(
+                          'px-2 py-0.5 rounded-full text-[8px] font-bold shadow-lg whitespace-nowrap',
+                          bankerIsNatural
+                            ? 'bg-gradient-to-r from-amber-400 to-yellow-300 text-black'
+                            : 'bg-gradient-to-r from-green-500 to-emerald-400 text-white'
+                        )}
+                      >
+                        {bankerIsNatural ? '🏆 Natural 9!' : '🎉 WIN'}
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="bg-slate-900/50 rounded-xl p-3 border-2 border-dashed border-amber-500/30 text-center"
+            >
+              <div className="flex items-center justify-center gap-2 text-amber-400/60">
+                <Crown className="h-4 w-4" />
+                <span className="text-xs font-medium">Waiting for Banker...</span>
+              </div>
+            </motion.div>
+          )}
         </div>
 
-        {/* Empty state with better styling */}
+        {/* Player Seats - positioned around the table */}
+        {seats.map((player, displayPosition) => {
+          if (!player) {
+            // Empty seat
+            return (
+              <div 
+                key={`empty-${displayPosition}`} 
+                className={cn('absolute z-10', seatPositionStyles[displayPosition])}
+              >
+                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-slate-800/30 border-2 border-dashed border-slate-600/30 flex items-center justify-center">
+                  <span className="text-slate-600 text-[8px]">{displayPosition + 1}</span>
+                </div>
+              </div>
+            );
+          }
+
+          const isCurrentTurn = game?.status === 'player_turns' && game.currentPlayerPosition === player.position;
+          const isMe = player.userId === currentUserId;
+          const shouldShowCards = isMe || showAllCards;
+          const playerIsWinner = isGameFinished && (player.result === 'win' || player.result === 'natural_win');
+          
+          return (
+            <div 
+              key={player.id}
+              className={cn('absolute z-10', seatPositionStyles[displayPosition])}
+              data-player-seat={player.id}
+              data-player-user-id={player.userId}
+            >
+              <Lucky9PlayerSeat
+                player={player}
+                isCurrentTurn={isCurrentTurn}
+                showCards={shouldShowCards}
+                gameStatus={game?.status || 'betting'}
+                isMe={isMe && !isSpectator}
+                isBankerView={isBankerView}
+                onAcceptBet={onAcceptBet}
+                onRejectBet={onRejectBet}
+                isProcessing={isProcessing}
+                canRevealCards={isMe && !isSpectator && isCurrentTurn && !player.hasActed}
+                onCardReveal={(cardIndex) => onCardReveal?.(player.id, cardIndex)}
+                currentEmoji={playerEmojis[player.userId] || null}
+                currentDecision={playerDecisions[player.userId] || null}
+                showNaturalBadge={player.isNatural}
+                isWinner={playerIsWinner}
+              />
+            </div>
+          );
+        })}
+
+        {/* Empty state when no players */}
         {nonBankerPlayers.length === 0 && (
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="text-center py-4"
+            className="absolute bottom-[15%] left-1/2 -translate-x-1/2 text-center z-10"
           >
             <div className="inline-flex items-center gap-2 text-green-500/50 bg-green-500/5 px-3 py-1.5 rounded-full">
               <motion.div

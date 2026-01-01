@@ -53,6 +53,7 @@ export function Lucky9PlayerSeat({
       return () => clearTimeout(timer);
     }
   }, [currentDecision]);
+  
   const cards = player.cards || [];
   const handValue = cards.length > 0 ? calculateLucky9Value(cards) : null;
   const isNatural = cards.length === 2 && isNatural9(cards);
@@ -62,6 +63,7 @@ export function Lucky9PlayerSeat({
 
   // Determine seat styling based on state
   const getSeatBorder = () => {
+    if (isWinner) return 'border-yellow-400 shadow-lg shadow-yellow-500/40';
     if (isCurrentTurn) return 'border-green-400 shadow-lg shadow-green-500/40';
     if (isMe) return 'border-blue-400/60';
     if (player.betAccepted === true) return 'border-green-500/50';
@@ -71,10 +73,10 @@ export function Lucky9PlayerSeat({
 
   return (
     <motion.div 
-      className={`relative w-[100px] flex-shrink-0 transition-all`}
+      className={`relative transition-all`}
       data-player-seat={player.id}
       data-player-user-id={player.userId}
-      animate={isCurrentTurn ? { scale: [1, 1.02, 1] } : {}}
+      animate={isCurrentTurn ? { scale: [1, 1.03, 1] } : {}}
       transition={{ repeat: isCurrentTurn ? Infinity : 0, duration: 1.5 }}
     >
       {/* Visual Seat Frame */}
@@ -82,35 +84,41 @@ export function Lucky9PlayerSeat({
       <div className="absolute -inset-1 rounded-xl border-2 border-amber-700/40 bg-gradient-to-b from-amber-950/60 to-slate-950/60" />
       
       {/* Seat cushion effect */}
-      <div className={`relative bg-gradient-to-br from-slate-800/95 via-slate-900/95 to-slate-800/95 backdrop-blur rounded-lg p-1.5 border-2 ${getSeatBorder()}`}>
-      {/* Player Avatar and info */}
-      <div className="flex items-center gap-1 mb-1">
-        <Lucky9PlayerAvatar
-          username={player.username}
-          isMe={isMe}
-          size="sm"
-          currentEmoji={currentEmoji}
-        />
-        <div className="min-w-0 flex-1 overflow-hidden">
-          <div className="flex items-center gap-0.5">
-            <span className="text-[9px] font-medium text-white truncate block max-w-[45px]">{player.username}</span>
-            {isMe && <Badge className="bg-blue-500 text-[6px] px-0.5 py-0 flex-shrink-0">YOU</Badge>}
+      <div className={cn(
+        "relative bg-gradient-to-br from-slate-800/95 via-slate-900/95 to-slate-800/95 backdrop-blur rounded-lg p-1.5 border-2 min-w-[95px]",
+        getSeatBorder()
+      )}>
+        {/* Player Avatar and info */}
+        <div className="flex items-center gap-1 mb-1">
+          <Lucky9PlayerAvatar
+            username={player.username}
+            isMe={isMe}
+            size="sm"
+            currentEmoji={currentEmoji}
+          />
+          <div className="min-w-0 flex-1 overflow-hidden">
+            <div className="flex items-center gap-0.5">
+              <span className="text-[9px] font-medium text-white truncate block max-w-[40px]">{player.username}</span>
+              {isMe && <Badge className="bg-blue-500 text-[6px] px-0.5 py-0 flex-shrink-0">YOU</Badge>}
+            </div>
+            <span className="text-yellow-400 font-mono text-[8px] block">₱{player.stack}</span>
           </div>
-          <span className="text-yellow-400 font-mono text-[8px] block">₱{player.stack}</span>
         </div>
-        {/* Win indicator - outside beside avatar */}
+
+        {/* Win indicator */}
         <AnimatePresence>
           {isWinner && (
             <motion.div
-              initial={{ opacity: 0, scale: 0, x: -10 }}
-              animate={{ opacity: 1, scale: 1, x: 0 }}
+              initial={{ opacity: 0, scale: 0 }}
+              animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0 }}
+              className="absolute -top-3 left-1/2 -translate-x-1/2 z-30"
             >
               <motion.div
                 animate={{ scale: [1, 1.15, 1] }}
                 transition={{ repeat: Infinity, duration: 0.8 }}
                 className={cn(
-                  'px-1.5 py-0.5 rounded-full text-[7px] font-bold shadow-lg whitespace-nowrap',
+                  'px-2 py-0.5 rounded-full text-[8px] font-bold shadow-lg whitespace-nowrap',
                   player.isNatural
                     ? 'bg-gradient-to-r from-amber-400 to-yellow-300 text-black'
                     : 'bg-gradient-to-r from-green-500 to-emerald-400 text-white'
@@ -121,167 +129,166 @@ export function Lucky9PlayerSeat({
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
 
-      {/* Decision indicator (Hirit/Good) - OUTSIDE avatar panel */}
-      <AnimatePresence>
-        {showDecision && currentDecision && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.5, y: -10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.5, y: -10 }}
-            className="absolute -top-6 left-1/2 -translate-x-1/2 z-40"
-          >
+        {/* Decision indicator (Hirit/Good) */}
+        <AnimatePresence>
+          {showDecision && currentDecision && (
             <motion.div
-              animate={{ scale: [1, 1.1, 1] }}
-              transition={{ repeat: 2, duration: 0.3 }}
-              className={cn(
-                'px-2 py-0.5 rounded-full text-[10px] font-bold uppercase whitespace-nowrap shadow-lg',
-                currentDecision === 'hirit' 
-                  ? 'bg-gradient-to-r from-green-500 to-emerald-400 text-white' 
-                  : 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black'
-              )}
+              initial={{ opacity: 0, scale: 0.5, y: -10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.5, y: -10 }}
+              className="absolute -top-6 left-1/2 -translate-x-1/2 z-40"
             >
-              {currentDecision === 'hirit' ? '🎴 Hirit!' : '✋ Good!'}
+              <motion.div
+                animate={{ scale: [1, 1.1, 1] }}
+                transition={{ repeat: 2, duration: 0.3 }}
+                className={cn(
+                  'px-2 py-0.5 rounded-full text-[10px] font-bold uppercase whitespace-nowrap shadow-lg',
+                  currentDecision === 'hirit' 
+                    ? 'bg-gradient-to-r from-green-500 to-emerald-400 text-white' 
+                    : 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black'
+                )}
+              >
+                {currentDecision === 'hirit' ? '🎴 Hirit!' : '✋ Good!'}
+              </motion.div>
             </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Bet display */}
+        {player.currentBet > 0 && (
+          <motion.div 
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            className="bg-gradient-to-r from-green-900/80 to-emerald-900/80 rounded px-1.5 py-0.5 mb-1 border border-green-500/30"
+          >
+            <div className="flex items-center justify-center gap-1">
+              <div className="w-3 h-3 rounded-full bg-gradient-to-br from-green-400 to-green-600 border border-green-300 shadow-sm flex items-center justify-center">
+                <span className="text-[5px] font-bold text-white">₱</span>
+              </div>
+              <span className="text-green-300 font-bold text-[10px]">₱{player.currentBet}</span>
+              {player.betAccepted === true && <Check className="h-3 w-3 text-green-400" />}
+              {player.betAccepted === false && <X className="h-3 w-3 text-red-400" />}
+              {player.betAccepted === null && <Clock className="h-3 w-3 text-yellow-400 animate-pulse" />}
+            </div>
           </motion.div>
         )}
-      </AnimatePresence>
 
-      {/* Bet display */}
-      {player.currentBet > 0 && (
-        <motion.div 
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          className="bg-gradient-to-r from-green-900/80 to-emerald-900/80 rounded px-1.5 py-0.5 mb-1 border border-green-500/30"
-        >
-          <div className="flex items-center justify-center gap-1">
-            <div className="w-3 h-3 rounded-full bg-gradient-to-br from-green-400 to-green-600 border border-green-300 shadow-sm flex items-center justify-center">
-              <span className="text-[5px] font-bold text-white">₱</span>
-            </div>
-            <span className="text-green-300 font-bold text-[10px]">₱{player.currentBet}</span>
-            {player.betAccepted === true && <Check className="h-3 w-3 text-green-400" />}
-            {player.betAccepted === false && <X className="h-3 w-3 text-red-400" />}
-            {player.betAccepted === null && <Clock className="h-3 w-3 text-yellow-400 animate-pulse" />}
-          </div>
-        </motion.div>
-      )}
-
-      {/* Banker bet acceptance controls */}
-      {showBetControls && onAcceptBet && onRejectBet && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="flex gap-1 mb-1"
-        >
-          <Button
-            size="sm"
-            onClick={() => onAcceptBet(player.id)}
-            disabled={isProcessing}
-            className="flex-1 h-5 px-1 bg-green-600 hover:bg-green-500 text-white text-[8px]"
+        {/* Banker bet acceptance controls */}
+        {showBetControls && onAcceptBet && onRejectBet && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="flex gap-1 mb-1"
           >
-            <Check className="h-2.5 w-2.5" />
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => onRejectBet(player.id)}
-            disabled={isProcessing}
-            className="flex-1 h-5 px-1 bg-red-600 hover:bg-red-500 text-white text-[8px]"
-          >
-            <X className="h-2.5 w-2.5" />
-          </Button>
-        </motion.div>
-      )}
-
-      {/* Bet status indicator for non-banker view */}
-      {!isBankerView && player.currentBet > 0 && gameStatus === 'betting' && (
-        <div className="text-center mb-0.5">
-          {player.betAccepted === null && (
-            <Badge className="bg-yellow-600 text-[6px] px-1">Pending</Badge>
-          )}
-          {player.betAccepted === true && (
-            <Badge className="bg-green-600 text-[6px] px-1">✓ OK</Badge>
-          )}
-          {player.betAccepted === false && (
-            <Badge className="bg-red-600 text-[6px] px-1">✗ No</Badge>
-          )}
-        </div>
-      )}
-
-      {/* Cards */}
-      {cards.length > 0 && (
-        <div className="flex gap-0.5 justify-center mb-0.5">
-          {cards.map((card, i) => (
-            <Lucky9RevealableCard 
-              key={i} 
-              card={card} 
-              hidden={!showCards}
-              canReveal={canRevealCards}
-              delay={i * 0.1} 
-              small
-              onReveal={() => onCardReveal?.(i)}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Hand value - only show if cards visible */}
-      {showCards && handValue !== null && (
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="text-center"
-        >
-          {(isNatural || showNaturalBadge) && (
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: [1, 1.1, 1] }}
-              transition={{ repeat: Infinity, duration: 1.5 }}
+            <Button
+              size="sm"
+              onClick={() => onAcceptBet(player.id)}
+              disabled={isProcessing}
+              className="flex-1 h-5 px-1 bg-green-600 hover:bg-green-500 text-white text-[8px]"
             >
-              <Badge className="bg-gradient-to-r from-amber-500 to-yellow-400 text-black text-[6px] px-1 mb-0.5 flex items-center gap-0.5">
-                <Sparkles className="h-2 w-2" />
-                9!
-              </Badge>
-            </motion.div>
-          )}
-          <div className={`text-base font-bold ${handValue === 9 ? 'text-amber-400' : 'text-white'}`}>
-            {handValue}
+              <Check className="h-2.5 w-2.5" />
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => onRejectBet(player.id)}
+              disabled={isProcessing}
+              className="flex-1 h-5 px-1 bg-red-600 hover:bg-red-500 text-white text-[8px]"
+            >
+              <X className="h-2.5 w-2.5" />
+            </Button>
+          </motion.div>
+        )}
+
+        {/* Bet status indicator for non-banker view */}
+        {!isBankerView && player.currentBet > 0 && gameStatus === 'betting' && (
+          <div className="text-center mb-0.5">
+            {player.betAccepted === null && (
+              <Badge className="bg-yellow-600 text-[6px] px-1">Pending</Badge>
+            )}
+            {player.betAccepted === true && (
+              <Badge className="bg-green-600 text-[6px] px-1">✓ OK</Badge>
+            )}
+            {player.betAccepted === false && (
+              <Badge className="bg-red-600 text-[6px] px-1">✗ No</Badge>
+            )}
           </div>
-        </motion.div>
-      )}
+        )}
 
-      {/* Turn indicator */}
-      {isCurrentTurn && (
-        <motion.div
-          animate={{ opacity: [0.7, 1, 0.7] }}
-          transition={{ repeat: Infinity, duration: 1 }}
-        >
-          <Badge className="bg-green-500 text-black w-full justify-center text-[8px] font-bold py-0 mt-0.5">
-            {isMe ? '🎯 Turn!' : '⏳...'}
-          </Badge>
-        </motion.div>
-      )}
+        {/* Cards */}
+        {cards.length > 0 && (
+          <div className="flex gap-0.5 justify-center mb-0.5">
+            {cards.map((card, i) => (
+              <Lucky9RevealableCard 
+                key={i} 
+                card={card} 
+                hidden={!showCards}
+                canReveal={canRevealCards}
+                delay={i * 0.1} 
+                small
+                onReveal={() => onCardReveal?.(i)}
+              />
+            ))}
+          </div>
+        )}
 
-      {/* Result */}
-      {player.result && (
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="text-center mt-0.5"
-        >
-          <Badge className={`text-[7px] ${
-            player.result === 'win' || player.result === 'natural_win' ? 'bg-green-500' : 
-            player.result === 'lose' ? 'bg-red-500' : 'bg-slate-500'
-          }`}>
-            {player.result === 'win' || player.result === 'natural_win' ? '✓ Won' : player.result === 'lose' ? '✗ Lost' : '↔'}
-          </Badge>
-          {player.winnings !== 0 && (
-            <div className={`text-[10px] font-bold ${player.winnings > 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {player.winnings > 0 ? '+' : ''}₱{player.winnings}
+        {/* Hand value - only show if cards visible */}
+        {showCards && handValue !== null && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center"
+          >
+            {(isNatural || showNaturalBadge) && (
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: [1, 1.1, 1] }}
+                transition={{ repeat: Infinity, duration: 1.5 }}
+              >
+                <Badge className="bg-gradient-to-r from-amber-500 to-yellow-400 text-black text-[6px] px-1 mb-0.5 flex items-center gap-0.5">
+                  <Sparkles className="h-2 w-2" />
+                  9!
+                </Badge>
+              </motion.div>
+            )}
+            <div className={`text-base font-bold ${handValue === 9 ? 'text-amber-400' : 'text-white'}`}>
+              {handValue}
             </div>
-          )}
-        </motion.div>
-      )}
+          </motion.div>
+        )}
+
+        {/* Turn indicator */}
+        {isCurrentTurn && (
+          <motion.div
+            animate={{ opacity: [0.7, 1, 0.7] }}
+            transition={{ repeat: Infinity, duration: 1 }}
+          >
+            <Badge className="bg-green-500 text-black w-full justify-center text-[8px] font-bold py-0 mt-0.5">
+              {isMe ? '🎯 Turn!' : '⏳...'}
+            </Badge>
+          </motion.div>
+        )}
+
+        {/* Result */}
+        {player.result && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center mt-0.5"
+          >
+            <Badge className={`text-[7px] ${
+              player.result === 'win' || player.result === 'natural_win' ? 'bg-green-500' : 
+              player.result === 'lose' ? 'bg-red-500' : 'bg-slate-500'
+            }`}>
+              {player.result === 'win' || player.result === 'natural_win' ? '✓ Won' : player.result === 'lose' ? '✗ Lost' : '↔'}
+            </Badge>
+            {player.winnings !== 0 && (
+              <div className={`text-[10px] font-bold ${player.winnings > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {player.winnings > 0 ? '+' : ''}₱{player.winnings}
+              </div>
+            )}
+          </motion.div>
+        )}
       </div>
     </motion.div>
   );
