@@ -463,7 +463,7 @@ serve(async (req) => {
       }
 
       case 'start_round': {
-        // Get game
+        // Get game - allow starting from 'betting' status (banker can deal anytime)
         const { data: game } = await supabase
           .from('lucky9_games')
           .select('*')
@@ -476,12 +476,63 @@ serve(async (req) => {
           });
         }
 
+        // Only allow starting from betting phase
+        if (game.status !== 'betting') {
+          return new Response(JSON.stringify({ error: 'Game is not in betting phase' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
         // Get table to check call time settings
         const { data: tableData } = await supabase
           .from('lucky9_tables')
           .select('call_time_minutes, call_time_started_at, call_time_banker_id')
           .eq('id', game.table_id)
           .single();
+
+        // First, return chips to players with pending bets (not accepted)
+        const { data: pendingBetPlayers } = await supabase
+          .from('lucky9_players')
+          .select('*')
+          .eq('game_id', gameId)
+          .eq('is_active', true)
+          .eq('is_banker', false)
+          .is('bet_accepted', null)
+          .gt('current_bet', 0);
+
+        // Return pending bets to players
+        for (const player of pendingBetPlayers || []) {
+          console.log('Returning pending bet to player:', player.username, 'amount:', player.current_bet);
+          await supabase
+            .from('lucky9_players')
+            .update({ 
+              stack: player.stack + player.current_bet,
+              current_bet: 0,
+              bet_accepted: false
+            })
+            .eq('id', player.id);
+        }
+
+        // Also return chips to rejected players
+        const { data: rejectedPlayers } = await supabase
+          .from('lucky9_players')
+          .select('*')
+          .eq('game_id', gameId)
+          .eq('is_active', true)
+          .eq('is_banker', false)
+          .eq('bet_accepted', false)
+          .gt('current_bet', 0);
+
+        for (const player of rejectedPlayers || []) {
+          console.log('Returning rejected bet to player:', player.username, 'amount:', player.current_bet);
+          await supabase
+            .from('lucky9_players')
+            .update({ 
+              stack: player.stack + player.current_bet,
+              current_bet: 0
+            })
+            .eq('id', player.id);
+        }
 
         // Get all active players with ACCEPTED bets only
         const { data: players } = await supabase
@@ -1021,7 +1072,7 @@ serve(async (req) => {
         const bankerValue = calculateLucky9Value(bankerCards);
         const bankerIsNatural = banker.is_natural; // Had 9 with initial 2 cards
 
-        // Get all players with accepted bets
+        // Get all players with accepted bets that HAVEN'T been settled yet (natural 9 players already settled)
         const { data: players } = await supabase
           .from('lucky9_players')
           .select('*')
@@ -1036,6 +1087,12 @@ serve(async (req) => {
         let totalWinningsForFee = 0;
 
         for (const player of players || []) {
+          // SKIP players who already have a result (natural 9 winners were already settled during dealing)
+          if (player.result === 'natural_win') {
+            console.log('Skipping already settled natural_win player:', player.username);
+            continue;
+          }
+
           const playerValue = calculateLucky9Value(player.cards || []);
           const playerIsNatural = player.is_natural; // Had 9 with initial 2 cards
           let result: string;
@@ -1045,6 +1102,7 @@ serve(async (req) => {
 
           // Fee is only on PROFIT (winnings minus original bet), not on gross winnings
           // Case 1: Player has natural 9, banker doesn't - player wins (1:1 same as regular)
+          // NOTE: This case should rarely hit now since naturals are settled at deal time
           if (playerIsNatural && !bankerIsNatural) {
             result = 'natural_win';
             const profit = player.current_bet; // Natural pays 1x profit (same as regular)
@@ -1098,6 +1156,8 @@ serve(async (req) => {
           totalFeesCollected += feeDeducted;
           if (grossWinnings > 0) totalWinningsForFee += grossWinnings;
 
+          console.log('Settling player:', player.username, 'result:', result, 'netWinnings:', netWinnings);
+          
           await supabase
             .from('lucky9_players')
             .update({ 
