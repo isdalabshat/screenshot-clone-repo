@@ -88,23 +88,23 @@ export function Lucky9PlayerSeat({
       {/* Seat cushion effect */}
       <div className={cn(
         "relative bg-gradient-to-br from-slate-800/95 via-slate-900/95 to-slate-800/95 backdrop-blur rounded-lg border-2",
-        isCompact ? "p-0.5 min-w-[70px] max-w-[75px]" : "p-1 min-w-[80px] max-w-[90px]",
+        isCompact ? "p-0.5 min-w-[60px] max-w-[65px]" : "p-0.5 min-w-[70px] max-w-[80px]",
         getSeatBorder()
       )}>
         {/* Player Avatar and info */}
-        <div className={cn("flex items-center gap-0.5", isCompact ? "mb-0.5" : "mb-1")}>
+        <div className={cn("flex items-center gap-0.5", "mb-0.5")}>
           <Lucky9PlayerAvatar
             username={player.username}
             isMe={isMe}
-            size={isCompact ? "xs" : "sm"}
+            size="xs"
             currentEmoji={currentEmoji}
           />
           <div className="min-w-0 flex-1 overflow-hidden">
             <div className="flex items-center gap-0.5">
-              <span className={cn("font-medium text-white truncate block", isCompact ? "text-[7px] max-w-[30px]" : "text-[8px] max-w-[35px]")}>{player.username}</span>
-              {isMe && <Badge className={cn("bg-blue-500 px-0.5 py-0 flex-shrink-0", isCompact ? "text-[5px]" : "text-[6px]")}>YOU</Badge>}
+              <span className={cn("font-medium text-white truncate block", isCompact ? "text-[6px] max-w-[25px]" : "text-[7px] max-w-[30px]")}>{player.username}</span>
+              {isMe && <Badge className="bg-blue-500 px-0.5 py-0 flex-shrink-0 text-[5px]">YOU</Badge>}
             </div>
-            <span className={cn("text-yellow-400 font-mono block", isCompact ? "text-[6px]" : "text-[7px]")}>₱{player.stack}</span>
+            <span className={cn("text-yellow-400 font-mono block", isCompact ? "text-[5px]" : "text-[6px]")}>₱{player.stack}</span>
           </div>
         </div>
 

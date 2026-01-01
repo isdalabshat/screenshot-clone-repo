@@ -232,15 +232,25 @@ export default function Lucky9TablePage() {
           setShowDealSequence(true);
           playSound('shuffle');
           
-          // Calculate deal targets for this player's screen
+          // Calculate deal targets using actual player seat positions
           const acceptedCount = payload.acceptedCount || 0;
+          const activePlayers = players.filter(p => p.betAccepted && !p.isBanker);
           const targets: { x: number; y: number }[] = [];
-          for (let i = 0; i < acceptedCount; i++) {
-            const baseX = window.innerWidth / 2 - 100 + (i * 60);
-            const baseY = window.innerHeight - 180;
-            targets.push({ x: baseX, y: baseY });
+          
+          // Get actual seat positions from DOM for each player
+          activePlayers.slice(0, acceptedCount).forEach((player) => {
+            const seatPos = getPlayerSeatPosition(player.id, false);
+            if (seatPos) {
+              targets.push(seatPos);
+            }
+          });
+          
+          // Add banker position
+          const bankerPos = getPlayerSeatPosition('banker', true);
+          if (bankerPos) {
+            targets.push(bankerPos);
           }
-          targets.push({ x: window.innerWidth / 2 - 25, y: 120 });
+          
           setDealTargets(targets);
           
           // Play deal sounds with delay
@@ -283,7 +293,7 @@ export default function Lucky9TablePage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [tableId, user?.id, playSound, playDealSequence, myPlayer?.isBanker]);
+  }, [tableId, user?.id, playSound, playDealSequence, myPlayer?.isBanker, players]);
 
   // Sound effects based on game state changes - NO deal animation here (handled in startRound)
   useEffect(() => {
@@ -421,16 +431,24 @@ export default function Lucky9TablePage() {
     setShowDealSequence(true);
     playSound('shuffle');
 
-    // Calculate deal targets
+    // Calculate deal targets using actual player seat positions
     const acceptedPlayers = players.filter(p => p.betAccepted && !p.isBanker);
     const targets: { x: number; y: number }[] = [];
     
-    acceptedPlayers.forEach((_, index) => {
-      const baseX = window.innerWidth / 2 - 100 + (index * 60);
-      const baseY = window.innerHeight - 180;
-      targets.push({ x: baseX, y: baseY });
+    // Get actual seat positions from DOM for each accepted player
+    acceptedPlayers.forEach((player) => {
+      const seatPos = getPlayerSeatPosition(player.id, false);
+      if (seatPos) {
+        targets.push(seatPos);
+      }
     });
-    targets.push({ x: window.innerWidth / 2 - 25, y: 120 });
+    
+    // Add banker position
+    const bankerPos = getPlayerSeatPosition('banker', true);
+    if (bankerPos) {
+      targets.push(bankerPos);
+    }
+    
     setDealTargets(targets);
 
     // Broadcast deal animation to other players
@@ -648,6 +666,48 @@ export default function Lucky9TablePage() {
       if (revealingTimeoutRef.current) clearTimeout(revealingTimeoutRef.current);
     };
   }, []);
+
+  // Failsafe: Reset stuck games after 30 seconds of inactivity in calculating/revealing state
+  const stuckGameTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  useEffect(() => {
+    if (game?.status === 'calculating' || game?.status === 'revealing') {
+      // Clear existing failsafe
+      if (stuckGameTimeoutRef.current) {
+        clearTimeout(stuckGameTimeoutRef.current);
+      }
+      
+      // Set failsafe timeout - if game is still in these states after 30 seconds, force reset
+      stuckGameTimeoutRef.current = setTimeout(async () => {
+        console.warn('Failsafe triggered: Game stuck in', game.status, '- forcing reset');
+        try {
+          await supabase
+            .from('lucky9_games')
+            .update({ status: 'finished' })
+            .eq('id', game.id);
+          
+          setTimeout(() => {
+            resetRound();
+            processedGameIds.current.clear();
+          }, 500);
+        } catch (err) {
+          console.error('Failsafe reset error:', err);
+        }
+      }, 30000);
+    } else {
+      // Clear failsafe if game is no longer in problematic state
+      if (stuckGameTimeoutRef.current) {
+        clearTimeout(stuckGameTimeoutRef.current);
+        stuckGameTimeoutRef.current = null;
+      }
+    }
+    
+    return () => {
+      if (stuckGameTimeoutRef.current) {
+        clearTimeout(stuckGameTimeoutRef.current);
+      }
+    };
+  }, [game?.status, game?.id]);
 
   const banker = players.find(p => p.isBanker);
   const nonBankerPlayers = players.filter(p => !p.isBanker);
