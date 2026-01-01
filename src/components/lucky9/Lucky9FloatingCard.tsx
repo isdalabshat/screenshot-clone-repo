@@ -1,4 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useState } from 'react';
 
 interface Lucky9FloatingCardProps {
   isAnimating: boolean;
@@ -33,13 +34,7 @@ export function Lucky9FloatingCard({
           exit={{ opacity: 0, scale: 0.5 }}
           transition={{ duration: 0.4, ease: "easeOut" }}
         >
-          <div className="w-12 h-[68px] rounded-lg bg-gradient-to-br from-red-700 via-red-800 to-red-900 border-2 border-red-600 shadow-2xl overflow-hidden">
-            <div className="w-full h-full p-1">
-              <div className="w-full h-full border border-red-500/30 rounded-sm bg-red-800 flex items-center justify-center">
-                <div className="text-red-400/40 text-xl font-serif">L9</div>
-              </div>
-            </div>
-          </div>
+          <CardBack />
         </motion.div>
       )}
     </AnimatePresence>
@@ -51,6 +46,7 @@ interface DealSequenceCard {
   targetX: number;
   targetY: number;
   delay: number;
+  rotation: number;
 }
 
 interface Lucky9DealSequenceProps {
@@ -66,59 +62,80 @@ export function Lucky9DealSequence({
   targets, 
   onComplete 
 }: Lucky9DealSequenceProps) {
-  const cards: DealSequenceCard[] = [];
-  
-  if (isDealing) {
-    // Deal 2 cards per target
-    targets.forEach((target, targetIdx) => {
-      for (let round = 0; round < 2; round++) {
-        cards.push({
-          id: `deal-${targetIdx}-${round}`,
-          targetX: target.x,
-          targetY: target.y,
-          delay: (targetIdx * 2 + round) * 0.12
-        });
-      }
-    });
-  }
+  const [cards, setCards] = useState<DealSequenceCard[]>([]);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    if (isDealing && targets.length > 0) {
+      const newCards: DealSequenceCard[] = [];
+      
+      // Deal 2 cards per target with staggered delays
+      targets.forEach((target, targetIdx) => {
+        for (let round = 0; round < 2; round++) {
+          newCards.push({
+            id: `deal-${targetIdx}-${round}-${Date.now()}`,
+            targetX: target.x + (round * 15), // Slight offset for second card
+            targetY: target.y,
+            delay: (targetIdx * 2 + round) * 0.1,
+            rotation: -10 + Math.random() * 20
+          });
+        }
+      });
+      
+      setCards(newCards);
+      setIsVisible(true);
+
+      // Clear cards after animation completes
+      const totalDuration = (targets.length * 2) * 0.1 + 0.5;
+      const timer = setTimeout(() => {
+        setIsVisible(false);
+        setCards([]);
+        onComplete?.();
+      }, totalDuration * 1000);
+
+      return () => clearTimeout(timer);
+    } else {
+      setIsVisible(false);
+      setCards([]);
+    }
+  }, [isDealing, targets.length]);
+
+  if (!isVisible || cards.length === 0) return null;
 
   return (
-    <AnimatePresence onExitComplete={onComplete}>
-      {cards.map((card) => (
-        <motion.div
-          key={card.id}
-          className="fixed z-50 pointer-events-none"
-          initial={{ 
-            left: deckPosition.x,
-            top: deckPosition.y,
-            scale: 1,
-            rotate: 0,
-            opacity: 1
-          }}
-          animate={{ 
-            left: card.targetX,
-            top: card.targetY,
-            scale: 0.7,
-            rotate: -5 + Math.random() * 10,
-            opacity: 1
-          }}
-          exit={{ opacity: 0 }}
-          transition={{ 
-            delay: card.delay,
-            duration: 0.35, 
-            ease: "easeOut" 
-          }}
-        >
-          <div className="w-12 h-[68px] rounded-lg bg-gradient-to-br from-red-700 via-red-800 to-red-900 border-2 border-red-600 shadow-2xl overflow-hidden">
-            <div className="w-full h-full p-1">
-              <div className="w-full h-full border border-red-500/30 rounded-sm bg-red-800 flex items-center justify-center">
-                <div className="text-red-400/40 text-xl font-serif">L9</div>
-              </div>
-            </div>
-          </div>
-        </motion.div>
-      ))}
-    </AnimatePresence>
+    <div className="fixed inset-0 z-50 pointer-events-none">
+      <AnimatePresence>
+        {cards.map((card) => (
+          <motion.div
+            key={card.id}
+            className="absolute"
+            style={{ left: deckPosition.x, top: deckPosition.y }}
+            initial={{ 
+              scale: 1,
+              rotate: 0,
+              opacity: 1,
+              x: 0,
+              y: 0
+            }}
+            animate={{ 
+              x: card.targetX - deckPosition.x,
+              y: card.targetY - deckPosition.y,
+              scale: 0.7,
+              rotate: card.rotation,
+              opacity: 1
+            }}
+            exit={{ opacity: 0 }}
+            transition={{ 
+              delay: card.delay,
+              duration: 0.4, 
+              ease: [0.25, 0.46, 0.45, 0.94]
+            }}
+          >
+            <CardBack size="md" />
+          </motion.div>
+        ))}
+      </AnimatePresence>
+    </div>
   );
 }
 
@@ -167,5 +184,24 @@ export function Lucky9HiritCard({
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+// Reusable card back component
+function CardBack({ size = 'sm' }: { size?: 'sm' | 'md' | 'lg' }) {
+  const sizeClasses = {
+    sm: 'w-10 h-14',
+    md: 'w-12 h-[68px]',
+    lg: 'w-14 h-[76px]'
+  };
+
+  return (
+    <div className={`${sizeClasses[size]} rounded-lg bg-gradient-to-br from-red-700 via-red-800 to-red-900 border-2 border-red-500 shadow-xl overflow-hidden`}>
+      <div className="w-full h-full p-0.5">
+        <div className="w-full h-full border border-red-400/30 rounded-sm bg-gradient-to-br from-red-700 to-red-900 flex items-center justify-center">
+          <div className="text-red-400/50 text-sm font-bold">L9</div>
+        </div>
+      </div>
+    </div>
   );
 }
