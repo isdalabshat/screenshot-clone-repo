@@ -38,13 +38,13 @@ interface Lucky9GamblingTableProps {
 
 // Position styles for 5 player seats around the vertical oval table (poker-style layout)
 // Position 0 = bottom center (current user), positions arranged clockwise
-// Increased spacing to prevent avatar overlap
+// Increased spacing to prevent avatar overlap - moved even further out
 const seatPositionStyles: Record<number, string> = {
-  0: 'bottom-[1%] left-1/2 -translate-x-1/2',     // Bottom center - current user
-  1: 'bottom-[30%] left-[-5%]',                    // Bottom left - moved further out
-  2: 'top-[18%] left-[-5%]',                       // Top left - moved further out
-  3: 'top-[18%] right-[-5%]',                      // Top right - moved further out
-  4: 'bottom-[30%] right-[-5%]',                   // Bottom right - moved further out
+  0: 'bottom-[-2%] left-1/2 -translate-x-1/2',    // Bottom center - current user
+  1: 'bottom-[28%] left-[-12%]',                   // Bottom left - moved even further out
+  2: 'top-[15%] left-[-12%]',                      // Top left - moved even further out
+  3: 'top-[15%] right-[-12%]',                     // Top right - moved even further out
+  4: 'bottom-[28%] right-[-12%]',                  // Bottom right - moved even further out
 };
 
 // Get display position based on user's actual position (rotate so user is always at bottom)
@@ -211,13 +211,13 @@ export function Lucky9GamblingTable({
           <div className="absolute inset-0 rounded-[45%/50%] bg-gradient-to-t from-transparent via-white/5 to-white/10 pointer-events-none" />
         </motion.div>
 
-        {/* Card Deck at center - smaller size */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-5 scale-75">
+        {/* Card Deck at center - even smaller size */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-5 scale-50">
           <motion.div
             animate={{ 
               boxShadow: isDealing 
-                ? '0 0 20px rgba(255, 215, 0, 0.5)' 
-                : '0 0 10px rgba(0, 0, 0, 0.5)'
+                ? '0 0 15px rgba(255, 215, 0, 0.4)' 
+                : '0 0 8px rgba(0, 0, 0, 0.4)'
             }}
             className="rounded-lg"
           >
@@ -225,7 +225,7 @@ export function Lucky9GamblingTable({
           </motion.div>
         </div>
 
-        {/* Winner announcement overlay */}
+        {/* Winner announcement overlay - smaller and centered */}
         <AnimatePresence>
           {isGameFinished && (
             <motion.div
@@ -236,16 +236,16 @@ export function Lucky9GamblingTable({
             >
               <motion.div
                 animate={{ 
-                  scale: [1, 1.05, 1],
-                  boxShadow: ['0 0 20px rgba(251, 191, 36, 0.5)', '0 0 40px rgba(251, 191, 36, 0.8)', '0 0 20px rgba(251, 191, 36, 0.5)']
+                  scale: [1, 1.03, 1],
+                  boxShadow: ['0 0 12px rgba(251, 191, 36, 0.4)', '0 0 20px rgba(251, 191, 36, 0.6)', '0 0 12px rgba(251, 191, 36, 0.4)']
                 }}
                 transition={{ duration: 1.5, repeat: Infinity }}
-                className="bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 px-4 py-1.5 rounded-full shadow-xl"
+                className="bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 px-2 py-1 rounded-full shadow-lg"
               >
-                <div className="flex items-center gap-1">
-                  <Star className="h-3 w-3 text-black fill-black" />
-                  <span className="text-sm font-black text-black tracking-wider">RESULTS</span>
-                  <Star className="h-3 w-3 text-black fill-black" />
+                <div className="flex items-center gap-0.5">
+                  <Star className="h-2 w-2 text-black fill-black" />
+                  <span className="text-[10px] font-black text-black tracking-wider">RESULTS</span>
+                  <Star className="h-2 w-2 text-black fill-black" />
                 </div>
               </motion.div>
             </motion.div>
@@ -253,13 +253,13 @@ export function Lucky9GamblingTable({
         </AnimatePresence>
 
         {/* Banker at top center */}
-        <div className="absolute top-[2%] left-1/2 -translate-x-1/2 z-10">
+        <div className="absolute top-[1%] left-1/2 -translate-x-1/2 z-10">
           {banker ? (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               className={cn(
-                "relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 backdrop-blur rounded-lg p-1 border-2 transition-all min-w-[90px] max-w-[100px]",
+                "relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 backdrop-blur rounded-lg p-0.5 border-2 transition-all min-w-[70px] max-w-[80px]",
                 isBankerTurn 
                   ? 'border-yellow-400 shadow-md shadow-yellow-500/30' 
                   : bankerIsWinner
@@ -271,7 +271,7 @@ export function Lucky9GamblingTable({
               data-banker-seat="true"
             >
               {/* Background decoration */}
-              <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-amber-500/10 to-transparent rounded-full blur-xl" />
+              <div className="absolute top-0 right-0 w-10 h-10 bg-gradient-to-br from-amber-500/10 to-transparent rounded-full blur-lg" />
               
               {/* Banker decision indicator */}
               <AnimatePresence>
@@ -280,13 +280,13 @@ export function Lucky9GamblingTable({
                     initial={{ opacity: 0, scale: 0.5, y: -10 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.5, y: -10 }}
-                    className="absolute -top-6 left-1/2 -translate-x-1/2 z-40"
+                    className="absolute -top-5 left-1/2 -translate-x-1/2 z-40"
                   >
                     <motion.div
                       animate={{ scale: [1, 1.1, 1] }}
                       transition={{ repeat: 2, duration: 0.3 }}
                       className={cn(
-                        'px-3 py-1 rounded-full text-xs font-bold uppercase whitespace-nowrap shadow-lg',
+                        'px-2 py-0.5 rounded-full text-[8px] font-bold uppercase whitespace-nowrap shadow-lg',
                         bankerDecision === 'hirit' 
                           ? 'bg-gradient-to-r from-green-500 to-emerald-400 text-white' 
                           : 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black'
@@ -300,7 +300,7 @@ export function Lucky9GamblingTable({
               
               <div className="relative flex flex-col items-center gap-0.5">
                 {/* Avatar and info */}
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-0.5">
                   <div className="relative flex-shrink-0">
                     <Lucky9PlayerAvatar
                       username={banker.username}
@@ -314,19 +314,20 @@ export function Lucky9GamblingTable({
                       animate={{ rotate: [0, 10, -10, 0] }}
                       transition={{ duration: 2, repeat: Infinity }}
                     >
-                      <Crown className="h-2.5 w-2.5 text-amber-400 fill-amber-400" />
+                      <Crown className="h-2 w-2 text-amber-400 fill-amber-400" />
                     </motion.div>
                   </div>
                   <div className="min-w-0 text-center">
                     <div className="flex items-center gap-0.5 justify-center">
-                      <span className="font-bold text-amber-400 text-[8px] truncate max-w-[35px]">{banker.username}</span>
+                      <span className="font-bold text-amber-400 text-[6px] truncate max-w-[30px]">{banker.username}</span>
                       {isCurrentUserBanker && (
                         <Badge className="bg-purple-500/80 text-[5px] px-0.5 py-0">YOU</Badge>
                       )}
                     </div>
-                    <span className="text-yellow-400 font-mono text-[7px] font-bold">₱{banker.stack.toLocaleString()}</span>
+                    <span className="text-yellow-400 font-mono text-[6px] font-bold">₱{banker.stack.toLocaleString()}</span>
                   </div>
                 </div>
+
 
                 {/* Banker Cards */}
                 {bankerCards.length > 0 && (
