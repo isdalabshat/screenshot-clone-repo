@@ -49,8 +49,9 @@ export function Lucky9GamblingTable({
 }: Lucky9GamblingTableProps) {
   const nonBankerPlayers = players.filter(p => !p.isBanker);
   
-  // Show all cards when: finished status (winner decided), showdown, or any natural 9
+  // MANDATORY CARD REVEAL: Show all cards when winner is decided (finished/showdown status)
   const isGameFinished = game?.status === 'finished' || game?.status === 'showdown';
+  // All cards MUST be visible once the game is finished - no hidden cards allowed
   const showAllCards = isShowdown || isGameFinished;
   
   const bankerCards = banker?.cards || [];
@@ -58,9 +59,6 @@ export function Lucky9GamblingTable({
   const bankerIsNatural = bankerCards.length === 2 && isNatural9(bankerCards);
   const isBankerTurn = game?.status === 'banker_turn';
   const isCurrentUserBanker = banker?.userId === currentUserId;
-  
-  // Check if any player or banker has natural 9 - reveal their cards to all
-  const anyNatural9 = bankerIsNatural || nonBankerPlayers.some(p => p.isNatural);
 
   return (
     <div className="relative w-full max-w-lg mx-auto">
@@ -116,12 +114,12 @@ export function Lucky9GamblingTable({
                 </div>
               </div>
 
-              {/* Banker Cards - Always visible when game finished */}
+              {/* Banker Cards - MANDATORY: Always visible when game finished */}
               {bankerCards.length > 0 && (
                 <div className="flex gap-1.5 items-center">
                   {bankerCards.map((card, i) => {
-                    // Show banker cards if: game finished, banker is me, OR banker has natural 9
-                    const shouldShow = showAllCards || isCurrentUserBanker || bankerIsNatural;
+                    // MANDATORY REVEAL: All cards shown when game finished, otherwise only banker sees their own
+                    const shouldShow = showAllCards || isCurrentUserBanker;
                     const canReveal = isCurrentUserBanker && isBankerTurn && !banker?.hasActed;
                     return (
                       <Lucky9RevealableCard 
@@ -135,7 +133,7 @@ export function Lucky9GamblingTable({
                       />
                     );
                   })}
-                  {(showAllCards || isCurrentUserBanker || bankerIsNatural) && bankerValue !== null && (
+                  {(showAllCards || isCurrentUserBanker) && bankerValue !== null && (
                     <div className="ml-2 text-center">
                       {bankerIsNatural && (
                         <motion.div
@@ -277,8 +275,8 @@ export function Lucky9GamblingTable({
           {nonBankerPlayers.map((player, index) => {
             const isCurrentTurn = game?.status === 'player_turns' && game.currentPlayerPosition === player.position;
             const isMe = player.userId === currentUserId;
-            // Show cards if: it's me, game finished, or player has natural 9
-            const shouldShowCards = isMe || showAllCards || player.isNatural;
+            // MANDATORY REVEAL: All cards shown when game finished, otherwise only player sees their own
+            const shouldShowCards = isMe || showAllCards;
             
             return (
               <motion.div
