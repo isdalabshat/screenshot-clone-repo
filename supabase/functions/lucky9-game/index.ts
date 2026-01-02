@@ -1341,8 +1341,14 @@ serve(async (req) => {
           .eq('is_banker', true)
           .single();
 
-        if (currentGame && bankerPlayer) {
-          // Mark banker as LOSS
+        // Check if game is in a phase where bets are already locked in (dealing onwards)
+        const gameInProgress = currentGame && ['dealing', 'player_turns', 'banker_turn', 'calculating', 'revealing', 'showdown'].includes(currentGame.status);
+        
+        if (currentGame && bankerPlayer && gameInProgress) {
+          // Game in progress - banker forfeits, players win their bets
+          console.log('Banker leaving mid-game - players win their accepted bets');
+          
+          // Mark banker as LOSS with 0 winnings
           await supabase
             .from('lucky9_players')
             .update({ 
@@ -1360,7 +1366,7 @@ serve(async (req) => {
             .eq('is_banker', false)
             .eq('bet_accepted', true);
 
-          // All players win - return their bet + winnings (2x bet)
+          // All players win - return their bet + winnings (2x bet) from banker's stack
           for (const player of players || []) {
             if (player.current_bet > 0) {
               const winnings = player.current_bet * 2;
@@ -1394,6 +1400,36 @@ serve(async (req) => {
                 })
                 .eq('id', player.id);
             }
+          }
+
+          // Mark game as finished
+          await supabase
+            .from('lucky9_games')
+            .update({ status: 'finished' })
+            .eq('id', currentGame.id);
+        } else if (currentGame && bankerPlayer && currentGame.status === 'betting') {
+          // Betting phase - just return all bets, no one wins or loses
+          console.log('Banker leaving during betting - returning all bets');
+          
+          // Return ALL bets to players (pending and accepted)
+          const { data: allBettingPlayers } = await supabase
+            .from('lucky9_players')
+            .select('*')
+            .eq('game_id', currentGame.id)
+            .eq('is_active', true)
+            .eq('is_banker', false)
+            .gt('current_bet', 0);
+
+          for (const player of allBettingPlayers || []) {
+            await supabase
+              .from('lucky9_players')
+              .update({ 
+                stack: player.stack + player.current_bet,
+                current_bet: 0,
+                bet_accepted: null,
+                result: null
+              })
+              .eq('id', player.id);
           }
 
           // Mark game as finished
@@ -1487,8 +1523,14 @@ serve(async (req) => {
           .limit(1)
           .maybeSingle();
 
-        if (currentGame && player.current_bet > 0 && player.bet_accepted === true) {
-          // Mark player as LOSS before deleting (for history/display)
+        // Check if game is in progress (dealing onwards) where bet is locked in
+        const gameInProgress = currentGame && ['dealing', 'player_turns', 'banker_turn', 'calculating', 'revealing', 'showdown'].includes(currentGame.status);
+        
+        if (currentGame && player.current_bet > 0 && player.bet_accepted === true && gameInProgress) {
+          // Game in progress - player forfeits their bet to banker
+          console.log('Player leaving mid-game - forfeiting bet:', player.current_bet);
+          
+          // Mark player as LOSS
           await supabase
             .from('lucky9_players')
             .update({ 
@@ -1497,7 +1539,7 @@ serve(async (req) => {
             })
             .eq('id', player.id);
 
-          // Get the banker
+          // Get the banker and give them the forfeited bet
           const { data: banker } = await supabase
             .from('lucky9_players')
             .select('*')
@@ -1505,12 +1547,10 @@ serve(async (req) => {
             .single();
 
           if (banker) {
-            // Banker wins the player's bet
             await supabase
               .from('lucky9_players')
               .update({ 
-                stack: banker.stack + player.current_bet,
-                winnings: (banker.winnings || 0) + player.current_bet
+                stack: banker.stack + player.current_bet
               })
               .eq('id', banker.id);
           }
@@ -1541,20 +1581,51 @@ serve(async (req) => {
                 .eq('id', currentGame.id);
             }
           }
-        }
-
-        // Return remaining stack to profile (stack only, bet was forfeited)
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('chips')
-          .eq('user_id', userId)
-          .single();
-
-        if (profile && player.stack > 0) {
-          await supabase
+          
+          // Player loses bet, only return their remaining stack (not the bet)
+          const { data: profile } = await supabase
             .from('profiles')
-            .update({ chips: profile.chips + player.stack })
-            .eq('user_id', userId);
+            .select('chips')
+            .eq('user_id', userId)
+            .single();
+
+          if (profile && player.stack > 0) {
+            await supabase
+              .from('profiles')
+              .update({ chips: profile.chips + player.stack })
+              .eq('user_id', userId);
+          }
+        } else if (currentGame && currentGame.status === 'betting' && player.current_bet > 0) {
+          // During betting phase - return bet to player
+          console.log('Player leaving during betting - returning bet:', player.current_bet);
+          
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('chips')
+            .eq('user_id', userId)
+            .single();
+
+          if (profile) {
+            // Return both stack and current bet during betting phase
+            await supabase
+              .from('profiles')
+              .update({ chips: profile.chips + player.stack + player.current_bet })
+              .eq('user_id', userId);
+          }
+        } else {
+          // No active game or no bet - just return stack
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('chips')
+            .eq('user_id', userId)
+            .single();
+
+          if (profile && player.stack > 0) {
+            await supabase
+              .from('profiles')
+              .update({ chips: profile.chips + player.stack })
+              .eq('user_id', userId);
+          }
         }
 
         // Delete the player
@@ -1563,7 +1634,7 @@ serve(async (req) => {
           .delete()
           .eq('id', player.id);
 
-        return new Response(JSON.stringify({ success: true, playerMarkedAsLoss: true }), {
+        return new Response(JSON.stringify({ success: true }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }

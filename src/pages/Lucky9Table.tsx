@@ -63,6 +63,7 @@ export default function Lucky9TablePage() {
   const [forceSpectatorReason, setForceSpectatorReason] = useState<'balance' | 'full'>('balance');
   const [hiritTargetPlayerId, setHiritTargetPlayerId] = useState<string | null>(null);
   const [callTimeRemaining, setCallTimeRemaining] = useState<number | null>(null);
+  const [isWaitingForRound, setIsWaitingForRound] = useState(false);
 
   const hasJoined = useRef(false);
   const prevGameStatus = useRef<string | null>(null);
@@ -350,10 +351,25 @@ export default function Lucky9TablePage() {
       // Deduct chips from profile
       await supabase.from('profiles').update({ chips: 0 }).eq('user_id', user.id);
       fetchPlayers();
+    } else if (data?.waitForRound) {
+      // Player tried to join during active round - show waiting overlay
+      setIsWaitingForRound(true);
+      toast({
+        title: '⏳ Active Round in Progress',
+        description: 'Please wait for the current round to finish before joining.',
+        duration: 4000
+      });
     } else if (data?.error?.includes('Insufficient balance')) {
       // Force spectator mode if balance too low
       setForceSpectatorMode(true);
       setForceSpectatorReason('balance');
+      setShowRoleDialog(true);
+    } else if (data?.error) {
+      toast({
+        title: 'Cannot Join',
+        description: data.error,
+        variant: 'destructive'
+      });
       setShowRoleDialog(true);
     }
     setIsProcessing(false);
@@ -660,6 +676,15 @@ export default function Lucky9TablePage() {
     return () => { supabase.removeChannel(channel); };
   }, [tableId, fetchGame, fetchPlayers, fetchTable]);
 
+  // Auto-retry joining when waiting for round and game ends
+  useEffect(() => {
+    if (isWaitingForRound && !game) {
+      // Round ended, show role dialog again
+      setIsWaitingForRound(false);
+      setShowRoleDialog(true);
+    }
+  }, [isWaitingForRound, game]);
+
   // Track Call Time remaining and show announcement when it ends
   const prevCallTimeRef = useRef<number | null>(null);
   
@@ -711,12 +736,13 @@ export default function Lucky9TablePage() {
 
   // Handle calculating state - immediate check and transition to revealing
   const calculatingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const processedGameIds = useRef<Set<string>>(new Set());
+  const lastProcessedCalcGameId = useRef<string | null>(null);
+  const lastProcessedRevealGameId = useRef<string | null>(null);
   
   useEffect(() => {
     // Only handle if this is a new calculating state for this game
-    if (game?.status === 'calculating' && game?.id && !processedGameIds.current.has(`calc-${game.id}`)) {
-      processedGameIds.current.add(`calc-${game.id}`);
+    if (game?.status === 'calculating' && game?.id && lastProcessedCalcGameId.current !== game.id) {
+      lastProcessedCalcGameId.current = game.id;
       console.log('Calculating winner... 1 sec delay for game:', game.id);
       
       // Clear any existing timeout
@@ -724,14 +750,16 @@ export default function Lucky9TablePage() {
         clearTimeout(calculatingTimeoutRef.current);
       }
       
+      const gameIdToProcess = game.id;
+      
       // After 1 second, update to 'revealing' status
       calculatingTimeoutRef.current = setTimeout(async () => {
-        console.log('Transitioning to revealing for game:', game.id);
+        console.log('Transitioning to revealing for game:', gameIdToProcess);
         try {
           await supabase
             .from('lucky9_games')
             .update({ status: 'revealing' })
-            .eq('id', game.id)
+            .eq('id', gameIdToProcess)
             .eq('status', 'calculating'); // Only update if still calculating
         } catch (err) {
           console.error('Error transitioning to revealing:', err);
@@ -748,12 +776,15 @@ export default function Lucky9TablePage() {
 
   // Handle revealing state - show all cards for 5 seconds, then finish
   const revealingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const payoutTriggeredRef = useRef<string | null>(null);
   
   useEffect(() => {
     // Only handle if this is a new revealing state for this game
-    if (game?.status === 'revealing' && game?.id && !processedGameIds.current.has(`reveal-${game.id}`)) {
-      processedGameIds.current.add(`reveal-${game.id}`);
+    if (game?.status === 'revealing' && game?.id && lastProcessedRevealGameId.current !== game.id) {
+      lastProcessedRevealGameId.current = game.id;
       console.log('Revealing all cards for 5 seconds... game:', game.id);
+      
+      const gameIdToProcess = game.id;
       
       // Play win sound if there are winners
       const gameWinners = players.filter(p => p.winnings > 0);
@@ -762,54 +793,59 @@ export default function Lucky9TablePage() {
       }
       
       // Trigger chip animations after a short delay to let cards reveal first
-      const banker = players.find(p => p.isBanker);
-      if (banker) {
-        setTimeout(() => {
-          const bankerPos = getChipAnimationPosition(banker.id, true);
-          const payoutAnims: PayoutAnimationData[] = [];
-          
-          // Process all players with results
-          const playersWithResults = players.filter(p => !p.isBanker && p.result);
-          console.log('Players with results:', playersWithResults.length);
-          
-          playersWithResults.forEach((player) => {
-            const playerPos = getChipAnimationPosition(player.id, false);
-            // Fallback position if player seat not found
-            const finalPlayerPos = playerPos || { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-            const finalBankerPos = bankerPos || { x: window.innerWidth / 2, y: 100 };
+      // Only trigger once per game
+      if (payoutTriggeredRef.current !== gameIdToProcess) {
+        payoutTriggeredRef.current = gameIdToProcess;
+        
+        const banker = players.find(p => p.isBanker);
+        if (banker) {
+          setTimeout(() => {
+            const bankerPos = getChipAnimationPosition(banker.id, true);
+            const payoutAnims: PayoutAnimationData[] = [];
             
-            if (player.result === 'win' || player.result === 'natural_win') {
-              // Chips move from banker to player (player wins)
-              const fee = Math.floor(player.currentBet * 0.10); // 10% fee
-              payoutAnims.push({
-                id: `payout-${player.id}-${Date.now()}-${Math.random()}`,
-                fromPosition: finalBankerPos,
-                toPosition: finalPlayerPos,
-                amount: player.currentBet, // The winnings amount
-                isWin: true,
-                feeDeducted: fee
-              });
-            } else if (player.result === 'lose') {
-              // Chips move from player bet to banker (player loses)
-              payoutAnims.push({
-                id: `payout-${player.id}-${Date.now()}-${Math.random()}`,
-                fromPosition: finalPlayerPos,
-                toPosition: finalBankerPos,
-                amount: player.currentBet,
-                isWin: false
-              });
+            // Process all players with results
+            const playersWithResults = players.filter(p => !p.isBanker && p.result);
+            console.log('Players with results:', playersWithResults.length);
+            
+            playersWithResults.forEach((player) => {
+              const playerPos = getChipAnimationPosition(player.id, false);
+              // Fallback position if player seat not found
+              const finalPlayerPos = playerPos || { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+              const finalBankerPos = bankerPos || { x: window.innerWidth / 2, y: 100 };
+              
+              if (player.result === 'win' || player.result === 'natural_win') {
+                // Chips move from banker to player (player wins)
+                const fee = Math.floor(player.currentBet * 0.10); // 10% fee
+                payoutAnims.push({
+                  id: `payout-${player.id}-${gameIdToProcess}`,
+                  fromPosition: finalBankerPos,
+                  toPosition: finalPlayerPos,
+                  amount: player.currentBet, // The winnings amount
+                  isWin: true,
+                  feeDeducted: fee
+                });
+              } else if (player.result === 'lose') {
+                // Chips move from player bet to banker (player loses)
+                payoutAnims.push({
+                  id: `payout-${player.id}-${gameIdToProcess}`,
+                  fromPosition: finalPlayerPos,
+                  toPosition: finalBankerPos,
+                  amount: player.currentBet,
+                  isWin: false
+                });
+              }
+            });
+            
+            console.log('Triggering payout animations:', payoutAnims.length);
+            if (payoutAnims.length > 0) {
+              triggerPayouts(payoutAnims);
+              // Play payout sound when chips start flying
+              playSound('payout');
             }
-          });
-          
-          console.log('Triggering payout animations:', payoutAnims.length);
-          if (payoutAnims.length > 0) {
-            triggerPayouts(payoutAnims);
-            // Play payout sound when chips start flying
-            playSound('payout');
-          }
-        }, 500);
-      } else {
-        console.log('No banker found for payout animation');
+          }, 500);
+        } else {
+          console.log('No banker found for payout animation');
+        }
       }
       
       // Clear any existing timeout
@@ -819,7 +855,7 @@ export default function Lucky9TablePage() {
       
       // After 5 seconds, mark as finished and reset
       revealingTimeoutRef.current = setTimeout(async () => {
-        console.log('5 seconds reveal complete - finishing game:', game.id);
+        console.log('5 seconds reveal complete - finishing game:', gameIdToProcess);
         try {
           // Clear payouts before finishing
           clearPayouts();
@@ -827,15 +863,16 @@ export default function Lucky9TablePage() {
           await supabase
             .from('lucky9_games')
             .update({ status: 'finished' })
-            .eq('id', game.id)
+            .eq('id', gameIdToProcess)
             .eq('status', 'revealing'); // Only update if still revealing
           
           // Wait a moment then reset
           setTimeout(() => {
             resetRound();
-            // Clean up processed game IDs for this game
-            processedGameIds.current.delete(`calc-${game.id}`);
-            processedGameIds.current.delete(`reveal-${game.id}`);
+            // Clear processed refs for next game
+            lastProcessedCalcGameId.current = null;
+            lastProcessedRevealGameId.current = null;
+            payoutTriggeredRef.current = null;
           }, 500);
         } catch (err) {
           console.error('Error finishing game:', err);
@@ -870,18 +907,23 @@ export default function Lucky9TablePage() {
         clearTimeout(stuckGameTimeoutRef.current);
       }
       
+      const gameIdToReset = game.id;
+      
       // Set failsafe timeout - if game is still in these states after 30 seconds, force reset
       stuckGameTimeoutRef.current = setTimeout(async () => {
         console.warn('Failsafe triggered: Game stuck in', game.status, '- forcing reset');
         try {
           // Use the force_finish action to properly return bets
           await supabase.functions.invoke('lucky9-game', {
-            body: { action: 'force_finish', gameId: game.id, tableId }
+            body: { action: 'force_finish', gameId: gameIdToReset, tableId }
           });
           
           setTimeout(() => {
             resetRound();
-            processedGameIds.current.clear();
+            // Clear processed refs
+            lastProcessedCalcGameId.current = null;
+            lastProcessedRevealGameId.current = null;
+            payoutTriggeredRef.current = null;
           }, 500);
         } catch (err) {
           console.error('Failsafe reset error:', err);
@@ -912,17 +954,22 @@ export default function Lucky9TablePage() {
         clearTimeout(stuckPhaseTimeoutRef.current);
       }
       
+      const gameIdToReset = game.id;
+      
       // Set failsafe - if game is stuck in these phases for 2 minutes, force finish
       stuckPhaseTimeoutRef.current = setTimeout(async () => {
         console.warn('Phase failsafe triggered: Game stuck in', game.status, 'for 2 minutes');
         try {
           await supabase.functions.invoke('lucky9-game', {
-            body: { action: 'force_finish', gameId: game.id, tableId }
+            body: { action: 'force_finish', gameId: gameIdToReset, tableId }
           });
           
           setTimeout(() => {
             resetRound();
-            processedGameIds.current.clear();
+            // Clear processed refs
+            lastProcessedCalcGameId.current = null;
+            lastProcessedRevealGameId.current = null;
+            payoutTriggeredRef.current = null;
           }, 500);
         } catch (err) {
           console.error('Phase failsafe error:', err);
@@ -988,6 +1035,31 @@ export default function Lucky9TablePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-950 via-slate-900 to-green-950 pb-28 overflow-x-hidden">
       <Lucky9RoleDialog open={showRoleDialog} hasBanker={hasBanker} onSelectRole={joinTable} onCancel={() => navigate('/lucky9')} forceSpectator={forceSpectatorMode} forceSpectatorReason={forceSpectatorReason} />
+
+      {/* Waiting for round overlay */}
+      {isWaitingForRound && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center">
+          <div className="bg-slate-900 border border-yellow-500/50 rounded-xl p-6 max-w-sm text-center space-y-4">
+            <div className="w-16 h-16 mx-auto bg-yellow-500/20 rounded-full flex items-center justify-center animate-pulse">
+              <Clock className="h-8 w-8 text-yellow-400" />
+            </div>
+            <h2 className="text-lg font-bold text-yellow-400">Waiting for Next Round</h2>
+            <p className="text-sm text-muted-foreground">
+              A round is currently in progress. You will automatically join when it ends.
+            </p>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setIsWaitingForRound(false);
+                navigate('/lucky9');
+              }}
+              className="mt-2"
+            >
+              Leave Table
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Compact header for mobile */}
       <header className="border-b border-green-500/30 bg-slate-900/90 backdrop-blur sticky top-0 z-20">
