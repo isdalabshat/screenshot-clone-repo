@@ -651,10 +651,14 @@ export default function Lucky9TablePage() {
       .channel(`lucky9-${tableId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'lucky9_games', filter: `table_id=eq.${tableId}` }, fetchGame)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'lucky9_players', filter: `table_id=eq.${tableId}` }, fetchPlayers)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lucky9_tables', filter: `id=eq.${tableId}` }, () => {
+        // Refetch table when it changes (e.g., call time cleared when banker is auto-kicked)
+        fetchTable();
+      })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [tableId, fetchGame, fetchPlayers]);
+  }, [tableId, fetchGame, fetchPlayers, fetchTable]);
 
   // Track Call Time remaining and show announcement when it ends
   const prevCallTimeRef = useRef<number | null>(null);
@@ -764,18 +768,23 @@ export default function Lucky9TablePage() {
           const bankerPos = getChipAnimationPosition(banker.id, true);
           const payoutAnims: PayoutAnimationData[] = [];
           
-          players.filter(p => !p.isBanker && p.result).forEach((player) => {
+          // Process all players with results
+          const playersWithResults = players.filter(p => !p.isBanker && p.result);
+          console.log('Players with results:', playersWithResults.length);
+          
+          playersWithResults.forEach((player) => {
             const playerPos = getChipAnimationPosition(player.id, false);
-            if (!playerPos || !bankerPos) return;
+            // Fallback position if player seat not found
+            const finalPlayerPos = playerPos || { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+            const finalBankerPos = bankerPos || { x: window.innerWidth / 2, y: 100 };
             
             if (player.result === 'win' || player.result === 'natural_win') {
               // Chips move from banker to player (player wins)
-              const grossWinnings = player.currentBet * 2; // Original bet + winnings
-              const fee = Math.floor(grossWinnings * 0.05); // 5% fee
+              const fee = Math.floor(player.currentBet * 0.10); // 10% fee
               payoutAnims.push({
-                id: `payout-${player.id}-${Date.now()}`,
-                fromPosition: bankerPos,
-                toPosition: playerPos,
+                id: `payout-${player.id}-${Date.now()}-${Math.random()}`,
+                fromPosition: finalBankerPos,
+                toPosition: finalPlayerPos,
                 amount: player.currentBet, // The winnings amount
                 isWin: true,
                 feeDeducted: fee
@@ -783,21 +792,24 @@ export default function Lucky9TablePage() {
             } else if (player.result === 'lose') {
               // Chips move from player bet to banker (player loses)
               payoutAnims.push({
-                id: `payout-${player.id}-${Date.now()}`,
-                fromPosition: playerPos,
-                toPosition: bankerPos,
+                id: `payout-${player.id}-${Date.now()}-${Math.random()}`,
+                fromPosition: finalPlayerPos,
+                toPosition: finalBankerPos,
                 amount: player.currentBet,
                 isWin: false
               });
             }
           });
           
+          console.log('Triggering payout animations:', payoutAnims.length);
           if (payoutAnims.length > 0) {
             triggerPayouts(payoutAnims);
             // Play payout sound when chips start flying
             playSound('payout');
           }
         }, 500);
+      } else {
+        console.log('No banker found for payout animation');
       }
       
       // Clear any existing timeout
@@ -809,6 +821,9 @@ export default function Lucky9TablePage() {
       revealingTimeoutRef.current = setTimeout(async () => {
         console.log('5 seconds reveal complete - finishing game:', game.id);
         try {
+          // Clear payouts before finishing
+          clearPayouts();
+          
           await supabase
             .from('lucky9_games')
             .update({ status: 'finished' })
@@ -833,7 +848,7 @@ export default function Lucky9TablePage() {
         clearTimeout(revealingTimeoutRef.current);
       }
     };
-  }, [game?.status, game?.id, players, playSound]);
+  }, [game?.status, game?.id, players, playSound, clearPayouts, triggerPayouts]);
 
   // Cleanup timeouts on component unmount
   useEffect(() => {
