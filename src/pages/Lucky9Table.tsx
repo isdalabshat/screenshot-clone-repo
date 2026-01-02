@@ -1041,8 +1041,9 @@ export default function Lucky9TablePage() {
         />
 
         {/* Banker controls */}
+        {/* Banker controls - positioned higher to avoid overlap */}
         {hasActiveBanker && (canStartBetting || canDealCards) && (
-          <div className="flex justify-center gap-2 pt-1">
+          <div className="flex justify-center gap-2 py-2 -mt-4">
             {canStartBetting && (
               <Button 
                 onClick={startBetting} 
