@@ -28,16 +28,16 @@ export function Lucky9PayoutAnimation({ payouts, onComplete }: Lucky9PayoutAnima
   const [showingNet, setShowingNet] = useState<boolean>(false);
   const [bankerNetAmount, setBankerNetAmount] = useState<number>(0);
   const [bankerPosition, setBankerPosition] = useState<{ x: number; y: number } | null>(null);
-  const processedPayoutIds = useRef<Set<string>>(new Set());
+  const processedPayoutKey = useRef<string>('');
 
   useEffect(() => {
     if (payouts.length > 0) {
       // Check if we already processed this exact payout set (prevent loops)
-      const payoutKey = payouts.map(p => p.id).join(',');
-      if (processedPayoutIds.current.has(payoutKey)) {
+      const payoutKey = payouts.map(p => p.id).sort().join(',');
+      if (processedPayoutKey.current === payoutKey) {
         return;
       }
-      processedPayoutIds.current.add(payoutKey);
+      processedPayoutKey.current = payoutKey;
       
       setActivePayouts(payouts);
       setShowingNet(false);
@@ -64,7 +64,7 @@ export function Lucky9PayoutAnimation({ payouts, onComplete }: Lucky9PayoutAnima
       // Show combined net amount after chips arrive
       const netTimer = setTimeout(() => {
         setShowingNet(true);
-      }, 800);
+      }, 700);
 
       const clearTimer = setTimeout(() => {
         setActivePayouts([]);
@@ -72,7 +72,7 @@ export function Lucky9PayoutAnimation({ payouts, onComplete }: Lucky9PayoutAnima
         setBankerNetAmount(0);
         setBankerPosition(null);
         onComplete?.();
-      }, 2500);
+      }, 3000);
 
       return () => {
         clearTimeout(netTimer);
@@ -81,10 +81,10 @@ export function Lucky9PayoutAnimation({ payouts, onComplete }: Lucky9PayoutAnima
     }
   }, [payouts, onComplete]);
   
-  // Clear processed IDs when payouts are cleared
+  // Clear processed key when payouts are cleared
   useEffect(() => {
     if (payouts.length === 0) {
-      processedPayoutIds.current.clear();
+      processedPayoutKey.current = '';
     }
   }, [payouts]);
 

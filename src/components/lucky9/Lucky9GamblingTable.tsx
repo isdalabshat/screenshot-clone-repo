@@ -244,14 +244,14 @@ export function Lucky9GamblingTable({
               if (!showBetChip || isResultPhase) return null;
               
               // Positions are relative to the table container (300px wide, ~400px tall aspect ratio)
-              // Chips positioned closer to player avatars (near edges)
+              // Chips positioned INSIDE the table, not overlapping player panels
               const getTableBetPosition = (pos: number): { x: number; y: number } => {
                 switch (pos) {
-                  case 0: return { x: 150, y: 320 }; // Bottom center - closer to avatar
-                  case 1: return { x: 70, y: 270 }; // Bottom left - closer to edge
-                  case 2: return { x: 70, y: 160 }; // Top left - closer to edge
-                  case 3: return { x: 230, y: 160 }; // Top right - closer to edge
-                  case 4: return { x: 230, y: 270 }; // Bottom right - closer to edge
+                  case 0: return { x: 150, y: 280 }; // Bottom center - inside table
+                  case 1: return { x: 100, y: 240 }; // Bottom left - moved right/up into table
+                  case 2: return { x: 100, y: 170 }; // Top left - moved right into table
+                  case 3: return { x: 200, y: 170 }; // Top right - moved left into table
+                  case 4: return { x: 200, y: 240 }; // Bottom right - moved left/up into table
                   default: return { x: 150, y: 220 };
                 }
               };
@@ -263,8 +263,6 @@ export function Lucky9GamblingTable({
                   key={`bet-${player.id}`}
                   amount={player.currentBet}
                   position={betPosition}
-                  isAnimatingWin={false}
-                  isAnimatingLoss={false}
                 />
               );
             })}
@@ -369,14 +367,14 @@ export function Lucky9GamblingTable({
               className="relative"
               data-banker-seat="true"
             >
-              {/* Banker decision indicator */}
+              {/* Banker decision indicator (Hirit/Good) - during play */}
               <AnimatePresence>
                 {showBankerDecision && bankerDecision && !isGameFinished && (
                   <motion.div
-                    initial={{ opacity: 0, scale: 0.5, y: -10 }}
+                    initial={{ opacity: 0, scale: 0.5, y: 5 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.5, y: -10 }}
-                    className="absolute -top-5 left-1/2 -translate-x-1/2 z-40"
+                    exit={{ opacity: 0, scale: 0.5, y: 5 }}
+                    className="absolute -top-7 left-1/2 -translate-x-1/2 z-50"
                   >
                     <motion.div
                       animate={{ scale: [1, 1.1, 1] }}
@@ -389,6 +387,31 @@ export function Lucky9GamblingTable({
                       )}
                     >
                       {bankerDecision === 'hirit' ? '🎴 Hirit!' : '✋ Good!'}
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Banker result indicator - WIN/LOSE after game finished */}
+              <AnimatePresence>
+                {isGameFinished && banker.result && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.5, y: 5 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.5 }}
+                    className="absolute -top-6 left-1/2 -translate-x-1/2 z-50"
+                  >
+                    <motion.div
+                      animate={{ scale: [1, 1.15, 1] }}
+                      transition={{ repeat: Infinity, duration: 0.8 }}
+                      className={cn(
+                        'px-2 py-0.5 rounded-full text-[8px] font-black uppercase whitespace-nowrap shadow-lg',
+                        bankerIsWinner 
+                          ? 'bg-gradient-to-r from-green-500 to-emerald-400 text-white shadow-green-500/50' 
+                          : 'bg-gradient-to-r from-red-500 to-rose-500 text-white shadow-red-500/50'
+                      )}
+                    >
+                      {bankerIsWinner ? '🏆 WIN!' : '❌ LOSE'}
                     </motion.div>
                   </motion.div>
                 )}
