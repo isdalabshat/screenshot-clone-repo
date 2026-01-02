@@ -513,17 +513,21 @@ export function Lucky9GamblingTable({
           const shouldShowCards = isMe || showAllCards || player.isNatural;
           const playerIsWinner = isGameFinished && (player.result === 'win' || player.result === 'natural_win');
           
-          // Calculate bet chip position offset based on seat position
-          const getBetChipOffset = (pos: number) => {
+          // Calculate bet chip position on the table (towards center from player)
+          const getBetChipPosition = (pos: number) => {
             switch (pos) {
-              case 0: return 'bottom-full left-1/2 -translate-x-1/2 mb-1'; // Bottom center - chip above
-              case 1: return 'right-0 bottom-full mb-1'; // Bottom left - chip above right
-              case 2: return 'right-0 top-1/2 -translate-y-1/2 mr-[-30px]'; // Top left - chip to right
-              case 3: return 'left-0 top-1/2 -translate-y-1/2 ml-[-30px]'; // Top right - chip to left
-              case 4: return 'left-0 bottom-full mb-1'; // Bottom right - chip above left
-              default: return 'bottom-full left-1/2 -translate-x-1/2 mb-1';
+              case 0: return { x: 0, y: -35 }; // Bottom center - chip moves up towards table
+              case 1: return { x: 40, y: -20 }; // Bottom left - chip moves right-up
+              case 2: return { x: 40, y: 20 }; // Top left - chip moves right-down
+              case 3: return { x: -40, y: 20 }; // Top right - chip moves left-down
+              case 4: return { x: -40, y: -20 }; // Bottom right - chip moves left-up
+              default: return { x: 0, y: -35 };
             }
           };
+          
+          const chipPosition = getBetChipPosition(displayPosition);
+          const showBetChip = player.currentBet > 0 && player.betAccepted === true && 
+            (game?.status === 'betting' || game?.status === 'dealing' || game?.status === 'player_turns' || game?.status === 'banker_turn');
           
           return (
             <div 
@@ -532,33 +536,64 @@ export function Lucky9GamblingTable({
               data-player-seat={player.id}
               data-player-user-id={player.userId}
             >
-              {/* Bet Chips on Table - visible when player has placed a bet */}
+              {/* Bet Chips on Table - only visible when bet is accepted */}
               <AnimatePresence>
-                {player.currentBet > 0 && (game?.status === 'betting' || game?.status === 'dealing' || game?.status === 'player_turns' || game?.status === 'banker_turn') && (
+                {showBetChip && (
                   <motion.div
-                    initial={{ opacity: 0, scale: 0, y: 10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0, y: -10 }}
-                    className={cn('absolute z-30', getBetChipOffset(displayPosition))}
+                    initial={{ 
+                      opacity: 0, 
+                      scale: 0.3, 
+                      x: 0, 
+                      y: 0 
+                    }}
+                    animate={{ 
+                      opacity: 1, 
+                      scale: 1, 
+                      x: chipPosition.x, 
+                      y: chipPosition.y 
+                    }}
+                    exit={{ 
+                      opacity: 0, 
+                      scale: 0.3, 
+                      x: 0, 
+                      y: 0 
+                    }}
+                    transition={{ 
+                      type: "spring", 
+                      stiffness: 300, 
+                      damping: 20,
+                      duration: 0.5 
+                    }}
+                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none"
                   >
                     <div className="relative">
                       {/* Chip stack visual */}
                       <div className="relative">
                         {/* Bottom chip (shadow) */}
-                        <div className="absolute top-0.5 left-0 w-7 h-7 rounded-full bg-amber-900/80 border-2 border-amber-700" />
+                        <div className="absolute top-1 left-0.5 w-6 h-6 rounded-full bg-amber-900/80 border-2 border-amber-700" />
                         {/* Middle chip */}
                         <div className="absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-gradient-to-br from-amber-500 to-amber-700 border-2 border-amber-400" />
                         {/* Top chip with amount */}
-                        <div className="relative w-7 h-7 rounded-full bg-gradient-to-br from-amber-400 via-yellow-400 to-amber-500 border-2 border-amber-300 flex items-center justify-center shadow-lg">
-                          <span className="text-[6px] font-black text-amber-900">
+                        <motion.div 
+                          initial={{ rotateY: 0 }}
+                          animate={{ rotateY: [0, 360] }}
+                          transition={{ duration: 0.5, delay: 0.3 }}
+                          className="relative w-6 h-6 rounded-full bg-gradient-to-br from-amber-400 via-yellow-400 to-amber-500 border-2 border-amber-300 flex items-center justify-center shadow-lg"
+                        >
+                          <span className="text-[5px] font-black text-amber-900">
                             {player.currentBet >= 1000 ? `${(player.currentBet / 1000).toFixed(0)}K` : player.currentBet}
                           </span>
-                        </div>
+                        </motion.div>
                       </div>
                       {/* Bet amount label */}
-                      <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-black/80 px-1 py-0.5 rounded text-[7px] font-bold text-yellow-400 whitespace-nowrap">
+                      <motion.div 
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.4 }}
+                        className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-black/90 px-1 py-0.5 rounded text-[6px] font-bold text-yellow-400 whitespace-nowrap shadow-md"
+                      >
                         ₱{player.currentBet.toLocaleString()}
-                      </div>
+                      </motion.div>
                     </div>
                   </motion.div>
                 )}
