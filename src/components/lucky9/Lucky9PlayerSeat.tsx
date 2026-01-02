@@ -139,25 +139,25 @@ export function Lucky9PlayerSeat({
             : "p-0.5 min-w-[70px] max-w-[80px]",
         getSeatBorder()
       )}>
-        {/* Player Avatar and info - Horizontal for current user, vertical for others */}
+        {/* Player Avatar, info, and cards in horizontal layout */}
         <div className={cn(
-          "flex items-center gap-0.5",
-          isMe ? "flex-row justify-between" : "mb-0.5"
+          "flex items-center gap-1",
+          isMe ? "flex-row" : "flex-row"
         )}>
+          {/* Avatar on the left */}
           <Lucky9PlayerAvatar
             username={player.username}
             isMe={isMe}
             size={isMe ? "sm" : "xs"}
             currentEmoji={currentEmoji}
           />
+          
+          {/* Info in the middle */}
           <div className={cn(
-            "min-w-0 overflow-hidden",
-            isMe ? "flex-1 text-right" : "flex-1"
+            "min-w-0 overflow-hidden flex-shrink-0",
+            isMe ? "flex-1" : "flex-1"
           )}>
-            <div className={cn(
-              "flex items-center gap-0.5",
-              isMe ? "justify-end" : ""
-            )}>
+            <div className="flex items-center gap-0.5">
               {isMe && <Badge className="bg-blue-500 px-0.5 py-0 flex-shrink-0 text-[5px]">YOU</Badge>}
               <span className={cn(
                 "font-medium text-white truncate block",
@@ -169,6 +169,54 @@ export function Lucky9PlayerSeat({
               isMe ? "text-[8px]" : isCompact ? "text-[5px]" : "text-[6px]"
             )}>₱{player.stack}</span>
           </div>
+
+          {/* Cards on the right side of avatar */}
+          {cards.length > 0 && (
+            <div className={cn(
+              "flex items-center",
+              isMe ? "gap-0.5" : isCompact ? "-space-x-1" : "gap-0.5"
+            )}>
+              {cards.map((card, i) => (
+                <Lucky9RevealableCard 
+                  key={i} 
+                  card={card} 
+                  hidden={!showCards}
+                  canReveal={canRevealCards}
+                  delay={i * 0.1} 
+                  small={!isMe}
+                  extraSmall={isCompact && !isMe}
+                  onReveal={() => onCardReveal?.(i)}
+                />
+              ))}
+              {/* Hand value next to cards */}
+              {showCards && handValue !== null && (
+                <div className="ml-0.5 flex flex-col items-center">
+                  {(isNatural || showNaturalBadge) && (
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: [1, 1.1, 1] }}
+                      transition={{ repeat: Infinity, duration: 1.5 }}
+                    >
+                      <Badge className={cn(
+                        "bg-gradient-to-r from-amber-500 to-yellow-400 text-black flex items-center gap-0.5",
+                        isMe ? "text-[6px] px-1" : "text-[5px] px-0.5"
+                      )}>
+                        <Sparkles className={isMe ? "h-2 w-2" : "h-1.5 w-1.5"} />
+                        9!
+                      </Badge>
+                    </motion.div>
+                  )}
+                  <div className={cn(
+                    "font-bold",
+                    isMe ? "text-base" : "text-sm",
+                    handValue === 9 ? 'text-amber-400' : 'text-white'
+                  )}>
+                    {handValue}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Win indicator */}
@@ -300,58 +348,7 @@ export function Lucky9PlayerSeat({
           </div>
         )}
 
-        {/* Cards - larger for current user, smaller for others */}
-        {cards.length > 0 && (
-          <div className={cn(
-            "flex justify-center",
-            isMe ? "gap-0.5 my-0.5" : isCompact ? "gap-0 -space-x-1 mb-0.5" : "gap-0.5 mb-0.5"
-          )}>
-            {cards.map((card, i) => (
-              <Lucky9RevealableCard 
-                key={i} 
-                card={card} 
-                hidden={!showCards}
-                canReveal={canRevealCards}
-                delay={i * 0.1} 
-                small={!isMe}
-                extraSmall={isCompact && !isMe}
-                onReveal={() => onCardReveal?.(i)}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Hand value - only show if cards visible */}
-        {showCards && handValue !== null && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className={cn("text-center", isMe ? "flex items-center justify-center gap-1" : "")}
-          >
-            {(isNatural || showNaturalBadge) && (
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: [1, 1.1, 1] }}
-                transition={{ repeat: Infinity, duration: 1.5 }}
-              >
-                <Badge className={cn(
-                  "bg-gradient-to-r from-amber-500 to-yellow-400 text-black flex items-center gap-0.5",
-                  isMe ? "text-[7px] px-1.5" : "text-[6px] px-1 mb-0.5"
-                )}>
-                  <Sparkles className={isMe ? "h-2.5 w-2.5" : "h-2 w-2"} />
-                  9!
-                </Badge>
-              </motion.div>
-            )}
-            <div className={cn(
-              "font-bold",
-              isMe ? "text-lg" : "text-base",
-              handValue === 9 ? 'text-amber-400' : 'text-white'
-            )}>
-              {handValue}
-            </div>
-          </motion.div>
-        )}
+        {/* Cards are now displayed in the header row next to avatar */}
 
         {/* Turn indicator with countdown timer */}
         {isCurrentTurn && (
