@@ -1037,6 +1037,10 @@ export default function Lucky9TablePage() {
           playerDecisions={playerDecisions}
           isDealing={isDealing}
           isShowdown={game?.status === 'finished' || game?.status === 'revealing'}
+          canStartBetting={canStartBetting}
+          canDealCards={canDealCards}
+          onStartBetting={startBetting}
+          onDealCards={startRound}
         />
 
         {/* Floating card animations - Deal Sequence */}
@@ -1066,31 +1070,7 @@ export default function Lucky9TablePage() {
           onComplete={clearAnimations}
         />
 
-        {/* Banker controls - positioned at the very top of the game area */}
-        {hasActiveBanker && (canStartBetting || canDealCards) && (
-          <div className="flex justify-center gap-2 mt-2 mb-4">
-            {canStartBetting && (
-              <Button 
-                onClick={startBetting} 
-                disabled={isProcessing} 
-                className="bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 px-4 py-2 text-sm font-bold rounded-xl shadow-lg shadow-green-500/30"
-              >
-                <Play className="h-4 w-4 mr-1.5" />
-                Start Betting
-              </Button>
-            )}
-            {canDealCards && (
-              <Button 
-                onClick={startRound} 
-                disabled={isProcessing} 
-                className="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 px-4 py-2 text-sm font-bold rounded-xl shadow-lg shadow-amber-500/30"
-              >
-                <Layers className="h-4 w-4 mr-1.5" />
-                Deal Cards
-              </Button>
-            )}
-          </div>
-        )}
+        {/* Banker controls removed - now inside the table */}
 
         {/* Pending bets info for banker */}
         {iAmBanker && game?.status === 'betting' && playersWithPendingBets.length > 0 && (

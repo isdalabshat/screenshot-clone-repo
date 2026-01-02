@@ -129,26 +129,26 @@ export function Lucky9PlayerSeat({
       <div className="absolute -inset-1.5 rounded-xl bg-gradient-to-b from-amber-900/40 via-amber-800/20 to-amber-900/40 blur-[1px]" />
       <div className="absolute -inset-1 rounded-xl border-2 border-amber-700/40 bg-gradient-to-b from-amber-950/60 to-slate-950/60" />
       
-      {/* Seat cushion effect - Square layout for current user, compact for others */}
+      {/* Seat cushion effect - Compact layout for all players */}
       <div className={cn(
         "relative bg-gradient-to-br from-slate-800/95 via-slate-900/95 to-slate-800/95 backdrop-blur rounded-lg border-2",
         isMe 
-          ? "p-1 w-[85px] h-[85px] flex flex-col justify-between" // Square for current user
+          ? "p-0.5 w-[75px] h-[70px] flex flex-col justify-between" // Smaller square for current user
           : isCompact 
-            ? "p-0.5 min-w-[60px] max-w-[65px]" 
-            : "p-0.5 min-w-[70px] max-w-[80px]",
+            ? "p-0.5 min-w-[55px] max-w-[60px]" 
+            : "p-0.5 min-w-[65px] max-w-[75px]",
         getSeatBorder()
       )}>
         {/* Player Avatar, info, and cards in horizontal layout */}
         <div className={cn(
-          "flex items-center gap-1",
+          "flex items-center gap-0.5",
           isMe ? "flex-row" : "flex-row"
         )}>
           {/* Avatar on the left */}
           <Lucky9PlayerAvatar
             username={player.username}
             isMe={isMe}
-            size={isMe ? "sm" : "xs"}
+            size="xs"
             currentEmoji={currentEmoji}
           />
           
@@ -161,12 +161,12 @@ export function Lucky9PlayerSeat({
               {isMe && <Badge className="bg-blue-500 px-0.5 py-0 flex-shrink-0 text-[5px]">YOU</Badge>}
               <span className={cn(
                 "font-medium text-white truncate block",
-                isMe ? "text-[8px] max-w-[40px]" : isCompact ? "text-[6px] max-w-[25px]" : "text-[7px] max-w-[30px]"
+                isMe ? "text-[6px] max-w-[30px]" : isCompact ? "text-[5px] max-w-[22px]" : "text-[6px] max-w-[28px]"
               )}>{player.username}</span>
             </div>
             <span className={cn(
               "text-yellow-400 font-mono block font-bold",
-              isMe ? "text-[8px]" : isCompact ? "text-[5px]" : "text-[6px]"
+              isMe ? "text-[6px]" : isCompact ? "text-[5px]" : "text-[5px]"
             )}>₱{player.stack}</span>
           </div>
 
@@ -174,7 +174,7 @@ export function Lucky9PlayerSeat({
           {cards.length > 0 && (
             <div className={cn(
               "flex items-center",
-              isMe ? "gap-0.5" : isCompact ? "-space-x-1" : "gap-0.5"
+              isMe ? "-space-x-0.5" : isCompact ? "-space-x-1" : "-space-x-0.5"
             )}>
               {cards.map((card, i) => (
                 <Lucky9RevealableCard 
@@ -183,8 +183,8 @@ export function Lucky9PlayerSeat({
                   hidden={!showCards}
                   canReveal={canRevealCards}
                   delay={i * 0.1} 
-                  small={!isMe}
-                  extraSmall={isCompact && !isMe}
+                  small
+                  extraSmall={isCompact}
                   onReveal={() => onCardReveal?.(i)}
                 />
               ))}
@@ -197,18 +197,14 @@ export function Lucky9PlayerSeat({
                       animate={{ scale: [1, 1.1, 1] }}
                       transition={{ repeat: Infinity, duration: 1.5 }}
                     >
-                      <Badge className={cn(
-                        "bg-gradient-to-r from-amber-500 to-yellow-400 text-black flex items-center gap-0.5",
-                        isMe ? "text-[6px] px-1" : "text-[5px] px-0.5"
-                      )}>
-                        <Sparkles className={isMe ? "h-2 w-2" : "h-1.5 w-1.5"} />
+                      <Badge className="bg-gradient-to-r from-amber-500 to-yellow-400 text-black flex items-center gap-0.5 text-[5px] px-0.5">
+                        <Sparkles className="h-1.5 w-1.5" />
                         9!
                       </Badge>
                     </motion.div>
                   )}
                   <div className={cn(
-                    "font-bold",
-                    isMe ? "text-base" : "text-sm",
+                    "font-bold text-sm",
                     handValue === 9 ? 'text-amber-400' : 'text-white'
                   )}>
                     {handValue}

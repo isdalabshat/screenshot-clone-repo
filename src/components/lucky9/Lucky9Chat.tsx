@@ -113,12 +113,12 @@ export default function Lucky9Chat({ tableId, userId, username }: Lucky9ChatProp
 
   return (
     <>
-      {/* Chat Toggle Button */}
+      {/* Chat Toggle Button - positioned at right middle */}
       <Button
         variant="outline"
         size="icon"
         className={cn(
-          'fixed bottom-32 right-14 z-40 h-9 w-9 rounded-full shadow-lg',
+          'fixed top-1/2 -translate-y-12 right-2 z-40 h-8 w-8 rounded-full shadow-lg',
           'bg-green-600 hover:bg-green-700 border-green-500',
           unreadCount > 0 && 'animate-pulse'
         )}
@@ -140,10 +140,10 @@ export default function Lucky9Chat({ tableId, userId, username }: Lucky9ChatProp
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-44 right-4 z-40 w-60 sm:w-68 h-56 sm:h-64 bg-slate-900/95 backdrop-blur border border-green-700/30 rounded-lg shadow-xl flex flex-col"
+            initial={{ opacity: 0, x: 20, scale: 0.95 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: 20, scale: 0.95 }}
+            className="fixed top-1/2 -translate-y-1/2 right-12 z-40 w-56 sm:w-64 h-52 sm:h-60 bg-slate-900/95 backdrop-blur border border-green-700/30 rounded-lg shadow-xl flex flex-col"
           >
             {/* Header */}
             <div className="px-3 py-2 border-b border-green-700/30 flex items-center justify-between">
