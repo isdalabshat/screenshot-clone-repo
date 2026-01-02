@@ -121,6 +121,11 @@ export function Lucky9PlayerSeat({
     return `${amount > 0 ? '+' : ''}${amount}`;
   };
 
+  // Check if result should be shown (after game is finished)
+  const showResult = player.result && (gameStatus === 'revealing' || gameStatus === 'finished' || gameStatus === 'showdown');
+  const isPlayerWinner = player.result === 'win' || player.result === 'natural_win';
+  const isPlayerLoser = player.result === 'lose';
+
   return (
     <motion.div 
       className="relative"
@@ -129,20 +134,20 @@ export function Lucky9PlayerSeat({
       animate={isCurrentTurn ? { scale: [1, 1.02, 1] } : {}}
       transition={{ repeat: isCurrentTurn ? Infinity : 0, duration: 1.5 }}
     >
-      {/* Decision indicator (Hirit/Good) */}
+      {/* Decision indicator (Hirit/Good) - positioned above entire component to avoid overlap */}
       <AnimatePresence>
         {showDecision && currentDecision && !player.result && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.5, y: -10 }}
+            initial={{ opacity: 0, scale: 0.5, y: 5 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.5, y: -10 }}
-            className="absolute -top-5 left-1/2 -translate-x-1/2 z-40"
+            exit={{ opacity: 0, scale: 0.5, y: 5 }}
+            className="absolute -top-7 left-1/2 -translate-x-1/2 z-50"
           >
             <motion.div
               animate={{ scale: [1, 1.1, 1] }}
               transition={{ repeat: 2, duration: 0.3 }}
               className={cn(
-                'px-2 py-0.5 rounded-full text-[9px] font-bold uppercase whitespace-nowrap shadow-lg',
+                'px-2 py-0.5 rounded-full text-[8px] font-bold uppercase whitespace-nowrap shadow-lg',
                 currentDecision === 'hirit' 
                   ? 'bg-gradient-to-r from-green-500 to-emerald-400 text-white' 
                   : 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black'
@@ -154,11 +159,38 @@ export function Lucky9PlayerSeat({
         )}
       </AnimatePresence>
 
+      {/* Result indicator - WIN/LOSE badge positioned above component */}
+      <AnimatePresence>
+        {showResult && (isPlayerWinner || isPlayerLoser) && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.5, y: 5 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.5 }}
+            className="absolute -top-6 left-1/2 -translate-x-1/2 z-50"
+          >
+            <motion.div
+              animate={{ scale: [1, 1.15, 1] }}
+              transition={{ repeat: Infinity, duration: 0.8 }}
+              className={cn(
+                'px-2 py-0.5 rounded-full text-[8px] font-black uppercase whitespace-nowrap shadow-lg',
+                isPlayerWinner 
+                  ? 'bg-gradient-to-r from-green-500 to-emerald-400 text-white shadow-green-500/50' 
+                  : 'bg-gradient-to-r from-red-500 to-rose-500 text-white shadow-red-500/50'
+              )}
+            >
+              {isPlayerWinner ? '🏆 WIN!' : '❌ LOSE'}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Main seat panel - compact like reference */}
       <div className={cn(
         "relative bg-gradient-to-br from-slate-800/90 via-slate-900/95 to-slate-800/90 backdrop-blur rounded-xl border-2 overflow-visible",
         isMe ? "p-1" : "p-0.5",
-        getSeatBorder()
+        getSeatBorder(),
+        isPlayerWinner && "ring-2 ring-green-400 ring-opacity-50",
+        isPlayerLoser && "opacity-80"
       )}>
         {/* Layout: Avatar left, Cards overlapping right */}
         <div className="relative flex items-center">
@@ -176,7 +208,7 @@ export function Lucky9PlayerSeat({
           {cards.length > 0 && (
             <div className={cn(
               "absolute top-1/2 -translate-y-1/2 flex items-center z-20",
-              isMe ? "left-9" : "left-7"  // More offset for POV, still further right for global
+              isMe ? "left-9" : "left-7"
             )}>
               <div className="flex -space-x-0.5">
                 {cards.map((card, i) => (
