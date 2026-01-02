@@ -243,29 +243,35 @@ export function Lucky9PlayerSeat({
           </div>
         )}
 
-        {/* Banker bet controls */}
+        {/* Banker bet controls with bet amount display */}
         {showBetControls && onAcceptBet && onRejectBet && (
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="flex gap-0.5 mt-0.5"
+            className="flex flex-col gap-0.5 mt-0.5"
           >
-            <Button
-              size="sm"
-              onClick={() => onAcceptBet(player.id)}
-              disabled={isProcessing}
-              className="flex-1 h-4 px-1 bg-green-600 hover:bg-green-500 text-white text-[7px]"
-            >
-              <Check className="h-2 w-2" />
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => onRejectBet(player.id)}
-              disabled={isProcessing}
-              className="flex-1 h-4 px-1 bg-red-600 hover:bg-red-500 text-white text-[7px]"
-            >
-              <X className="h-2 w-2" />
-            </Button>
+            {/* Bet amount display for banker - prominent like reference image */}
+            <div className="bg-amber-900/90 px-2 py-0.5 rounded text-center border border-amber-500/50">
+              <span className="text-amber-300 font-bold text-[10px]">₱{player.currentBet.toLocaleString()}</span>
+            </div>
+            <div className="flex gap-0.5">
+              <Button
+                size="sm"
+                onClick={() => onAcceptBet(player.id)}
+                disabled={isProcessing}
+                className="flex-1 h-5 px-1 bg-green-600 hover:bg-green-500 text-white text-[8px]"
+              >
+                <Check className="h-2.5 w-2.5" />
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => onRejectBet(player.id)}
+                disabled={isProcessing}
+                className="flex-1 h-5 px-1 bg-red-600 hover:bg-red-500 text-white text-[8px]"
+              >
+                <X className="h-2.5 w-2.5" />
+              </Button>
+            </div>
           </motion.div>
         )}
 
