@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Lucky9Player } from '@/types/lucky9';
 import { Lucky9RevealableCard } from './Lucky9RevealableCard';
 import { Lucky9PlayerAvatar } from './Lucky9PlayerAvatar';
@@ -6,8 +6,9 @@ import { calculateLucky9Value, isNatural9 } from '@/lib/lucky9/deck';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, X, Clock, Sparkles } from 'lucide-react';
+import { Check, X, Clock, Sparkles, Timer } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useLucky9Sounds } from '@/hooks/useLucky9Sounds';
 
 interface Lucky9PlayerSeatProps {
   player: Lucky9Player;
@@ -26,6 +27,7 @@ interface Lucky9PlayerSeatProps {
   showNaturalBadge?: boolean;
   isWinner?: boolean;
   isCompact?: boolean; // For other players' cards to be smaller
+  turnTimeLimit?: number; // Turn time limit in seconds (default 30)
 }
 
 export function Lucky9PlayerSeat({ 
@@ -44,9 +46,14 @@ export function Lucky9PlayerSeat({
   currentDecision,
   showNaturalBadge,
   isWinner,
-  isCompact = false
+  isCompact = false,
+  turnTimeLimit = 30
 }: Lucky9PlayerSeatProps) {
+  const { playSound } = useLucky9Sounds();
   const [showDecision, setShowDecision] = useState(false);
+  const [turnTimeLeft, setTurnTimeLeft] = useState(turnTimeLimit);
+  const turnTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastTickSecond = useRef<number | null>(null);
 
   useEffect(() => {
     if (currentDecision) {
@@ -55,6 +62,39 @@ export function Lucky9PlayerSeat({
       return () => clearTimeout(timer);
     }
   }, [currentDecision]);
+
+  // Turn countdown timer
+  useEffect(() => {
+    if (isCurrentTurn) {
+      setTurnTimeLeft(turnTimeLimit);
+      lastTickSecond.current = null;
+      
+      turnTimerRef.current = setInterval(() => {
+        setTurnTimeLeft(prev => {
+          const newTime = Math.max(0, prev - 1);
+          // Play tick sound for last 10 seconds
+          if (newTime <= 10 && newTime > 0 && lastTickSecond.current !== newTime) {
+            playSound('clockTick');
+          }
+          lastTickSecond.current = newTime;
+          return newTime;
+        });
+      }, 1000);
+      
+      return () => {
+        if (turnTimerRef.current) {
+          clearInterval(turnTimerRef.current);
+        }
+      };
+    } else {
+      // Reset when not current turn
+      setTurnTimeLeft(turnTimeLimit);
+      if (turnTimerRef.current) {
+        clearInterval(turnTimerRef.current);
+        turnTimerRef.current = null;
+      }
+    }
+  }, [isCurrentTurn, turnTimeLimit, playSound]);
   
   const cards = player.cards || [];
   const handValue = cards.length > 0 ? calculateLucky9Value(cards) : null;
@@ -290,15 +330,39 @@ export function Lucky9PlayerSeat({
           </motion.div>
         )}
 
-        {/* Turn indicator */}
+        {/* Turn indicator with countdown timer */}
         {isCurrentTurn && (
           <motion.div
-            animate={{ opacity: [0.7, 1, 0.7] }}
-            transition={{ repeat: Infinity, duration: 1 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="mt-0.5"
           >
-            <Badge className="bg-green-500 text-black w-full justify-center text-[8px] font-bold py-0 mt-0.5">
-              {isMe ? '🎯 Turn!' : '⏳...'}
-            </Badge>
+            {/* Timer bar */}
+            <div className="h-1 bg-slate-700 rounded-full overflow-hidden mb-0.5">
+              <motion.div 
+                className={cn(
+                  "h-full transition-colors",
+                  turnTimeLeft <= 10 ? 'bg-red-500' : 'bg-green-500'
+                )}
+                style={{ width: `${(turnTimeLeft / turnTimeLimit) * 100}%` }}
+              />
+            </div>
+            <motion.div
+              animate={{ opacity: [0.7, 1, 0.7] }}
+              transition={{ repeat: Infinity, duration: 1 }}
+              className="flex items-center justify-center gap-1"
+            >
+              <Timer className={cn(
+                "h-2.5 w-2.5",
+                turnTimeLeft <= 10 ? 'text-red-400 animate-pulse' : 'text-green-400'
+              )} />
+              <span className={cn(
+                "text-[8px] font-bold tabular-nums",
+                turnTimeLeft <= 10 ? 'text-red-400' : 'text-green-400'
+              )}>
+                {turnTimeLeft}s
+              </span>
+            </motion.div>
           </motion.div>
         )}
 
