@@ -136,19 +136,21 @@ export function Lucky9PlayerSeat({
             initial={{ opacity: 0, y: 10, scale: 0.5 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.5 }}
-            className="absolute -top-5 left-1/2 -translate-x-1/2 z-40"
+            className="absolute -top-6 left-0 z-50 pointer-events-none"
           >
             <motion.div
               animate={{ y: [0, -2, 0] }}
               transition={{ repeat: Infinity, duration: 1.5 }}
               className={cn(
-                "font-black text-sm drop-shadow-lg",
-                player.winnings > 0 ? 'text-green-400' : 'text-red-400'
+                "font-black text-sm whitespace-nowrap px-1 py-0.5 rounded",
+                player.winnings > 0 
+                  ? 'text-green-400 bg-green-950/80' 
+                  : 'text-red-400 bg-red-950/80'
               )}
               style={{ 
                 textShadow: player.winnings > 0 
-                  ? '0 0 10px rgba(34, 197, 94, 0.8), 0 2px 4px rgba(0,0,0,0.8)' 
-                  : '0 0 10px rgba(239, 68, 68, 0.8), 0 2px 4px rgba(0,0,0,0.8)'
+                  ? '0 0 8px rgba(34, 197, 94, 0.8)' 
+                  : '0 0 8px rgba(239, 68, 68, 0.8)'
               }}
             >
               {formatWinnings(player.winnings)}
@@ -233,14 +235,16 @@ export function Lucky9PlayerSeat({
           >
             <div className={cn(
               "px-1.5 py-0.5 rounded text-[7px] font-bold flex items-center gap-0.5",
-              handValue === 9 
-                ? "bg-gradient-to-r from-amber-600 to-yellow-500 text-white" 
-                : "bg-gradient-to-r from-slate-700 to-slate-600 text-white"
+              (isNatural || showNaturalBadge)
+                ? "bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-black shadow-lg shadow-yellow-500/50 animate-pulse" 
+                : handValue === 9 
+                  ? "bg-gradient-to-r from-amber-600 to-yellow-500 text-white" 
+                  : "bg-gradient-to-r from-slate-700 to-slate-600 text-white"
             )}>
               {(isNatural || showNaturalBadge) && (
-                <Sparkles className="h-2 w-2 text-yellow-200" />
+                <Sparkles className="h-2.5 w-2.5 text-yellow-700" />
               )}
-              {handValue === 9 ? 'LUCKY 9' : `${handValue} POINTS`}
+              {(isNatural || showNaturalBadge) ? 'LUCKY 9!' : handValue === 9 ? 'LUCKY 9' : `${handValue} POINTS`}
             </div>
           </motion.div>
         )}
