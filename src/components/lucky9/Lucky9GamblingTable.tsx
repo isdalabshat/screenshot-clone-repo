@@ -317,30 +317,48 @@ export function Lucky9GamblingTable({
           )}
         </AnimatePresence>
 
-        {/* Banker at top center */}
-        <div className="absolute top-[8%] left-1/2 -translate-x-1/2 z-10">
+        {/* Banker at top center - matching reference layout */}
+        <div className="absolute top-[5%] left-1/2 -translate-x-1/2 z-10">
           {banker ? (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className={cn(
-                "relative overflow-visible bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 backdrop-blur rounded-lg p-0.5 border-2 transition-all min-w-[75px] max-w-[90px]",
-                isBankerTurn 
-                  ? 'border-yellow-400 shadow-md shadow-yellow-500/30' 
-                  : bankerIsWinner
-                    ? 'border-green-400 shadow-md shadow-green-500/30'
-                    : isGameFinished && banker.result === 'lose'
-                      ? 'border-red-400/50'
-                      : 'border-amber-600/40'
-              )}
+              className="relative"
               data-banker-seat="true"
             >
-              {/* Background decoration */}
-              <div className="absolute top-0 right-0 w-10 h-10 bg-gradient-to-br from-amber-500/10 to-transparent rounded-full blur-lg" />
-              
+              {/* Floating Win/Loss Amount - Above avatar */}
+              <AnimatePresence>
+                {banker.winnings !== 0 && isGameFinished && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.5 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -10, scale: 0.5 }}
+                    className="absolute -top-5 left-1/2 -translate-x-1/2 z-40"
+                  >
+                    <motion.div
+                      animate={{ y: [0, -2, 0] }}
+                      transition={{ repeat: Infinity, duration: 1.5 }}
+                      className={cn(
+                        "font-black text-sm drop-shadow-lg",
+                        banker.winnings > 0 ? 'text-green-400' : 'text-red-400'
+                      )}
+                      style={{ 
+                        textShadow: banker.winnings > 0 
+                          ? '0 0 10px rgba(34, 197, 94, 0.8), 0 2px 4px rgba(0,0,0,0.8)' 
+                          : '0 0 10px rgba(239, 68, 68, 0.8), 0 2px 4px rgba(0,0,0,0.8)'
+                      }}
+                    >
+                      {Math.abs(banker.winnings) >= 1000 
+                        ? `${banker.winnings > 0 ? '+' : ''}${(banker.winnings / 1000).toFixed(1)}K`
+                        : `${banker.winnings > 0 ? '+' : ''}${banker.winnings}`}
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {/* Banker decision indicator */}
               <AnimatePresence>
-                {showBankerDecision && bankerDecision && (
+                {showBankerDecision && bankerDecision && !isGameFinished && (
                   <motion.div
                     initial={{ opacity: 0, scale: 0.5, y: -10 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -362,148 +380,106 @@ export function Lucky9GamblingTable({
                   </motion.div>
                 )}
               </AnimatePresence>
-              
-              <div className="relative flex flex-row items-center gap-1">
-                {/* Avatar on the left */}
-                <div className="relative flex-shrink-0">
-                  <Lucky9PlayerAvatar
-                    username={banker.username}
-                    isBanker
-                    isMe={isCurrentUserBanker}
-                    size="xs"
-                    currentEmoji={playerEmojis[banker.userId] || null}
-                  />
-                  <motion.div 
-                    className="absolute -top-0.5 -right-0.5"
-                    animate={{ rotate: [0, 10, -10, 0] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                  >
-                    <Crown className="h-2 w-2 text-amber-400 fill-amber-400" />
-                  </motion.div>
-                </div>
-                
-                {/* Info in the middle */}
-                <div className="min-w-0 flex-shrink-0">
-                  <div className="flex items-center gap-0.5 flex-wrap">
-                    <span className="font-bold text-amber-400 text-[6px] truncate max-w-[25px]">{banker.username}</span>
-                    {isCurrentUserBanker && (
-                      <motion.div
-                        animate={{ scale: [1, 1.1, 1] }}
-                        transition={{ repeat: Infinity, duration: 1.5 }}
-                      >
-                        <Badge className="bg-gradient-to-r from-purple-500 to-indigo-500 text-[6px] px-1 py-0 font-bold shadow-lg shadow-purple-500/30">
-                          🎰 YOU
-                        </Badge>
-                      </motion.div>
-                    )}
+
+              {/* Banker panel */}
+              <div className={cn(
+                "relative bg-gradient-to-br from-slate-800/90 via-slate-900/95 to-slate-800/90 backdrop-blur rounded-xl border-2 p-1 overflow-visible",
+                isBankerTurn 
+                  ? 'border-yellow-400 shadow-md shadow-yellow-500/30' 
+                  : bankerIsWinner
+                    ? 'border-green-400 shadow-md shadow-green-500/30'
+                    : isGameFinished && banker.result === 'lose'
+                      ? 'border-red-400/50'
+                      : 'border-amber-600/40'
+              )}>
+                {/* Layout: Avatar left, Cards overlapping right */}
+                <div className="relative flex items-center">
+                  {/* Avatar with crown */}
+                  <div className="relative z-10 flex-shrink-0">
+                    <Lucky9PlayerAvatar
+                      username={banker.username}
+                      isBanker
+                      isMe={isCurrentUserBanker}
+                      size="sm"
+                      currentEmoji={playerEmojis[banker.userId] || null}
+                    />
+                    <motion.div 
+                      className="absolute -top-1 -right-1"
+                      animate={{ rotate: [0, 10, -10, 0] }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                    >
+                      <Crown className="h-3 w-3 text-amber-400 fill-amber-400 drop-shadow" />
+                    </motion.div>
                   </div>
-                  <span className="text-yellow-400 font-mono text-[6px] font-bold">₱{banker.stack.toLocaleString()}</span>
+                  
+                  {/* Cards overlapping to the right */}
+                  {bankerCards.length > 0 && (
+                    <div className="absolute left-7 top-1/2 -translate-y-1/2 flex items-center z-20">
+                      <div className="flex -space-x-1">
+                        {bankerCards.map((card, i) => {
+                          const shouldShow = showAllCards || isCurrentUserBanker;
+                          const canReveal = isCurrentUserBanker && isBankerTurn && !banker?.hasActed;
+                          return (
+                            <Lucky9RevealableCard 
+                              key={i} 
+                              card={card} 
+                              hidden={!shouldShow}
+                              canReveal={canReveal}
+                              delay={i * 0.1} 
+                              small
+                              onReveal={() => onCardReveal?.(banker?.id || '', i)}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* Banker Cards on the right side - inside the panel */}
-                {bankerCards.length > 0 && (
-                  <div className="flex items-center gap-0.5 flex-shrink-0">
-                    {bankerCards.map((card, i) => {
-                      const shouldShow = showAllCards || isCurrentUserBanker;
-                      const canReveal = isCurrentUserBanker && isBankerTurn && !banker?.hasActed;
-                      return (
-                        <Lucky9RevealableCard 
-                          key={i} 
-                          card={card} 
-                          hidden={!shouldShow}
-                          canReveal={canReveal}
-                          delay={i * 0.1} 
-                          small
-                          extraSmall
-                          onReveal={() => onCardReveal?.(banker?.id || '', i)}
-                        />
-                      );
-                    })}
-                    {(showAllCards || isCurrentUserBanker) && bankerValue !== null && (
-                      <div className="ml-0.5 flex flex-col items-center">
-                        {bankerIsNatural && (
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: [1, 1.1, 1] }}
-                            transition={{ repeat: Infinity, duration: 1.5 }}
-                          >
-                            <Badge className="bg-gradient-to-r from-amber-500 to-yellow-400 text-black text-[5px] flex items-center gap-0.5 shadow-lg px-0.5">
-                              <Sparkles className="h-1.5 w-1.5" />
-                              9!
-                            </Badge>
-                          </motion.div>
-                        )}
-                        <div className={cn(
-                          "font-bold text-[8px] bg-slate-900/80 rounded px-0.5",
-                          bankerValue === 9 ? 'text-amber-400' : 'text-white'
-                        )}>
-                          {bankerValue}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                {/* Score badge below cards */}
+                {(showAllCards || isCurrentUserBanker) && bankerValue !== null && bankerCards.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="mt-0.5 flex justify-center"
+                  >
+                    <div className={cn(
+                      "px-1.5 py-0.5 rounded text-[7px] font-bold flex items-center gap-0.5",
+                      bankerValue === 9 
+                        ? "bg-gradient-to-r from-amber-600 to-yellow-500 text-white" 
+                        : "bg-gradient-to-r from-slate-700 to-slate-600 text-white"
+                    )}>
+                      {bankerIsNatural && <Sparkles className="h-2 w-2 text-yellow-200" />}
+                      {bankerValue === 9 ? 'LUCKY 9' : `${bankerValue} POINTS`}
+                    </div>
+                  </motion.div>
                 )}
               </div>
 
-              {/* Banker result with animation */}
-              {banker.result && isGameFinished && (
-                <motion.div 
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  className="text-center"
-                >
-                  <Badge className={`text-[6px] font-bold ${
-                    banker.result === 'win' || banker.result === 'natural_win' ? 'bg-gradient-to-r from-green-500 to-emerald-400' : 
-                    banker.result === 'lose' ? 'bg-gradient-to-r from-red-500 to-red-400' : 
-                    'bg-slate-500'
-                  }`}>
-                    {banker.result === 'win' || banker.result === 'natural_win' ? '🏆' : banker.result === 'lose' ? '💔' : '↔'}
-                  </Badge>
-                  {banker.winnings !== 0 && (
-                    <motion.div 
-                      initial={{ y: 10, opacity: 0 }}
-                      animate={{ y: 0, opacity: 1 }}
-                      className={`text-[8px] font-bold ${banker.winnings > 0 ? 'text-green-400' : 'text-red-400'}`}
-                    >
-                      {banker.winnings > 0 ? '+' : ''}₱{banker.winnings.toLocaleString()}
-                    </motion.div>
+              {/* Balance and name below panel */}
+              <div className="text-center mt-0.5">
+                <div className="text-yellow-400 font-bold text-[9px] drop-shadow">
+                  ₱{banker.stack.toLocaleString()}
+                </div>
+                <div className="flex items-center justify-center gap-0.5">
+                  <span className="text-amber-300 text-[7px] font-medium truncate max-w-[50px]">
+                    {banker.username}
+                  </span>
+                  {isCurrentUserBanker && (
+                    <Badge className="bg-purple-500 px-0.5 py-0 text-[5px]">YOU</Badge>
                   )}
-                </motion.div>
-              )}
-
-              {/* Winner indicator */}
-              <AnimatePresence>
-                {bankerIsWinner && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0 }}
-                  >
-                    <motion.div
-                      animate={{ scale: [1, 1.15, 1] }}
-                      transition={{ repeat: Infinity, duration: 0.8 }}
-                      className={cn(
-                        'px-1.5 py-0.5 rounded-full text-[6px] font-bold shadow-lg whitespace-nowrap',
-                        bankerIsNatural
-                          ? 'bg-gradient-to-r from-amber-400 to-yellow-300 text-black'
-                          : 'bg-gradient-to-r from-green-500 to-emerald-400 text-white'
-                      )}
-                    >
-                      {bankerIsNatural ? '🏆9!' : '🎉WIN'}
-                    </motion.div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                </div>
+              </div>
             </motion.div>
           ) : (
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="bg-slate-900/50 rounded-xl p-3 border-2 border-dashed border-amber-500/30 text-center"
+              className="bg-slate-900/50 rounded-xl p-2 border-2 border-dashed border-amber-500/30 text-center"
             >
-              <div className="flex items-center justify-center gap-2 text-amber-400/60">
-                <Crown className="h-4 w-4" />
-                <span className="text-xs font-medium">Waiting for Banker...</span>
+              <div className="flex items-center justify-center gap-1 text-amber-400/60">
+                <Crown className="h-3 w-3" />
+                <span className="text-[10px] font-medium">Waiting for Banker...</span>
               </div>
             </motion.div>
           )}
