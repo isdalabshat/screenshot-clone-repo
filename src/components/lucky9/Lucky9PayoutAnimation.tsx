@@ -221,7 +221,7 @@ export function Lucky9PayoutAnimation({ payouts, onComplete }: Lucky9PayoutAnima
               }`}
               style={{ textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}
             >
-              {bankerNetAmount > 0 ? '+' : ''}₱{Math.abs(bankerNetAmount).toLocaleString()}
+              {bankerNetAmount > 0 ? '+' : '-'}₱{Math.abs(bankerNetAmount).toLocaleString()}
             </motion.div>
           </motion.div>
         )}

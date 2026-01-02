@@ -75,6 +75,23 @@ serve(async (req) => {
           });
         }
 
+        // Check if there's an active game (prevent joining during betting/playing)
+        const { data: activeGame } = await supabase
+          .from('lucky9_games')
+          .select('status')
+          .eq('table_id', tableId)
+          .in('status', ['betting', 'accepting_bets', 'dealing', 'player_turns', 'banker_turn', 'calculating', 'revealing', 'showdown'])
+          .maybeSingle();
+
+        if (activeGame && role !== 'banker') {
+          return new Response(JSON.stringify({ 
+            error: 'Cannot join during an active round. Please wait for the round to finish.',
+            waitForRound: true
+          }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
         // Get user profile
         const { data: profile } = await supabase
           .from('profiles')
