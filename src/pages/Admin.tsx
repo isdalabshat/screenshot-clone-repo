@@ -22,7 +22,7 @@ interface Lucky9TableData { id: string; name: string; minBet: number; maxBet: nu
 
 export default function Admin() {
   const navigate = useNavigate();
-  const { profile, isLoading } = useAuth();
+  const { user, profile, isLoading } = useAuth();
   const { toast } = useToast();
   
   const [tables, setTables] = useState<PokerTableData[]>([]);
@@ -77,24 +77,28 @@ export default function Admin() {
   };
 
   const fetchUsers = async () => {
-    // Fetch profiles
-    const { data: profilesData } = await supabase.from('profiles').select('*').order('username');
+    if (!user) return;
     
-    if (profilesData) {
-      // Fetch emails from auth.users via edge function or direct query (we'll use the user_id to show email)
-      const usersWithEmail = await Promise.all(profilesData.map(async (u) => {
-        // Get email from auth.users using admin API (via service role in edge function if needed)
-        // For now, we'll query the auth.users table directly (works with service role)
-        const { data: authUser } = await supabase.auth.admin.getUserById(u.user_id);
-        return { 
+    // Use edge function to fetch users with emails (requires service role)
+    const { data, error } = await supabase.functions.invoke('admin-operations', {
+      body: { action: 'get_user_emails', userId: user.id }
+    });
+
+    if (!error && data?.users) {
+      setUsers(data.users);
+    } else {
+      console.error('Error fetching users:', error || data?.error);
+      // Fallback to profiles without email
+      const { data: profilesData } = await supabase.from('profiles').select('*').order('username');
+      if (profilesData) {
+        setUsers(profilesData.map(u => ({ 
           id: u.id, 
           oduserId: u.user_id, 
           username: u.username, 
           chips: u.chips,
-          email: authUser?.user?.email || 'N/A'
-        };
-      }));
-      setUsers(usersWithEmail);
+          email: 'N/A'
+        })));
+      }
     }
   };
 
@@ -206,20 +210,17 @@ export default function Admin() {
   };
 
   const deletePlayer = async (oduserId: string) => {
+    if (!user) return;
+    
     try {
-      // Delete all related data first
-      await supabase.from('lucky9_players').delete().eq('user_id', oduserId);
-      await supabase.from('table_players').delete().eq('user_id', oduserId);
-      await supabase.from('cash_requests').delete().eq('user_id', oduserId);
-      await supabase.from('chat_messages').delete().eq('user_id', oduserId);
-      await supabase.from('game_actions').delete().eq('user_id', oduserId);
-      await supabase.from('user_roles').delete().eq('user_id', oduserId);
-      await supabase.from('profiles').delete().eq('user_id', oduserId);
+      // Use edge function to delete user (requires service role)
+      const { data, error } = await supabase.functions.invoke('admin-operations', {
+        body: { action: 'delete_user', userId: user.id, targetUserId: oduserId }
+      });
       
-      // Delete auth user
-      const { error } = await supabase.auth.admin.deleteUser(oduserId);
-      
-      if (error) throw error;
+      if (error || data?.error) {
+        throw new Error(data?.error || error?.message || 'Failed to delete player');
+      }
       
       toast({ title: 'Success', description: 'Player permanently deleted!' });
       setDeleteConfirmUserId(null);

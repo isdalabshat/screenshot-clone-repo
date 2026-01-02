@@ -1066,9 +1066,9 @@ export default function Lucky9TablePage() {
           onComplete={clearAnimations}
         />
 
-        {/* Banker controls - positioned inside the table area to avoid overlap */}
+        {/* Banker controls - positioned at the very top of the game area */}
         {hasActiveBanker && (canStartBetting || canDealCards) && (
-          <div className="absolute left-1/2 top-[35%] -translate-x-1/2 -translate-y-1/2 z-30 flex justify-center gap-2">
+          <div className="flex justify-center gap-2 mt-2 mb-4">
             {canStartBetting && (
               <Button 
                 onClick={startBetting} 
