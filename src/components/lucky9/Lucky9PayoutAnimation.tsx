@@ -124,7 +124,7 @@ export function Lucky9PayoutAnimation({ payouts, onComplete }: Lucky9PayoutAnima
               );
             })}
             
-            {/* Net amount display at destination */}
+            {/* Net amount display at destination - without fee deduction visual */}
             <AnimatePresence>
               {showingNet[payout.id] && (
                 <motion.div
@@ -159,11 +159,6 @@ export function Lucky9PayoutAnimation({ payouts, onComplete }: Lucky9PayoutAnima
                     }}
                   >
                     {netAmount >= 0 ? '+' : ''}₱{Math.abs(netAmount).toLocaleString()}
-                    {payout.feeDeducted && payout.feeDeducted > 0 && (
-                      <span className="text-[8px] opacity-70 ml-1">
-                        (-{payout.feeDeducted} fee)
-                      </span>
-                    )}
                   </motion.div>
                 </motion.div>
               )}

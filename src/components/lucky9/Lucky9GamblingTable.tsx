@@ -243,14 +243,15 @@ export function Lucky9GamblingTable({
               if (!showBetChip || isAnimatingLoss) return null;
               
               // Positions are relative to the table container (300px wide, ~400px tall aspect ratio)
+              // Moved chips further inward on table to avoid avatar overlap
               const getTableBetPosition = (pos: number): { x: number; y: number } => {
                 switch (pos) {
-                  case 0: return { x: 150, y: 310 }; // Bottom center
-                  case 1: return { x: 70, y: 255 }; // Bottom left
-                  case 2: return { x: 70, y: 155 }; // Top left
-                  case 3: return { x: 230, y: 155 }; // Top right
-                  case 4: return { x: 230, y: 255 }; // Bottom right
-                  default: return { x: 150, y: 240 };
+                  case 0: return { x: 150, y: 280 }; // Bottom center - moved up
+                  case 1: return { x: 95, y: 240 }; // Bottom left - moved right
+                  case 2: return { x: 95, y: 170 }; // Top left - moved right
+                  case 3: return { x: 205, y: 170 }; // Top right - moved left
+                  case 4: return { x: 205, y: 240 }; // Bottom right - moved left
+                  default: return { x: 150, y: 220 };
                 }
               };
               
