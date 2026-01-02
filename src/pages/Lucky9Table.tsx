@@ -752,15 +752,19 @@ export default function Lucky9TablePage() {
       
       const gameIdToProcess = game.id;
       
-      // After 1 second, update to 'revealing' status
+      // After 1 second, use server action to transition to 'revealing'
       calculatingTimeoutRef.current = setTimeout(async () => {
         console.log('Transitioning to revealing for game:', gameIdToProcess);
         try {
-          await supabase
-            .from('lucky9_games')
-            .update({ status: 'revealing' })
-            .eq('id', gameIdToProcess)
-            .eq('status', 'calculating'); // Only update if still calculating
+          const { data } = await supabase.functions.invoke('lucky9-game', {
+            body: { 
+              action: 'advance_game_phase', 
+              gameId: gameIdToProcess,
+              fromPhase: 'calculating',
+              toPhase: 'revealing'
+            }
+          });
+          console.log('Advance phase result:', data);
         } catch (err) {
           console.error('Error transitioning to revealing:', err);
         }
@@ -853,22 +857,27 @@ export default function Lucky9TablePage() {
         clearTimeout(revealingTimeoutRef.current);
       }
       
-      // After 5 seconds, mark as finished and reset
+      // After 5 seconds, use server action to mark as finished and reset
       revealingTimeoutRef.current = setTimeout(async () => {
         console.log('5 seconds reveal complete - finishing game:', gameIdToProcess);
         try {
           // Clear payouts before finishing
           clearPayouts();
           
-          await supabase
-            .from('lucky9_games')
-            .update({ status: 'finished' })
-            .eq('id', gameIdToProcess)
-            .eq('status', 'revealing'); // Only update if still revealing
+          // Use server action to advance to finished
+          const { data } = await supabase.functions.invoke('lucky9-game', {
+            body: { 
+              action: 'advance_game_phase', 
+              gameId: gameIdToProcess,
+              fromPhase: 'revealing',
+              toPhase: 'finished'
+            }
+          });
+          console.log('Advance to finished result:', data);
           
-          // Wait a moment then reset
-          setTimeout(() => {
-            resetRound();
+          // Wait a moment then reset for next round
+          setTimeout(async () => {
+            await resetRound();
             // Clear processed refs for next game
             lastProcessedCalcGameId.current = null;
             lastProcessedRevealGameId.current = null;
@@ -876,6 +885,13 @@ export default function Lucky9TablePage() {
           }, 500);
         } catch (err) {
           console.error('Error finishing game:', err);
+          // Still try to reset on error
+          setTimeout(async () => {
+            await resetRound();
+            lastProcessedCalcGameId.current = null;
+            lastProcessedRevealGameId.current = null;
+            payoutTriggeredRef.current = null;
+          }, 1000);
         }
       }, 5000);
     }
@@ -885,7 +901,7 @@ export default function Lucky9TablePage() {
         clearTimeout(revealingTimeoutRef.current);
       }
     };
-  }, [game?.status, game?.id, players, playSound, clearPayouts, triggerPayouts]);
+  }, [game?.status, game?.id, players, playSound, clearPayouts, triggerPayouts, resetRound]);
 
   // Cleanup timeouts on component unmount
   useEffect(() => {
@@ -897,29 +913,33 @@ export default function Lucky9TablePage() {
     };
   }, []);
 
-  // Failsafe: Reset stuck games after 30 seconds of inactivity in calculating/revealing state
+  // Failsafe: Reset stuck games after 15 seconds of inactivity in calculating/revealing/finished state
   const stuckGameTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   useEffect(() => {
-    if (game?.status === 'calculating' || game?.status === 'revealing') {
+    if (game?.status === 'calculating' || game?.status === 'revealing' || game?.status === 'finished') {
       // Clear existing failsafe
       if (stuckGameTimeoutRef.current) {
         clearTimeout(stuckGameTimeoutRef.current);
       }
       
       const gameIdToReset = game.id;
+      const currentStatus = game.status;
       
-      // Set failsafe timeout - if game is still in these states after 30 seconds, force reset
+      // Set failsafe timeout - if game is still in these states after 15 seconds, force reset
       stuckGameTimeoutRef.current = setTimeout(async () => {
-        console.warn('Failsafe triggered: Game stuck in', game.status, '- forcing reset');
+        console.warn('Failsafe triggered: Game stuck in', currentStatus, '- forcing reset');
         try {
-          // Use the force_finish action to properly return bets
-          await supabase.functions.invoke('lucky9-game', {
-            body: { action: 'force_finish', gameId: gameIdToReset, tableId }
-          });
+          // If finished, just reset. Otherwise force finish first.
+          if (currentStatus !== 'finished') {
+            await supabase.functions.invoke('lucky9-game', {
+              body: { action: 'force_finish', gameId: gameIdToReset, tableId }
+            });
+          }
           
-          setTimeout(() => {
-            resetRound();
+          // Always reset round after a short delay
+          setTimeout(async () => {
+            await resetRound();
             // Clear processed refs
             lastProcessedCalcGameId.current = null;
             lastProcessedRevealGameId.current = null;
@@ -927,8 +947,15 @@ export default function Lucky9TablePage() {
           }, 500);
         } catch (err) {
           console.error('Failsafe reset error:', err);
+          // Force reset even on error
+          setTimeout(async () => {
+            await resetRound();
+            lastProcessedCalcGameId.current = null;
+            lastProcessedRevealGameId.current = null;
+            payoutTriggeredRef.current = null;
+          }, 1000);
         }
-      }, 30000);
+      }, 15000);
     } else {
       // Clear failsafe if game is no longer in problematic state
       if (stuckGameTimeoutRef.current) {
@@ -942,7 +969,7 @@ export default function Lucky9TablePage() {
         clearTimeout(stuckGameTimeoutRef.current);
       }
     };
-  }, [game?.status, game?.id, tableId]);
+  }, [game?.status, game?.id, tableId, resetRound]);
 
   // Additional failsafe: Check for stuck games in any phase (betting, player_turns, banker_turn)
   const stuckPhaseTimeoutRef = useRef<NodeJS.Timeout | null>(null);

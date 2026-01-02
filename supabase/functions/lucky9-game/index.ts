@@ -1285,6 +1285,15 @@ serve(async (req) => {
       }
 
       case 'reset_round': {
+        console.log('Resetting round for table:', tableId);
+        
+        // First, delete any finished games for this table
+        await supabase
+          .from('lucky9_games')
+          .delete()
+          .eq('table_id', tableId)
+          .eq('status', 'finished');
+        
         // Reset all players for new round
         await supabase
           .from('lucky9_players')
@@ -1302,7 +1311,62 @@ serve(async (req) => {
           .eq('table_id', tableId)
           .eq('is_active', true);
 
+        console.log('Round reset complete');
         return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+      
+      case 'advance_game_phase': {
+        // Server-side phase advancement to avoid race conditions
+        console.log('Advancing game phase:', gameId, 'from:', body.fromPhase, 'to:', body.toPhase);
+        
+        if (!gameId) {
+          return new Response(JSON.stringify({ error: 'gameId required' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+        
+        const { fromPhase, toPhase } = body;
+        
+        // Get current game state
+        const { data: currentGame } = await supabase
+          .from('lucky9_games')
+          .select('status')
+          .eq('id', gameId)
+          .single();
+        
+        if (!currentGame) {
+          console.log('Game not found for phase advance:', gameId);
+          return new Response(JSON.stringify({ success: false, reason: 'game_not_found' }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+        
+        // Only advance if still in the expected phase
+        if (currentGame.status !== fromPhase) {
+          console.log('Game already advanced from', fromPhase, 'to', currentGame.status);
+          return new Response(JSON.stringify({ success: true, alreadyAdvanced: true, currentStatus: currentGame.status }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+        
+        // Perform the transition
+        const { error } = await supabase
+          .from('lucky9_games')
+          .update({ status: toPhase, updated_at: new Date().toISOString() })
+          .eq('id', gameId)
+          .eq('status', fromPhase);
+        
+        if (error) {
+          console.error('Error advancing phase:', error);
+          return new Response(JSON.stringify({ success: false, error: error.message }), {
+            status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+        
+        console.log('Phase advanced successfully to:', toPhase);
+        return new Response(JSON.stringify({ success: true, newPhase: toPhase }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
