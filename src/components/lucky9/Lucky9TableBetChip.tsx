@@ -72,17 +72,15 @@ export function Lucky9TableBetChip({
           </motion.div>
         ))}
         
-        {/* Bet amount label */}
-        {showAmount && (
-          <motion.div 
-            className="absolute -bottom-5 left-1/2 -translate-x-1/2 bg-black/90 backdrop-blur-sm px-1.5 py-0.5 rounded-full text-[8px] font-bold text-amber-400 whitespace-nowrap shadow-lg border border-amber-500/30"
-            initial={{ opacity: 0, y: -5 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            ₱{amount >= 1000 ? `${(amount / 1000).toFixed(1)}K` : amount.toLocaleString()}
-          </motion.div>
-        )}
+        {/* Bet amount label - always visible */}
+        <motion.div 
+          className="absolute -bottom-6 left-1/2 -translate-x-1/2 bg-black/95 backdrop-blur-sm px-2 py-0.5 rounded-full text-[9px] font-bold text-amber-400 whitespace-nowrap shadow-lg border border-amber-500/40"
+          initial={{ opacity: 0, y: -5 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          ₱{amount >= 1000 ? `${(amount / 1000).toFixed(1)}K` : amount.toLocaleString()}
+        </motion.div>
       </div>
     </motion.div>
   );

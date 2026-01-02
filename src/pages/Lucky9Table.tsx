@@ -421,6 +421,8 @@ export default function Lucky9TablePage() {
     if (!myPlayer?.isBanker || !user) return;
     setIsProcessing(true);
     playSound('betAccepted');
+    // Play chip landing sound with delay for when chip appears on table
+    setTimeout(() => playSound('chipLand'), 300);
 
     await supabase.functions.invoke('lucky9-game', {
       body: { action: 'accept_bet', tableId, playerId, userId: user.id }
@@ -778,6 +780,8 @@ export default function Lucky9TablePage() {
           
           if (payoutAnims.length > 0) {
             triggerPayouts(payoutAnims);
+            // Play payout sound when chips start flying
+            playSound('payout');
           }
         }, 500);
       }

@@ -20,7 +20,9 @@ type Lucky9SoundType =
   | 'chipStack'
   | 'bigWin'
   | 'spectatorJoin'
-  | 'clockTick';
+  | 'clockTick'
+  | 'chipLand'
+  | 'payout';
 
 export function useLucky9Sounds() {
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -273,6 +275,31 @@ export function useLucky9Sounds() {
         playTone(180, 0.06, 'triangle', 0.2);
         setTimeout(() => playTone(120, 0.04, 'sine', 0.15), 30);
         setTimeout(() => playNoise(0.02, 0.06), 50);
+        break;
+        
+      case 'chipLand':
+        // Chip landing on table - satisfying casino chip sound
+        playNoise(0.06, 0.18);
+        playTone(250, 0.08, 'triangle', 0.15);
+        setTimeout(() => {
+          playTone(180, 0.05, 'sine', 0.1);
+          playNoise(0.03, 0.08);
+        }, 40);
+        break;
+        
+      case 'payout':
+        // Payout sound - coins cascading with satisfying clinks
+        for (let i = 0; i < 8; i++) {
+          setTimeout(() => {
+            playTone(400 + i * 50 + Math.random() * 100, 0.06, 'triangle', 0.12);
+            playNoise(0.025, 0.06);
+          }, i * 45);
+        }
+        // Final satisfying thud
+        setTimeout(() => {
+          playTone(200, 0.1, 'sine', 0.18);
+          playNoise(0.08, 0.1);
+        }, 380);
         break;
     }
   }, [playTone, playNoise, playChord]);
