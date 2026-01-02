@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Coins, Play, Layers, Eye, Clock } from 'lucide-react';
+import { ArrowLeft, Coins, Play, Layers, Eye, Clock, UserX } from 'lucide-react';
 import { CashInOutButtons } from '@/components/CashInOutButtons';
 import { Lucky9Table, Lucky9Game, Lucky9Player, Lucky9Role } from '@/types/lucky9';
 import { Lucky9BetPanel } from '@/components/lucky9/Lucky9BetPanel';
@@ -562,6 +562,30 @@ export default function Lucky9TablePage() {
     setIsProcessing(false);
   };
 
+  const handleKickPlayer = async (playerId: string) => {
+    if (!user || !profile?.isAdmin) return;
+    setIsProcessing(true);
+
+    const { data, error } = await supabase.functions.invoke('lucky9-game', {
+      body: { action: 'kick_player', tableId, playerId, userId: user.id }
+    });
+
+    if (!error && data?.success) {
+      toast({
+        title: 'Player Kicked',
+        description: 'Player has been removed from the table.',
+      });
+      fetchPlayers();
+    } else {
+      toast({
+        title: 'Error',
+        description: data?.error || 'Failed to kick player',
+        variant: 'destructive'
+      });
+    }
+    setIsProcessing(false);
+  };
+
   const resetRound = async () => {
     if (!tableId) return;
     await supabase.functions.invoke('lucky9-game', { body: { action: 'reset_round', tableId } });
@@ -1003,8 +1027,10 @@ export default function Lucky9TablePage() {
           currentUserId={user?.id}
           isBankerView={iAmBanker}
           isSpectator={isSpectator}
+          isAdmin={profile?.isAdmin}
           onAcceptBet={handleAcceptBet}
           onRejectBet={handleRejectBet}
+          onKickPlayer={handleKickPlayer}
           isProcessing={isProcessing}
           onCardReveal={handleCardReveal}
           playerEmojis={playerEmojis}
@@ -1040,15 +1066,14 @@ export default function Lucky9TablePage() {
           onComplete={clearAnimations}
         />
 
-        {/* Banker controls */}
-        {/* Banker controls - positioned higher to avoid overlap */}
+        {/* Banker controls - positioned inside the table area to avoid overlap */}
         {hasActiveBanker && (canStartBetting || canDealCards) && (
-          <div className="flex justify-center gap-2 py-2 -mt-4">
+          <div className="absolute left-1/2 top-[35%] -translate-x-1/2 -translate-y-1/2 z-30 flex justify-center gap-2">
             {canStartBetting && (
               <Button 
                 onClick={startBetting} 
                 disabled={isProcessing} 
-                className="bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 px-4 py-3 text-sm font-bold rounded-xl shadow-lg shadow-green-500/30"
+                className="bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 px-4 py-2 text-sm font-bold rounded-xl shadow-lg shadow-green-500/30"
               >
                 <Play className="h-4 w-4 mr-1.5" />
                 Start Betting
@@ -1058,7 +1083,7 @@ export default function Lucky9TablePage() {
               <Button 
                 onClick={startRound} 
                 disabled={isProcessing} 
-                className="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 px-4 py-3 text-sm font-bold rounded-xl shadow-lg shadow-amber-500/30"
+                className="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 px-4 py-2 text-sm font-bold rounded-xl shadow-lg shadow-amber-500/30"
               >
                 <Layers className="h-4 w-4 mr-1.5" />
                 Deal Cards

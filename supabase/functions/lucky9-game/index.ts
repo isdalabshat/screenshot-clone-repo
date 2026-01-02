@@ -1633,6 +1633,80 @@ serve(async (req) => {
         });
       }
 
+      case 'kick_player': {
+        // Admin only - kick a player from the table
+        // First verify the user is an admin
+        const { data: adminCheck } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', userId)
+          .eq('role', 'admin')
+          .maybeSingle();
+
+        if (!adminCheck) {
+          return new Response(JSON.stringify({ error: 'Unauthorized: Admin only' }), {
+            status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Get the player to kick
+        const { data: playerToKick } = await supabase
+          .from('lucky9_players')
+          .select('*')
+          .eq('id', playerId)
+          .single();
+
+        if (!playerToKick) {
+          return new Response(JSON.stringify({ error: 'Player not found' }), {
+            status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Return their stack to their profile
+        if (playerToKick.stack > 0) {
+          const { data: kickedProfile } = await supabase
+            .from('profiles')
+            .select('chips')
+            .eq('user_id', playerToKick.user_id)
+            .single();
+
+          if (kickedProfile) {
+            await supabase
+              .from('profiles')
+              .update({ chips: kickedProfile.chips + playerToKick.stack })
+              .eq('user_id', playerToKick.user_id);
+          }
+        }
+
+        // If player had a bet, return it too
+        if (playerToKick.current_bet > 0) {
+          const { data: kickedProfile } = await supabase
+            .from('profiles')
+            .select('chips')
+            .eq('user_id', playerToKick.user_id)
+            .single();
+
+          if (kickedProfile) {
+            await supabase
+              .from('profiles')
+              .update({ chips: kickedProfile.chips + playerToKick.current_bet })
+              .eq('user_id', playerToKick.user_id);
+          }
+        }
+
+        // Delete the player
+        await supabase
+          .from('lucky9_players')
+          .delete()
+          .eq('id', playerId);
+
+        console.log('Player kicked by admin:', playerId);
+
+        return new Response(JSON.stringify({ success: true, kicked: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
       default:
         return new Response(JSON.stringify({ error: 'Unknown action' }), {
           status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }

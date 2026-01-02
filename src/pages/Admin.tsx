@@ -11,12 +11,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Plus, Edit, Coins, Users, Shield, Trash2, DollarSign, Check, X, Image, History } from 'lucide-react';
+import { ArrowLeft, Plus, Edit, Coins, Users, Shield, Trash2, DollarSign, Check, X, Image, History, Eye, EyeOff, Mail, Lock, UserX } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-interface UserProfile { id: string; userId: string; username: string; chips: number; }
+interface UserProfile { id: string; oduserId: string; username: string; chips: number; email?: string; }
 interface PokerTableData { id: string; name: string; smallBlind: number; bigBlind: number; handsPlayed: number; maxHands: number; isActive: boolean; }
-interface CashRequest { id: string; userId: string; username: string; requestType: string; amount: number; status: string; createdAt: string; proofImageUrl?: string; gcashNumber?: string; }
+interface CashRequest { id: string; oduserId: string; username: string; requestType: string; amount: number; status: string; createdAt: string; proofImageUrl?: string; gcashNumber?: string; }
 interface Lucky9TableData { id: string; name: string; minBet: number; maxBet: number; maxPlayers: number; isActive: boolean; callTimeMinutes: number | null; }
 
 
@@ -34,7 +34,9 @@ export default function Admin() {
   const [newTable, setNewTable] = useState({ name: '', smallBlind: 10, bigBlind: 20, maxHands: 50 });
   const [newLucky9Table, setNewLucky9Table] = useState({ name: '', minBet: 10, maxBet: 1000, callTimeMinutes: null as number | null });
   const [editingTable, setEditingTable] = useState<PokerTableData | null>(null);
-  const [chipAdjustment, setChipAdjustment] = useState<{ userId: string; amount: number } | null>(null);
+  const [chipAdjustment, setChipAdjustment] = useState<{ oduserId: string; amount: number } | null>(null);
+  const [visibleEmails, setVisibleEmails] = useState<Set<string>>(new Set());
+  const [deleteConfirmUserId, setDeleteConfirmUserId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isLoading && (!profile || !profile.isAdmin)) navigate('/lobby');
@@ -75,8 +77,25 @@ export default function Admin() {
   };
 
   const fetchUsers = async () => {
-    const { data } = await supabase.from('profiles').select('*').order('username');
-    if (data) setUsers(data.map(u => ({ id: u.id, userId: u.user_id, username: u.username, chips: u.chips })));
+    // Fetch profiles
+    const { data: profilesData } = await supabase.from('profiles').select('*').order('username');
+    
+    if (profilesData) {
+      // Fetch emails from auth.users via edge function or direct query (we'll use the user_id to show email)
+      const usersWithEmail = await Promise.all(profilesData.map(async (u) => {
+        // Get email from auth.users using admin API (via service role in edge function if needed)
+        // For now, we'll query the auth.users table directly (works with service role)
+        const { data: authUser } = await supabase.auth.admin.getUserById(u.user_id);
+        return { 
+          id: u.id, 
+          oduserId: u.user_id, 
+          username: u.username, 
+          chips: u.chips,
+          email: authUser?.user?.email || 'N/A'
+        };
+      }));
+      setUsers(usersWithEmail);
+    }
   };
 
   const fetchCashRequests = async () => {
@@ -84,7 +103,7 @@ export default function Admin() {
     if (requests) {
       const { data: profiles } = await supabase.from('profiles').select('user_id, username');
       const userMap = new Map(profiles?.map(p => [p.user_id, p.username]) || []);
-      setCashRequests(requests.map(r => ({ id: r.id, userId: r.user_id, username: userMap.get(r.user_id) || 'Unknown', requestType: r.request_type, amount: r.amount, status: r.status, createdAt: r.created_at, proofImageUrl: r.proof_image_url, gcashNumber: r.gcash_number })));
+      setCashRequests(requests.map(r => ({ id: r.id, oduserId: r.user_id, username: userMap.get(r.user_id) || 'Unknown', requestType: r.request_type, amount: r.amount, status: r.status, createdAt: r.created_at, proofImageUrl: r.proof_image_url, gcashNumber: r.gcash_number })));
     }
   };
 
@@ -99,7 +118,6 @@ export default function Admin() {
   };
 
   const resetFees = async () => {
-    // Delete ALL fee records from database
     const { error: pokerError } = await supabase.from('collected_fees').delete().gte('fee_amount', 0);
     const { error: lucky9Error } = await supabase.from('lucky9_fees').delete().gte('fee_amount', 0);
     
@@ -113,12 +131,12 @@ export default function Admin() {
     }
   };
 
-  const handleCashRequest = async (requestId: string, approve: boolean, userId: string, amount: number, type: string) => {
+  const handleCashRequest = async (requestId: string, approve: boolean, oduserId: string, amount: number, type: string) => {
     if (approve) {
-      const user = users.find(u => u.userId === userId);
+      const user = users.find(u => u.oduserId === oduserId);
       if (user) {
         const newChips = type === 'cash_in' ? user.chips + amount : Math.max(0, user.chips - amount);
-        await supabase.from('profiles').update({ chips: newChips }).eq('user_id', userId);
+        await supabase.from('profiles').update({ chips: newChips }).eq('user_id', oduserId);
       }
     }
     await supabase.from('cash_requests').update({ status: approve ? 'approved' : 'rejected', processed_at: new Date().toISOString() }).eq('id', requestId);
@@ -134,26 +152,23 @@ export default function Admin() {
   };
 
   const updateTable = async () => { if (!editingTable) return; await supabase.from('poker_tables').update({ name: editingTable.name, small_blind: editingTable.smallBlind, big_blind: editingTable.bigBlind, max_hands: editingTable.maxHands, is_active: editingTable.isActive }).eq('id', editingTable.id); toast({ title: 'Success', description: 'Table updated!' }); setEditingTable(null); fetchTables(); };
+  
   const deleteTable = async (tableId: string) => {
     try {
-      // First get all game IDs for this table
       const { data: games } = await supabase.from('games').select('id').eq('table_id', tableId);
       const gameIds = games?.map(g => g.id) || [];
       
-      // Delete game_actions for all games at this table
       if (gameIds.length > 0) {
         for (const gameId of gameIds) {
           await supabase.from('game_actions').delete().eq('game_id', gameId);
         }
       }
       
-      // Delete other related records in correct order
       await supabase.from('collected_fees').delete().eq('table_id', tableId);
       await supabase.from('games').delete().eq('table_id', tableId);
       await supabase.from('chat_messages').delete().eq('table_id', tableId);
       await supabase.from('table_players').delete().eq('table_id', tableId);
       
-      // Finally delete the table
       const { error } = await supabase.from('poker_tables').delete().eq('id', tableId);
       if (error) throw error;
       
@@ -164,8 +179,56 @@ export default function Admin() {
       toast({ title: 'Error', description: error.message || 'Failed to delete table', variant: 'destructive' });
     }
   };
+  
   const resetTableHands = async (tableId: string) => { await supabase.from('poker_tables').update({ hands_played: 0 }).eq('id', tableId); toast({ title: 'Success', description: 'Hands reset!' }); fetchTables(); };
-  const adjustChips = async (add: boolean) => { if (!chipAdjustment) return; const user = users.find(u => u.userId === chipAdjustment.userId); if (!user) return; const newChips = add ? user.chips + chipAdjustment.amount : Math.max(0, user.chips - chipAdjustment.amount); await supabase.from('profiles').update({ chips: newChips }).eq('user_id', chipAdjustment.userId); toast({ title: 'Success', description: `${add ? 'Added' : 'Deducted'} ${chipAdjustment.amount} chips` }); setChipAdjustment(null); fetchUsers(); };
+  
+  const adjustChips = async (add: boolean) => { 
+    if (!chipAdjustment) return; 
+    const user = users.find(u => u.oduserId === chipAdjustment.oduserId); 
+    if (!user) return; 
+    const newChips = add ? user.chips + chipAdjustment.amount : Math.max(0, user.chips - chipAdjustment.amount); 
+    await supabase.from('profiles').update({ chips: newChips }).eq('user_id', chipAdjustment.oduserId); 
+    toast({ title: 'Success', description: `${add ? 'Added' : 'Deducted'} ${chipAdjustment.amount} chips` }); 
+    setChipAdjustment(null); 
+    fetchUsers(); 
+  };
+
+  const toggleEmailVisibility = (oduserId: string) => {
+    setVisibleEmails(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(oduserId)) {
+        newSet.delete(oduserId);
+      } else {
+        newSet.add(oduserId);
+      }
+      return newSet;
+    });
+  };
+
+  const deletePlayer = async (oduserId: string) => {
+    try {
+      // Delete all related data first
+      await supabase.from('lucky9_players').delete().eq('user_id', oduserId);
+      await supabase.from('table_players').delete().eq('user_id', oduserId);
+      await supabase.from('cash_requests').delete().eq('user_id', oduserId);
+      await supabase.from('chat_messages').delete().eq('user_id', oduserId);
+      await supabase.from('game_actions').delete().eq('user_id', oduserId);
+      await supabase.from('user_roles').delete().eq('user_id', oduserId);
+      await supabase.from('profiles').delete().eq('user_id', oduserId);
+      
+      // Delete auth user
+      const { error } = await supabase.auth.admin.deleteUser(oduserId);
+      
+      if (error) throw error;
+      
+      toast({ title: 'Success', description: 'Player permanently deleted!' });
+      setDeleteConfirmUserId(null);
+      fetchUsers();
+    } catch (error: any) {
+      console.error('Delete player error:', error);
+      toast({ title: 'Error', description: error.message || 'Failed to delete player', variant: 'destructive' });
+    }
+  };
 
   if (isLoading || !profile?.isAdmin) return <div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-pulse text-xl">Loading...</div></div>;
 
@@ -223,9 +286,105 @@ export default function Admin() {
 
           <TabsContent value="users">
             <Card className="border-amber-700/30">
-              <CardHeader><CardTitle>User Chip Management</CardTitle></CardHeader>
+              <CardHeader><CardTitle>User Management</CardTitle><CardDescription>Manage players, view credentials, and adjust chips</CardDescription></CardHeader>
               <CardContent>
-                <Table><TableHeader><TableRow><TableHead>Username</TableHead><TableHead>Chips</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader><TableBody>{users.map((user) => (<TableRow key={user.id}><TableCell>{user.username}</TableCell><TableCell className="text-yellow-400 font-mono">{user.chips.toLocaleString()}</TableCell><TableCell><Dialog><DialogTrigger asChild><Button variant="outline" size="sm" onClick={() => setChipAdjustment({ userId: user.userId, amount: 1000 })}><Coins className="h-4 w-4 mr-2" />Adjust</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>Adjust Chips for {user.username}</DialogTitle></DialogHeader>{chipAdjustment?.userId === user.userId && (<div className="space-y-4"><div><Label>Amount</Label><Input type="number" value={chipAdjustment.amount} onChange={(e) => setChipAdjustment({ ...chipAdjustment, amount: parseInt(e.target.value) || 0 })} /></div><div className="flex gap-2"><Button onClick={() => adjustChips(true)} className="flex-1 bg-green-600 hover:bg-green-700">+ Add</Button><Button onClick={() => adjustChips(false)} variant="destructive" className="flex-1">- Deduct</Button></div></div>)}</DialogContent></Dialog></TableCell></TableRow>))}</TableBody></Table>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Username</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Chips</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {users.map((user) => (
+                      <TableRow key={user.id}>
+                        <TableCell className="font-medium">{user.username}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Mail className="h-4 w-4 text-muted-foreground" />
+                            {visibleEmails.has(user.oduserId) ? (
+                              <span className="font-mono text-sm">{user.email}</span>
+                            ) : (
+                              <span className="text-muted-foreground">••••••••</span>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleEmailVisibility(user.oduserId)}
+                              className="h-6 w-6 p-0"
+                            >
+                              {visibleEmails.has(user.oduserId) ? (
+                                <EyeOff className="h-3.5 w-3.5" />
+                              ) : (
+                                <Eye className="h-3.5 w-3.5" />
+                              )}
+                            </Button>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-yellow-400 font-mono">{user.chips.toLocaleString()}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            {/* Chip Adjustment Dialog */}
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button variant="outline" size="sm" onClick={() => setChipAdjustment({ oduserId: user.oduserId, amount: 1000 })}>
+                                  <Coins className="h-4 w-4 mr-1" />Adjust
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent>
+                                <DialogHeader><DialogTitle>Adjust Chips for {user.username}</DialogTitle></DialogHeader>
+                                {chipAdjustment?.oduserId === user.oduserId && (
+                                  <div className="space-y-4">
+                                    <div><Label>Amount</Label><Input type="number" value={chipAdjustment.amount} onChange={(e) => setChipAdjustment({ ...chipAdjustment, amount: parseInt(e.target.value) || 0 })} /></div>
+                                    <div className="flex gap-2">
+                                      <Button onClick={() => adjustChips(true)} className="flex-1 bg-green-600 hover:bg-green-700">+ Add</Button>
+                                      <Button onClick={() => adjustChips(false)} variant="destructive" className="flex-1">- Deduct</Button>
+                                    </div>
+                                  </div>
+                                )}
+                              </DialogContent>
+                            </Dialog>
+
+                            {/* Delete Player Dialog */}
+                            <Dialog open={deleteConfirmUserId === user.oduserId} onOpenChange={(open) => !open && setDeleteConfirmUserId(null)}>
+                              <DialogTrigger asChild>
+                                <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-400 hover:bg-red-500/10" onClick={() => setDeleteConfirmUserId(user.oduserId)}>
+                                  <UserX className="h-4 w-4" />
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent>
+                                <DialogHeader><DialogTitle className="text-red-500">⚠️ Delete Player Permanently</DialogTitle></DialogHeader>
+                                <div className="space-y-4">
+                                  <p className="text-muted-foreground">
+                                    Are you sure you want to <strong className="text-red-500">permanently delete</strong> player <strong>{user.username}</strong>?
+                                  </p>
+                                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-sm">
+                                    <p className="text-red-400 font-medium mb-2">This action will:</p>
+                                    <ul className="list-disc list-inside text-red-300 space-y-1">
+                                      <li>Delete their account and login credentials</li>
+                                      <li>Remove all their game history</li>
+                                      <li>Delete their profile and chips balance</li>
+                                      <li>Remove them from all tables</li>
+                                    </ul>
+                                    <p className="text-red-500 font-bold mt-2">This cannot be undone!</p>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <Button variant="outline" onClick={() => setDeleteConfirmUserId(null)} className="flex-1">Cancel</Button>
+                                    <Button variant="destructive" onClick={() => deletePlayer(user.oduserId)} className="flex-1">
+                                      <Trash2 className="h-4 w-4 mr-2" />Delete Forever
+                                    </Button>
+                                  </div>
+                                </div>
+                              </DialogContent>
+                            </Dialog>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
           </TabsContent>
@@ -235,7 +394,7 @@ export default function Admin() {
               <CardHeader><CardTitle>Pending Cash Requests</CardTitle><CardDescription>Approve or reject cash in/out requests</CardDescription></CardHeader>
               <CardContent>
                 {cashRequests.length === 0 ? <p className="text-muted-foreground text-center py-8">No pending requests</p> : (
-                  <Table><TableHeader><TableRow><TableHead>User</TableHead><TableHead>Type</TableHead><TableHead>Amount</TableHead><TableHead>GCash/Proof</TableHead><TableHead>Date</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader><TableBody>{cashRequests.map((req) => (<TableRow key={req.id}><TableCell>{req.username}</TableCell><TableCell><Badge className={req.requestType === 'cash_in' ? 'bg-green-600' : 'bg-orange-600'}>{req.requestType === 'cash_in' ? 'Cash In' : 'Cash Out'}</Badge></TableCell><TableCell className="font-mono">{req.amount.toLocaleString()}</TableCell><TableCell>{req.requestType === 'cash_out' ? (<span className="font-mono text-blue-400 font-bold">{req.gcashNumber || 'N/A'}</span>) : req.proofImageUrl ? (<Dialog><DialogTrigger asChild><Button variant="ghost" size="sm"><Image className="h-4 w-4 mr-1" />View</Button></DialogTrigger><DialogContent className="max-w-2xl"><DialogHeader><DialogTitle>Payment Proof - {req.username}</DialogTitle></DialogHeader><img src={req.proofImageUrl} alt="Payment proof" className="max-h-[70vh] w-auto mx-auto rounded-lg" /></DialogContent></Dialog>) : <span className="text-muted-foreground text-xs">N/A</span>}</TableCell><TableCell className="text-sm">{new Date(req.createdAt).toLocaleDateString()}</TableCell><TableCell><div className="flex gap-1"><Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleCashRequest(req.id, true, req.userId, req.amount, req.requestType)}><Check className="h-4 w-4" /></Button><Button size="sm" variant="destructive" onClick={() => handleCashRequest(req.id, false, req.userId, req.amount, req.requestType)}><X className="h-4 w-4" /></Button></div></TableCell></TableRow>))}</TableBody></Table>
+                  <Table><TableHeader><TableRow><TableHead>User</TableHead><TableHead>Type</TableHead><TableHead>Amount</TableHead><TableHead>GCash/Proof</TableHead><TableHead>Date</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader><TableBody>{cashRequests.map((req) => (<TableRow key={req.id}><TableCell>{req.username}</TableCell><TableCell><Badge className={req.requestType === 'cash_in' ? 'bg-green-600' : 'bg-orange-600'}>{req.requestType === 'cash_in' ? 'Cash In' : 'Cash Out'}</Badge></TableCell><TableCell className="font-mono">{req.amount.toLocaleString()}</TableCell><TableCell>{req.requestType === 'cash_out' ? (<span className="font-mono text-blue-400 font-bold">{req.gcashNumber || 'N/A'}</span>) : req.proofImageUrl ? (<Dialog><DialogTrigger asChild><Button variant="ghost" size="sm"><Image className="h-4 w-4 mr-1" />View</Button></DialogTrigger><DialogContent className="max-w-2xl"><DialogHeader><DialogTitle>Payment Proof - {req.username}</DialogTitle></DialogHeader><img src={req.proofImageUrl} alt="Payment proof" className="max-h-[70vh] w-auto mx-auto rounded-lg" /></DialogContent></Dialog>) : <span className="text-muted-foreground text-xs">N/A</span>}</TableCell><TableCell className="text-sm">{new Date(req.createdAt).toLocaleDateString()}</TableCell><TableCell><div className="flex gap-1"><Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleCashRequest(req.id, true, req.oduserId, req.amount, req.requestType)}><Check className="h-4 w-4" /></Button><Button size="sm" variant="destructive" onClick={() => handleCashRequest(req.id, false, req.oduserId, req.amount, req.requestType)}><X className="h-4 w-4" /></Button></div></TableCell></TableRow>))}</TableBody></Table>
                 )}
               </CardContent>
             </Card>
