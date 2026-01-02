@@ -237,10 +237,11 @@ export function Lucky9GamblingTable({
               if (!player) return null;
               
               const showBetChip = player.currentBet > 0 && player.betAccepted === true;
-              const isAnimatingLoss = isGameFinished && player.result === 'lose';
-              const isAnimatingWin = isGameFinished && (player.result === 'win' || player.result === 'natural_win');
+              // Hide chips during revealing/finished phase when results are shown
+              const isResultPhase = game?.status === 'revealing' || game?.status === 'finished' || game?.status === 'showdown';
               
-              if (!showBetChip || isAnimatingLoss) return null;
+              // Don't show bet chips during result phase (payout animation handles this)
+              if (!showBetChip || isResultPhase) return null;
               
               // Positions are relative to the table container (300px wide, ~400px tall aspect ratio)
               // Moved chips further inward on table to avoid avatar overlap
@@ -262,8 +263,8 @@ export function Lucky9GamblingTable({
                   key={`bet-${player.id}`}
                   amount={player.currentBet}
                   position={betPosition}
-                  isAnimatingWin={isAnimatingWin}
-                  isAnimatingLoss={isAnimatingLoss}
+                  isAnimatingWin={false}
+                  isAnimatingLoss={false}
                 />
               );
             })}

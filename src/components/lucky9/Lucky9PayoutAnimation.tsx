@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Coins } from 'lucide-react';
 
 export interface PayoutAnimationData {
@@ -26,9 +26,17 @@ const getChipColor = (amount: number) => {
 export function Lucky9PayoutAnimation({ payouts, onComplete }: Lucky9PayoutAnimationProps) {
   const [activePayouts, setActivePayouts] = useState<PayoutAnimationData[]>([]);
   const [showingNet, setShowingNet] = useState<Record<string, boolean>>({});
+  const processedPayoutIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (payouts.length > 0) {
+      // Check if we already processed this exact payout set (prevent loops)
+      const payoutKey = payouts.map(p => p.id).join(',');
+      if (processedPayoutIds.current.has(payoutKey)) {
+        return;
+      }
+      processedPayoutIds.current.add(payoutKey);
+      
       setActivePayouts(payouts);
       setShowingNet({});
       
@@ -51,6 +59,13 @@ export function Lucky9PayoutAnimation({ payouts, onComplete }: Lucky9PayoutAnima
       };
     }
   }, [payouts, onComplete]);
+  
+  // Clear processed IDs when payouts are cleared
+  useEffect(() => {
+    if (payouts.length === 0) {
+      processedPayoutIds.current.clear();
+    }
+  }, [payouts]);
 
   return (
     <AnimatePresence>
