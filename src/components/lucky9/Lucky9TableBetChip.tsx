@@ -25,7 +25,7 @@ export function Lucky9TableBetChip({
   showAmount = true 
 }: Lucky9TableBetChipProps) {
   const colors = getChipColors(amount);
-  const chipCount = Math.min(4, Math.max(1, Math.ceil(amount / 500)));
+  const chipCount = Math.min(3, Math.max(1, Math.ceil(amount / 500)));
 
   return (
     <motion.div
@@ -35,7 +35,7 @@ export function Lucky9TableBetChip({
       animate={{ 
         opacity: isAnimatingLoss ? 0 : 1, 
         scale: isAnimatingLoss ? 0.3 : 1,
-        y: isAnimatingWin ? [0, -3, 0] : [0, -2, 0],
+        y: isAnimatingWin ? [0, -2, 0] : [0, -1, 0],
       }}
       exit={{ opacity: 0, scale: 0 }}
       transition={{ 
@@ -44,38 +44,36 @@ export function Lucky9TableBetChip({
         scale: { duration: 0.4, type: "spring", stiffness: 300 }
       }}
     >
-      {/* Chip stack */}
+      {/* Chip stack - smaller */}
       <div className="relative -translate-x-1/2 -translate-y-1/2">
         {Array.from({ length: chipCount }).map((_, i) => (
           <motion.div
             key={i}
-            className={`absolute w-7 h-7 rounded-full bg-gradient-to-br ${colors.base} border-2 ${colors.accent} flex items-center justify-center`}
+            className={`absolute w-5 h-5 rounded-full bg-gradient-to-br ${colors.base} border ${colors.accent} flex items-center justify-center`}
             style={{ 
-              top: -i * 3, 
-              left: i * 0.5,
-              boxShadow: `0 2px 4px rgba(0,0,0,0.4), inset 0 1px 2px rgba(255,255,255,0.2)`,
+              top: -i * 2, 
+              left: i * 0.3,
+              boxShadow: `0 1px 3px rgba(0,0,0,0.4), inset 0 1px 1px rgba(255,255,255,0.2)`,
               zIndex: chipCount - i
             }}
             animate={isAnimatingWin ? { 
-              boxShadow: [`0 2px 4px ${colors.glow}`, `0 4px 12px ${colors.glow}`, `0 2px 4px ${colors.glow}`]
+              boxShadow: [`0 1px 3px ${colors.glow}`, `0 2px 8px ${colors.glow}`, `0 1px 3px ${colors.glow}`]
             } : {}}
             transition={{ repeat: Infinity, duration: 1.5 }}
           >
             {i === chipCount - 1 && (
               <>
-                {/* Inner ring pattern */}
-                <div className="absolute inset-1 rounded-full border border-white/20" />
-                <div className="absolute inset-2 rounded-full border border-white/10" />
-                <Coins className="h-3 w-3 text-white/70" />
+                <div className="absolute inset-0.5 rounded-full border border-white/20" />
+                <Coins className="h-2 w-2 text-white/70" />
               </>
             )}
           </motion.div>
         ))}
         
-        {/* Bet amount label - above the chip */}
+        {/* Bet amount label - above the chip, smaller */}
         <motion.div 
-          className="absolute -top-6 left-1/2 -translate-x-1/2 bg-black/95 backdrop-blur-sm px-2 py-0.5 rounded-full text-[9px] font-bold text-amber-400 whitespace-nowrap shadow-lg border border-amber-500/40"
-          initial={{ opacity: 0, y: 5 }}
+          className="absolute -top-4 left-1/2 -translate-x-1/2 bg-black/90 backdrop-blur-sm px-1.5 py-0.5 rounded-full text-[7px] font-bold text-amber-400 whitespace-nowrap shadow-md border border-amber-500/30"
+          initial={{ opacity: 0, y: 3 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
         >
