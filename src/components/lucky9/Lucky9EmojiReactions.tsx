@@ -154,7 +154,7 @@ export default function Lucky9EmojiReactions({ tableId, userId, username, isJoin
   const canSendEmojis = isJoined && userId && username;
 
   return (
-    <div className="fixed bottom-32 right-4 z-40">
+    <div className="fixed top-1/2 translate-y-1 right-2 z-40">
       {canSendEmojis && (
         <>
           <motion.button
@@ -163,21 +163,21 @@ export default function Lucky9EmojiReactions({ tableId, userId, username, isJoin
             onClick={() => setIsOpen(!isOpen)}
             disabled={cooldown}
             className={cn(
-              'w-9 h-9 rounded-full bg-gradient-to-br from-green-500 to-green-700 shadow-lg flex items-center justify-center border-2 border-green-400/50 transition-all',
+              'w-8 h-8 rounded-full bg-gradient-to-br from-green-500 to-green-700 shadow-lg flex items-center justify-center border-2 border-green-400/50 transition-all',
               cooldown && 'opacity-50 cursor-not-allowed',
               isOpen && 'ring-2 ring-green-400 ring-offset-2 ring-offset-background'
             )}
           >
-            <span className="text-base">{cooldown ? '⏳' : '😀'}</span>
+            <span className="text-sm">{cooldown ? '⏳' : '😀'}</span>
           </motion.button>
 
           <AnimatePresence>
             {isOpen && (
               <motion.div
-                initial={{ opacity: 0, scale: 0.8, y: 10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.8, y: 10 }}
-                className="absolute bottom-12 right-0 bg-card/95 backdrop-blur-lg rounded-xl p-2 shadow-xl border border-green-500/30 min-w-[120px]"
+                initial={{ opacity: 0, scale: 0.8, x: 10 }}
+                animate={{ opacity: 1, scale: 1, x: 0 }}
+                exit={{ opacity: 0, scale: 0.8, x: 10 }}
+                className="absolute top-0 right-10 bg-card/95 backdrop-blur-lg rounded-xl p-2 shadow-xl border border-green-500/30 min-w-[110px]"
               >
                 <div className="grid grid-cols-3 gap-1.5">
                   {EMOJIS.map((emoji) => (

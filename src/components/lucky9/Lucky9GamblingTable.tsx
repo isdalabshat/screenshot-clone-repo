@@ -7,7 +7,8 @@ import { Lucky9CardDeck } from './Lucky9CardDeck';
 import { calculateLucky9Value, isNatural9 } from '@/lib/lucky9/deck';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
-import { Crown, Sparkles, Star, AlertTriangle, Eye } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Crown, Sparkles, Star, AlertTriangle, Eye, Play, Layers } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface PlayerEmojiState {
@@ -36,6 +37,10 @@ interface Lucky9GamblingTableProps {
   isDealing?: boolean;
   isShowdown?: boolean;
   onGetPlayerSeatPosition?: (playerId: string) => { x: number; y: number } | null;
+  canStartBetting?: boolean;
+  canDealCards?: boolean;
+  onStartBetting?: () => void;
+  onDealCards?: () => void;
 }
 
 // Position styles for 5 player seats around the vertical oval table (poker-style layout)
@@ -73,7 +78,11 @@ export function Lucky9GamblingTable({
   playerDecisions = {},
   isDealing = false,
   isShowdown = false,
-  onGetPlayerSeatPosition
+  onGetPlayerSeatPosition,
+  canStartBetting = false,
+  canDealCards = false,
+  onStartBetting,
+  onDealCards
 }: Lucky9GamblingTableProps) {
   const nonBankerPlayers = players.filter(p => !p.isBanker);
   
@@ -217,7 +226,7 @@ export function Lucky9GamblingTable({
 
 
         {/* Card Deck at center - even smaller size */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-5 scale-50">
+        <div className="absolute top-[45%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-5 scale-50">
           <motion.div
             animate={{ 
               boxShadow: isDealing 
@@ -229,6 +238,34 @@ export function Lucky9GamblingTable({
             <Lucky9CardDeck isDealing={isDealing} />
           </motion.div>
         </div>
+
+        {/* Banker Controls - Start Betting & Deal Cards buttons below deck */}
+        {(canStartBetting || canDealCards) && (
+          <div className="absolute top-[62%] left-1/2 -translate-x-1/2 z-10 flex gap-1">
+            {canStartBetting && (
+              <Button 
+                onClick={onStartBetting} 
+                disabled={isProcessing} 
+                size="sm"
+                className="bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 px-2 py-1 text-[10px] h-6 font-bold rounded-lg shadow-md shadow-green-500/30"
+              >
+                <Play className="h-2.5 w-2.5 mr-0.5" />
+                Start
+              </Button>
+            )}
+            {canDealCards && (
+              <Button 
+                onClick={onDealCards} 
+                disabled={isProcessing} 
+                size="sm"
+                className="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 px-2 py-1 text-[10px] h-6 font-bold rounded-lg shadow-md shadow-amber-500/30"
+              >
+                <Layers className="h-2.5 w-2.5 mr-0.5" />
+                Deal
+              </Button>
+            )}
+          </div>
+        )}
 
         {/* Winner announcement overlay - smaller and centered */}
         <AnimatePresence>

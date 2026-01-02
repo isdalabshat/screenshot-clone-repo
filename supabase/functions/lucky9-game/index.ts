@@ -1213,14 +1213,14 @@ serve(async (req) => {
           console.log('Banker has zero balance, auto-kicking');
           kickedPlayers.push(banker.user_id);
           
-          // Return 0 chips and delete
+          // Banker has no chips to return (zero balance), just delete
           await supabase
             .from('lucky9_players')
             .delete()
             .eq('id', banker.id);
         }
 
-        // Check all players
+        // Check all players - only auto-kick those with zero or negative balance
         for (const player of players || []) {
           const { data: updatedPlayer } = await supabase
             .from('lucky9_players')
@@ -1232,6 +1232,7 @@ serve(async (req) => {
             console.log('Player has zero balance, auto-kicking:', updatedPlayer.user_id);
             kickedPlayers.push(updatedPlayer.user_id);
             
+            // Player has no chips to return (zero balance), just delete
             await supabase
               .from('lucky9_players')
               .delete()
