@@ -603,6 +603,8 @@ export default function Lucky9TablePage() {
 
   const resetRound = async () => {
     if (!tableId) return;
+    // Clear payout animations when resetting
+    clearPayouts();
     await supabase.functions.invoke('lucky9-game', { body: { action: 'reset_round', tableId } });
   };
 
