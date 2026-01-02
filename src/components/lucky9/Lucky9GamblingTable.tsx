@@ -41,17 +41,21 @@ interface Lucky9GamblingTableProps {
   canDealCards?: boolean;
   onStartBetting?: () => void;
   onDealCards?: () => void;
+  statusMessage?: string;
+  statusMessageType?: 'success' | 'error' | 'pending';
 }
 
 // Position styles for 5 player seats around the vertical oval table (poker-style layout)
 // Position 0 = bottom center (current user - square panel), positions arranged clockwise
 // Increased spacing to prevent avatar overlap - moved even further out
+// Position 0 = bottom center (current user), positions arranged clockwise
+// Moved down to make room for cards above avatar panels
 const seatPositionStyles: Record<number, string> = {
-  0: 'bottom-[-8%] left-1/2 -translate-x-1/2',    // Bottom center - current user (moved down for square panel)
-  1: 'bottom-[32%] left-[-14%]',                   // Bottom left - moved further out
-  2: 'top-[12%] left-[-14%]',                      // Top left - moved further out
-  3: 'top-[12%] right-[-14%]',                     // Top right - moved further out
-  4: 'bottom-[32%] right-[-14%]',                  // Bottom right - moved further out
+  0: 'bottom-[-12%] left-1/2 -translate-x-1/2',   // Bottom center - current user
+  1: 'bottom-[28%] left-[-14%]',                   // Bottom left
+  2: 'top-[18%] left-[-14%]',                      // Top left - moved down for cards
+  3: 'top-[18%] right-[-14%]',                     // Top right - moved down for cards
+  4: 'bottom-[28%] right-[-14%]',                  // Bottom right
 };
 
 // Get display position based on user's actual position (rotate so user is always at bottom)
@@ -82,7 +86,9 @@ export function Lucky9GamblingTable({
   canStartBetting = false,
   canDealCards = false,
   onStartBetting,
-  onDealCards
+  onDealCards,
+  statusMessage,
+  statusMessageType = 'pending'
 }: Lucky9GamblingTableProps) {
   const nonBankerPlayers = players.filter(p => !p.isBanker);
   
@@ -267,7 +273,26 @@ export function Lucky9GamblingTable({
           </div>
         )}
 
-        {/* Winner announcement overlay - smaller and centered */}
+        {/* Status message inside the table - positioned at bottom center of table */}
+        {statusMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="absolute bottom-[15%] left-1/2 -translate-x-1/2 z-15"
+          >
+            <div className={cn(
+              "px-2 py-1 rounded-lg text-[10px] font-medium shadow-lg border backdrop-blur-sm max-w-[180px] text-center",
+              statusMessageType === 'success' 
+                ? 'bg-green-900/90 text-green-300 border-green-500/50' 
+                : statusMessageType === 'error'
+                  ? 'bg-red-900/90 text-red-300 border-red-500/50'
+                  : 'bg-yellow-900/90 text-yellow-300 border-yellow-500/50 animate-pulse'
+            )}>
+              {statusMessage}
+            </div>
+          </motion.div>
+        )}
+
         <AnimatePresence>
           {isGameFinished && (
             <motion.div
@@ -294,14 +319,14 @@ export function Lucky9GamblingTable({
           )}
         </AnimatePresence>
 
-        {/* Banker at top center */}
-        <div className="absolute top-[1%] left-1/2 -translate-x-1/2 z-10">
+        {/* Banker at top center - moved down for cards above */}
+        <div className="absolute top-[5%] left-1/2 -translate-x-1/2 z-10">
           {banker ? (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               className={cn(
-                "relative overflow-visible bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 backdrop-blur rounded-lg p-0.5 border-2 transition-all min-w-[80px] max-w-[95px]",
+                "relative overflow-visible bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 backdrop-blur rounded-lg p-0.5 border-2 transition-all min-w-[75px] max-w-[90px]",
                 isBankerTurn 
                   ? 'border-yellow-400 shadow-md shadow-yellow-500/30' 
                   : bankerIsWinner
@@ -377,51 +402,52 @@ export function Lucky9GamblingTable({
                   <span className="text-yellow-400 font-mono text-[6px] font-bold">₱{banker.stack.toLocaleString()}</span>
                 </div>
 
-                {/* Banker Cards on the right side of avatar */}
-                {bankerCards.length > 0 && (
-                  <div className="flex gap-0.5 items-center overflow-visible">
-                    {bankerCards.map((card, i) => {
-                      const shouldShow = showAllCards || isCurrentUserBanker;
-                      const canReveal = isCurrentUserBanker && isBankerTurn && !banker?.hasActed;
-                      return (
-                        <Lucky9RevealableCard 
-                          key={i} 
-                          card={card} 
-                          hidden={!shouldShow}
-                          canReveal={canReveal}
-                          delay={i * 0.1} 
-                          small
-                          extraSmall
-                          onReveal={() => onCardReveal?.(banker?.id || '', i)}
-                        />
-                      );
-                    })}
-                    {(showAllCards || isCurrentUserBanker) && bankerValue !== null && (
-                      <div className="ml-0.5 flex flex-col items-center">
-                        {bankerIsNatural && (
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: [1, 1.1, 1] }}
-                            transition={{ repeat: Infinity, duration: 1.5 }}
-                          >
-                            <Badge className="bg-gradient-to-r from-amber-500 to-yellow-400 text-black text-[5px] flex items-center gap-0.5 shadow-lg px-0.5">
-                              <Sparkles className="h-1.5 w-1.5" />
-                              9!
-                            </Badge>
-                          </motion.div>
-                        )}
-                        <motion.div 
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          className={`text-sm font-bold ${bankerValue === 9 ? 'text-amber-400' : 'text-white'}`}
-                        >
-                          {bankerValue}
-                        </motion.div>
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
+              
+              {/* Banker Cards ABOVE the panel */}
+              {bankerCards.length > 0 && (
+                <div className="absolute -top-9 left-1/2 -translate-x-1/2 z-20 flex gap-0.5 items-center">
+                  {bankerCards.map((card, i) => {
+                    const shouldShow = showAllCards || isCurrentUserBanker;
+                    const canReveal = isCurrentUserBanker && isBankerTurn && !banker?.hasActed;
+                    return (
+                      <Lucky9RevealableCard 
+                        key={i} 
+                        card={card} 
+                        hidden={!shouldShow}
+                        canReveal={canReveal}
+                        delay={i * 0.1} 
+                        small
+                        extraSmall
+                        onReveal={() => onCardReveal?.(banker?.id || '', i)}
+                      />
+                    );
+                  })}
+                  {(showAllCards || isCurrentUserBanker) && bankerValue !== null && (
+                    <div className="ml-0.5 flex flex-col items-center">
+                      {bankerIsNatural && (
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: [1, 1.1, 1] }}
+                          transition={{ repeat: Infinity, duration: 1.5 }}
+                        >
+                          <Badge className="bg-gradient-to-r from-amber-500 to-yellow-400 text-black text-[5px] flex items-center gap-0.5 shadow-lg px-0.5">
+                            <Sparkles className="h-1.5 w-1.5" />
+                            9!
+                          </Badge>
+                        </motion.div>
+                      )}
+                      <motion.div 
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        className={`text-xs font-bold bg-slate-900/80 rounded px-1 ${bankerValue === 9 ? 'text-amber-400' : 'text-white'}`}
+                      >
+                        {bankerValue}
+                      </motion.div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Banker result with animation */}
               {banker.result && isGameFinished && (

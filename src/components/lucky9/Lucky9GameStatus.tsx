@@ -58,10 +58,10 @@ export function Lucky9GameStatus({ status, currentPlayerName, bankerName, messag
       key={status}
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="flex items-center justify-center gap-2 py-2 px-4 bg-slate-900/90 backdrop-blur rounded-full border border-slate-700 mx-auto w-fit"
+      className="flex items-center justify-center gap-1.5 py-1 px-3 bg-slate-900/95 backdrop-blur rounded-full border border-slate-600 mx-auto w-fit shadow-lg"
     >
       {getIcon()}
-      <p className="text-sm font-medium text-white">{getStatusMessage()}</p>
+      <p className="text-xs font-medium text-white">{getStatusMessage()}</p>
     </motion.div>
   );
 }

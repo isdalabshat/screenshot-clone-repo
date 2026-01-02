@@ -1004,7 +1004,7 @@ export default function Lucky9TablePage() {
       </header>
 
       <main className="px-2 py-2 space-y-2">
-        {/* Game status */}
+        {/* Game status - compact and above table */}
         <Lucky9GameStatus 
           status={hasActiveBanker ? (game?.status || 'waiting') : 'waiting_banker'} 
           currentPlayerName={players.find(p => p.position === game?.currentPlayerPosition)?.username}
@@ -1014,12 +1014,12 @@ export default function Lucky9TablePage() {
 
         {/* Betting timer */}
         {hasActiveBanker && game?.bettingEndsAt && game.status === 'betting' && (
-          <div className="max-w-[200px] mx-auto">
+          <div className="max-w-[180px] mx-auto">
             <Lucky9BettingTimer bettingEndsAt={game.bettingEndsAt} onTimeUp={handleBettingTimerEnd} />
           </div>
         )}
 
-        {/* Gambling table */}
+        {/* Gambling table with status message prop */}
         <Lucky9GamblingTable 
           players={players} 
           banker={banker || null} 
@@ -1041,6 +1041,18 @@ export default function Lucky9TablePage() {
           canDealCards={canDealCards}
           onStartBetting={startBetting}
           onDealCards={startRound}
+          statusMessage={
+            myPlayer && !myPlayer.isBanker && myPlayer.currentBet > 0 && game?.status === 'betting'
+              ? myPlayer.betAccepted === null
+                ? 'Waiting for banker to accept your bet...'
+                : myPlayer.betAccepted === true
+                  ? `✓ Your bet of ₱${myPlayer.currentBet} accepted!`
+                  : '✗ Bet rejected. Chips returned.'
+              : undefined
+          }
+          statusMessageType={
+            myPlayer?.betAccepted === true ? 'success' : myPlayer?.betAccepted === false ? 'error' : 'pending'
+          }
         />
 
         {/* Floating card animations - Deal Sequence */}
@@ -1069,39 +1081,6 @@ export default function Lucky9TablePage() {
           animations={chipAnimations}
           onComplete={clearAnimations}
         />
-
-        {/* Banker controls removed - now inside the table */}
-
-        {/* Pending bets info for banker */}
-        {iAmBanker && game?.status === 'betting' && playersWithPendingBets.length > 0 && (
-          <div className="text-center py-1">
-            <p className="text-amber-400 text-xs">
-              {playersWithPendingBets.length} player(s) waiting for bet acceptance
-            </p>
-          </div>
-        )}
-
-        {/* Waiting for banker message for players */}
-        {!hasActiveBanker && myPlayer && !myPlayer.isBanker && (
-          <div className="text-center py-2">
-            <p className="text-amber-400/70 text-xs">Waiting for a banker to start the game...</p>
-          </div>
-        )}
-
-        {/* Player bet status */}
-        {myPlayer && !myPlayer.isBanker && myPlayer.currentBet > 0 && game?.status === 'betting' && (
-          <div className="text-center py-1">
-            {myPlayer.betAccepted === null && (
-              <p className="text-yellow-400 text-xs animate-pulse">Waiting for banker to accept your bet...</p>
-            )}
-            {myPlayer.betAccepted === true && (
-              <p className="text-green-400 text-xs">✓ Your bet of ₱{myPlayer.currentBet} has been accepted!</p>
-            )}
-            {myPlayer.betAccepted === false && (
-              <p className="text-red-400 text-xs">✗ Your bet was rejected. Your chips have been returned.</p>
-            )}
-          </div>
-        )}
       </main>
 
       {/* Fixed bottom panels - only when banker exists */}
