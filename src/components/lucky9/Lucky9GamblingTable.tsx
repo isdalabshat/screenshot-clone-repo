@@ -25,8 +25,10 @@ interface Lucky9GamblingTableProps {
   currentUserId: string | undefined;
   isBankerView?: boolean;
   isSpectator?: boolean;
+  isAdmin?: boolean;
   onAcceptBet?: (playerId: string) => void;
   onRejectBet?: (playerId: string) => void;
+  onKickPlayer?: (playerId: string) => void;
   isProcessing?: boolean;
   onCardReveal?: (playerId: string, cardIndex: number) => void;
   playerEmojis?: PlayerEmojiState;
@@ -61,8 +63,10 @@ export function Lucky9GamblingTable({
   currentUserId,
   isBankerView,
   isSpectator = false,
+  isAdmin = false,
   onAcceptBet,
   onRejectBet,
+  onKickPlayer,
   isProcessing,
   onCardReveal,
   playerEmojis = {},
@@ -482,8 +486,10 @@ export function Lucky9GamblingTable({
                 gameStatus={game?.status || 'betting'}
                 isMe={isMe && !isSpectator}
                 isBankerView={isBankerView}
+                isAdmin={isAdmin}
                 onAcceptBet={onAcceptBet}
                 onRejectBet={onRejectBet}
+                onKickPlayer={onKickPlayer}
                 isProcessing={isProcessing}
                 canRevealCards={isMe && !isSpectator && isCurrentTurn && !player.hasActed}
                 onCardReveal={(cardIndex) => onCardReveal?.(player.id, cardIndex)}

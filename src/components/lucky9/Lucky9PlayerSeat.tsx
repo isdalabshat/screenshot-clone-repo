@@ -6,7 +6,7 @@ import { calculateLucky9Value, isNatural9 } from '@/lib/lucky9/deck';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, X, Clock, Sparkles, Timer } from 'lucide-react';
+import { Check, X, Clock, Sparkles, Timer, UserX } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLucky9Sounds } from '@/hooks/useLucky9Sounds';
 
@@ -17,8 +17,10 @@ interface Lucky9PlayerSeatProps {
   gameStatus: string;
   isMe?: boolean;
   isBankerView?: boolean;
+  isAdmin?: boolean;
   onAcceptBet?: (playerId: string) => void;
   onRejectBet?: (playerId: string) => void;
+  onKickPlayer?: (playerId: string) => void;
   isProcessing?: boolean;
   canRevealCards?: boolean;
   onCardReveal?: (cardIndex: number) => void;
@@ -37,8 +39,10 @@ export function Lucky9PlayerSeat({
   gameStatus, 
   isMe,
   isBankerView,
+  isAdmin,
   onAcceptBet,
   onRejectBet,
+  onKickPlayer,
   isProcessing,
   canRevealCards,
   onCardReveal,
@@ -258,6 +262,25 @@ export function Lucky9PlayerSeat({
               className="flex-1 h-5 px-1 bg-red-600 hover:bg-red-500 text-white text-[8px]"
             >
               <X className="h-2.5 w-2.5" />
+            </Button>
+          </motion.div>
+        )}
+
+        {/* Admin kick player button */}
+        {isAdmin && !isMe && onKickPlayer && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="mb-1"
+          >
+            <Button
+              size="sm"
+              onClick={() => onKickPlayer(player.id)}
+              disabled={isProcessing}
+              className="w-full h-5 px-1 bg-red-700 hover:bg-red-600 text-white text-[7px] gap-0.5"
+            >
+              <UserX className="h-2.5 w-2.5" />
+              Kick
             </Button>
           </motion.div>
         )}
