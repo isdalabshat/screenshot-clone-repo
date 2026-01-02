@@ -1230,7 +1230,17 @@ serve(async (req) => {
           console.log('Banker has zero balance, auto-kicking');
           kickedPlayers.push(banker.user_id);
           
-          // Banker has no chips to return (zero balance), just delete
+          // Banker leaving ends Call Time immediately
+          await supabase
+            .from('lucky9_tables')
+            .update({
+              call_time_started_at: null,
+              call_time_banker_id: null
+            })
+            .eq('id', tableId);
+          console.log('Call Time ended - banker auto-kicked due to zero balance');
+          
+          // Banker has no chips to return (zero balance), just delete - DO NOT return any money
           await supabase
             .from('lucky9_players')
             .delete()
@@ -1239,9 +1249,15 @@ serve(async (req) => {
 
         // Check all players - only auto-kick those with zero or negative balance
         for (const player of players || []) {
+          // Skip players that were already settled (natural_win players were processed during dealing)
+          if (player.result === 'natural_win') {
+            console.log('Skipping natural_win player for zero balance check:', player.username);
+            continue;
+          }
+          
           const { data: updatedPlayer } = await supabase
             .from('lucky9_players')
-            .select('stack, user_id')
+            .select('stack, user_id, id')
             .eq('id', player.id)
             .single();
 
@@ -1249,11 +1265,11 @@ serve(async (req) => {
             console.log('Player has zero balance, auto-kicking:', updatedPlayer.user_id);
             kickedPlayers.push(updatedPlayer.user_id);
             
-            // Player has no chips to return (zero balance), just delete
+            // Player has no chips to return (zero balance), just delete - DO NOT return any money
             await supabase
               .from('lucky9_players')
               .delete()
-              .eq('id', player.id);
+              .eq('id', updatedPlayer.id);
           }
         }
 

@@ -232,26 +232,26 @@ export function Lucky9GamblingTable({
 
         {/* Bet Chips Layer - Rendered on table surface */}
         <div className="absolute inset-0 pointer-events-none z-15">
-          <AnimatePresence>
+          <AnimatePresence mode="sync">
             {seats.map((player, displayPosition) => {
               if (!player) return null;
               
               const showBetChip = player.currentBet > 0 && player.betAccepted === true;
-              // Hide chips during revealing/finished phase when results are shown
-              const isResultPhase = game?.status === 'revealing' || game?.status === 'finished' || game?.status === 'showdown';
+              // Hide chips during calculating/revealing/finished phase when results are shown
+              const isResultPhase = game?.status === 'calculating' || game?.status === 'revealing' || game?.status === 'finished' || game?.status === 'showdown';
               
               // Don't show bet chips during result phase (payout animation handles this)
               if (!showBetChip || isResultPhase) return null;
               
               // Positions are relative to the table container (300px wide, ~400px tall aspect ratio)
-              // Chips positioned INSIDE the table, not overlapping player panels
+              // Chips positioned INSIDE the table, closer to player avatars
               const getTableBetPosition = (pos: number): { x: number; y: number } => {
                 switch (pos) {
-                  case 0: return { x: 150, y: 280 }; // Bottom center - inside table
-                  case 1: return { x: 100, y: 240 }; // Bottom left - moved right/up into table
-                  case 2: return { x: 100, y: 170 }; // Top left - moved right into table
-                  case 3: return { x: 200, y: 170 }; // Top right - moved left into table
-                  case 4: return { x: 200, y: 240 }; // Bottom right - moved left/up into table
+                  case 0: return { x: 150, y: 300 }; // Bottom center - closer to player
+                  case 1: return { x: 85, y: 260 };  // Bottom left - closer to player
+                  case 2: return { x: 85, y: 165 };  // Top left - closer to player
+                  case 3: return { x: 215, y: 165 }; // Top right - closer to player
+                  case 4: return { x: 215, y: 260 }; // Bottom right - closer to player
                   default: return { x: 150, y: 220 };
                 }
               };

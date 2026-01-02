@@ -29,64 +29,76 @@ export function Lucky9PayoutAnimation({ payouts, onComplete }: Lucky9PayoutAnima
   const [bankerNetAmount, setBankerNetAmount] = useState<number>(0);
   const [bankerPosition, setBankerPosition] = useState<{ x: number; y: number } | null>(null);
   const processedPayoutKey = useRef<string>('');
+  const clearTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const netTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Force clear all state - used when payouts array is emptied
+  const forceCleanup = () => {
+    if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
+    if (netTimerRef.current) clearTimeout(netTimerRef.current);
+    setActivePayouts([]);
+    setShowingNet(false);
+    setBankerNetAmount(0);
+    setBankerPosition(null);
+    processedPayoutKey.current = '';
+  };
 
   useEffect(() => {
-    if (payouts.length > 0) {
-      // Check if we already processed this exact payout set (prevent loops)
-      const payoutKey = payouts.map(p => p.id).sort().join(',');
-      if (processedPayoutKey.current === payoutKey) {
-        return;
-      }
-      processedPayoutKey.current = payoutKey;
-      
-      setActivePayouts(payouts);
-      setShowingNet(false);
-      
-      // Calculate banker's net amount (sum of all payouts going to banker minus payouts going out)
-      let bankerNet = 0;
-      let bankerPos: { x: number; y: number } | null = null;
-      
-      payouts.forEach(p => {
-        if (p.isWin) {
-          // Player wins - banker pays out
-          bankerNet -= p.amount;
-          bankerPos = p.fromPosition; // Banker is the source
-        } else {
-          // Player loses - banker receives
-          bankerNet += p.amount;
-          bankerPos = p.toPosition; // Banker is the destination
-        }
-      });
-      
-      setBankerNetAmount(bankerNet);
-      setBankerPosition(bankerPos);
-      
-      // Show combined net amount after chips arrive
-      const netTimer = setTimeout(() => {
-        setShowingNet(true);
-      }, 700);
-
-      const clearTimer = setTimeout(() => {
-        setActivePayouts([]);
-        setShowingNet(false);
-        setBankerNetAmount(0);
-        setBankerPosition(null);
-        onComplete?.();
-      }, 3000);
-
-      return () => {
-        clearTimeout(netTimer);
-        clearTimeout(clearTimer);
-      };
-    }
-  }, [payouts, onComplete]);
-  
-  // Clear processed key when payouts are cleared
-  useEffect(() => {
+    // If payouts are cleared, force cleanup immediately
     if (payouts.length === 0) {
-      processedPayoutKey.current = '';
+      forceCleanup();
+      return;
     }
-  }, [payouts]);
+    
+    // Check if we already processed this exact payout set (prevent loops)
+    const payoutKey = payouts.map(p => p.id).sort().join(',');
+    if (processedPayoutKey.current === payoutKey) {
+      return;
+    }
+    processedPayoutKey.current = payoutKey;
+    
+    // Clear any existing timers
+    if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
+    if (netTimerRef.current) clearTimeout(netTimerRef.current);
+    
+    setActivePayouts(payouts);
+    setShowingNet(false);
+    
+    // Calculate banker's net amount (sum of all payouts going to banker minus payouts going out)
+    let bankerNet = 0;
+    let bankerPos: { x: number; y: number } | null = null;
+    
+    payouts.forEach(p => {
+      if (p.isWin) {
+        // Player wins - banker pays out
+        bankerNet -= p.amount;
+        bankerPos = p.fromPosition; // Banker is the source
+      } else {
+        // Player loses - banker receives
+        bankerNet += p.amount;
+        bankerPos = p.toPosition; // Banker is the destination
+      }
+    });
+    
+    setBankerNetAmount(bankerNet);
+    setBankerPosition(bankerPos);
+    
+    // Show combined net amount after chips arrive
+    netTimerRef.current = setTimeout(() => {
+      setShowingNet(true);
+    }, 700);
+
+    // Auto-clear after animation (4 seconds to allow enough time to see results)
+    clearTimerRef.current = setTimeout(() => {
+      forceCleanup();
+      onComplete?.();
+    }, 4000);
+
+    return () => {
+      if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
+      if (netTimerRef.current) clearTimeout(netTimerRef.current);
+    };
+  }, [payouts, onComplete]);
 
   return (
     <AnimatePresence>
