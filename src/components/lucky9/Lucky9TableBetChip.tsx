@@ -72,10 +72,10 @@ export function Lucky9TableBetChip({
           </motion.div>
         ))}
         
-        {/* Bet amount label - always visible */}
+        {/* Bet amount label - above the chip */}
         <motion.div 
-          className="absolute -bottom-6 left-1/2 -translate-x-1/2 bg-black/95 backdrop-blur-sm px-2 py-0.5 rounded-full text-[9px] font-bold text-amber-400 whitespace-nowrap shadow-lg border border-amber-500/40"
-          initial={{ opacity: 0, y: -5 }}
+          className="absolute -top-6 left-1/2 -translate-x-1/2 bg-black/95 backdrop-blur-sm px-2 py-0.5 rounded-full text-[9px] font-bold text-amber-400 whitespace-nowrap shadow-lg border border-amber-500/40"
+          initial={{ opacity: 0, y: 5 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
         >
