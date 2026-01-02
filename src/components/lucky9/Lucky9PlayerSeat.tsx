@@ -125,46 +125,6 @@ export function Lucky9PlayerSeat({
       animate={isCurrentTurn ? { scale: [1, 1.03, 1] } : {}}
       transition={{ repeat: isCurrentTurn ? Infinity : 0, duration: 1.5 }}
     >
-      {/* Cards ABOVE the avatar panel - positioned absolutely */}
-      {cards.length > 0 && (
-        <div className="absolute -top-8 left-1/2 -translate-x-1/2 z-20 flex items-center gap-0.5">
-          {cards.map((card, i) => (
-            <Lucky9RevealableCard 
-              key={i} 
-              card={card} 
-              hidden={!showCards}
-              canReveal={canRevealCards}
-              delay={i * 0.1} 
-              small
-              extraSmall
-              onReveal={() => onCardReveal?.(i)}
-            />
-          ))}
-          {/* Hand value next to cards */}
-          {showCards && handValue !== null && (
-            <div className="flex flex-col items-center ml-0.5">
-              {(isNatural || showNaturalBadge) && (
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: [1, 1.1, 1] }}
-                  transition={{ repeat: Infinity, duration: 1.5 }}
-                >
-                  <Badge className="bg-gradient-to-r from-amber-500 to-yellow-400 text-black flex items-center gap-0.5 text-[5px] px-0.5">
-                    <Sparkles className="h-1.5 w-1.5" />
-                    9!
-                  </Badge>
-                </motion.div>
-              )}
-              <div className={cn(
-                "font-bold text-xs bg-slate-900/80 rounded px-1",
-                handValue === 9 ? 'text-amber-400' : 'text-white'
-              )}>
-                {handValue}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Visual Seat Frame */}
       <div className="absolute -inset-1.5 rounded-xl bg-gradient-to-b from-amber-900/40 via-amber-800/20 to-amber-900/40 blur-[1px]" />
@@ -180,7 +140,7 @@ export function Lucky9PlayerSeat({
             : "p-0.5 min-w-[55px] max-w-[65px]",
         getSeatBorder()
       )}>
-        {/* Player Avatar and info */}
+        {/* Player Avatar, info, and cards - all inside the panel */}
         <div className="flex items-center gap-0.5">
           {/* Avatar on the left */}
           <Lucky9PlayerAvatar
@@ -196,7 +156,7 @@ export function Lucky9PlayerSeat({
               {isMe && <Badge className="bg-blue-500 px-0.5 py-0 flex-shrink-0 text-[5px]">YOU</Badge>}
               <span className={cn(
                 "font-medium text-white truncate block",
-                isMe ? "text-[6px] max-w-[30px]" : isCompact ? "text-[5px] max-w-[22px]" : "text-[6px] max-w-[28px]"
+                isMe ? "text-[6px] max-w-[25px]" : isCompact ? "text-[5px] max-w-[18px]" : "text-[6px] max-w-[22px]"
               )}>{player.username}</span>
             </div>
             <span className={cn(
@@ -204,6 +164,47 @@ export function Lucky9PlayerSeat({
               isMe ? "text-[6px]" : isCompact ? "text-[5px]" : "text-[5px]"
             )}>₱{player.stack}</span>
           </div>
+
+          {/* Cards on the right side - inside the panel */}
+          {cards.length > 0 && (
+            <div className="flex items-center gap-0.5 flex-shrink-0">
+              {cards.map((card, i) => (
+                <Lucky9RevealableCard 
+                  key={i} 
+                  card={card} 
+                  hidden={!showCards}
+                  canReveal={canRevealCards}
+                  delay={i * 0.1} 
+                  small
+                  extraSmall
+                  onReveal={() => onCardReveal?.(i)}
+                />
+              ))}
+              {/* Hand value */}
+              {showCards && handValue !== null && (
+                <div className="flex flex-col items-center ml-0.5">
+                  {(isNatural || showNaturalBadge) && (
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: [1, 1.1, 1] }}
+                      transition={{ repeat: Infinity, duration: 1.5 }}
+                    >
+                      <Badge className="bg-gradient-to-r from-amber-500 to-yellow-400 text-black flex items-center gap-0.5 text-[5px] px-0.5">
+                        <Sparkles className="h-1.5 w-1.5" />
+                        9!
+                      </Badge>
+                    </motion.div>
+                  )}
+                  <div className={cn(
+                    "font-bold text-[8px] bg-slate-900/80 rounded px-0.5",
+                    handValue === 9 ? 'text-amber-400' : 'text-white'
+                  )}>
+                    {handValue}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Win indicator */}
