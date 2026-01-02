@@ -334,19 +334,21 @@ export function Lucky9GamblingTable({
                     initial={{ opacity: 0, y: 10, scale: 0.5 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -10, scale: 0.5 }}
-                    className="absolute -top-5 left-1/2 -translate-x-1/2 z-40"
+                    className="absolute -top-6 left-0 z-50 pointer-events-none"
                   >
                     <motion.div
                       animate={{ y: [0, -2, 0] }}
                       transition={{ repeat: Infinity, duration: 1.5 }}
                       className={cn(
-                        "font-black text-sm drop-shadow-lg",
-                        banker.winnings > 0 ? 'text-green-400' : 'text-red-400'
+                        "font-black text-sm whitespace-nowrap px-1 py-0.5 rounded",
+                        banker.winnings > 0 
+                          ? 'text-green-400 bg-green-950/80' 
+                          : 'text-red-400 bg-red-950/80'
                       )}
                       style={{ 
                         textShadow: banker.winnings > 0 
-                          ? '0 0 10px rgba(34, 197, 94, 0.8), 0 2px 4px rgba(0,0,0,0.8)' 
-                          : '0 0 10px rgba(239, 68, 68, 0.8), 0 2px 4px rgba(0,0,0,0.8)'
+                          ? '0 0 8px rgba(34, 197, 94, 0.8)' 
+                          : '0 0 8px rgba(239, 68, 68, 0.8)'
                       }}
                     >
                       {Math.abs(banker.winnings) >= 1000 
@@ -418,7 +420,8 @@ export function Lucky9GamblingTable({
                     <div className="absolute left-10 top-1/2 -translate-y-1/2 flex items-center z-20">
                       <div className="flex -space-x-0.5">
                         {bankerCards.map((card, i) => {
-                          const shouldShow = showAllCards || isCurrentUserBanker;
+                          // Show banker cards if: game finished, current user is banker, OR banker has natural 9
+                          const shouldShow = showAllCards || isCurrentUserBanker || bankerIsNatural;
                           const canReveal = isCurrentUserBanker && isBankerTurn && !banker?.hasActed;
                           return (
                             <Lucky9RevealableCard 
@@ -438,7 +441,7 @@ export function Lucky9GamblingTable({
                 </div>
 
                 {/* Score badge below cards */}
-                {(showAllCards || isCurrentUserBanker) && bankerValue !== null && bankerCards.length > 0 && (
+                {(showAllCards || isCurrentUserBanker || bankerIsNatural) && bankerValue !== null && bankerCards.length > 0 && (
                   <motion.div
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
@@ -446,12 +449,14 @@ export function Lucky9GamblingTable({
                   >
                     <div className={cn(
                       "px-1.5 py-0.5 rounded text-[7px] font-bold flex items-center gap-0.5",
-                      bankerValue === 9 
-                        ? "bg-gradient-to-r from-amber-600 to-yellow-500 text-white" 
-                        : "bg-gradient-to-r from-slate-700 to-slate-600 text-white"
+                      bankerIsNatural
+                        ? "bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-black shadow-lg shadow-yellow-500/50 animate-pulse" 
+                        : bankerValue === 9 
+                          ? "bg-gradient-to-r from-amber-600 to-yellow-500 text-white" 
+                          : "bg-gradient-to-r from-slate-700 to-slate-600 text-white"
                     )}>
-                      {bankerIsNatural && <Sparkles className="h-2 w-2 text-yellow-200" />}
-                      {bankerValue === 9 ? 'LUCKY 9' : `${bankerValue} POINTS`}
+                      {bankerIsNatural && <Sparkles className="h-2.5 w-2.5 text-yellow-700" />}
+                      {bankerIsNatural ? 'LUCKY 9!' : bankerValue === 9 ? 'LUCKY 9' : `${bankerValue} POINTS`}
                     </div>
                   </motion.div>
                 )}
@@ -504,7 +509,8 @@ export function Lucky9GamblingTable({
 
           const isCurrentTurn = game?.status === 'player_turns' && game.currentPlayerPosition === player.position;
           const isMe = player.userId === currentUserId;
-          const shouldShowCards = isMe || showAllCards;
+          // Show cards if: it's me, game is finished/showdown, OR player has natural nine (always reveal natural 9)
+          const shouldShowCards = isMe || showAllCards || player.isNatural;
           const playerIsWinner = isGameFinished && (player.result === 'win' || player.result === 'natural_win');
           
           return (
