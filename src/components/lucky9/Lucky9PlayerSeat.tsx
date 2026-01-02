@@ -200,10 +200,13 @@ export function Lucky9PlayerSeat({
             />
           </div>
           
-          {/* Cards overlapping to the right of avatar */}
+          {/* Cards positioned further right - no overlap with avatar */}
           {cards.length > 0 && (
-            <div className="absolute left-6 top-1/2 -translate-y-1/2 flex items-center z-20">
-              <div className="flex -space-x-1">
+            <div className={cn(
+              "absolute top-1/2 -translate-y-1/2 flex items-center z-20",
+              isMe ? "left-9" : "left-7"  // More offset for POV, still further right for global
+            )}>
+              <div className="flex -space-x-0.5">
                 {cards.map((card, i) => (
                   <Lucky9RevealableCard 
                     key={i} 
@@ -211,7 +214,7 @@ export function Lucky9PlayerSeat({
                     hidden={!showCards}
                     canReveal={canRevealCards}
                     delay={i * 0.1} 
-                    small
+                    small={isMe}
                     extraSmall={!isMe}
                     onReveal={() => onCardReveal?.(i)}
                   />
