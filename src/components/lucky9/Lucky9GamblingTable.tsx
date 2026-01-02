@@ -45,15 +45,15 @@ interface Lucky9GamblingTableProps {
   statusMessageType?: 'success' | 'error' | 'pending';
 }
 
-// Position styles for 5 player seats around the vertical oval table (poker-style layout)
+// Position styles for 5 player seats around the vertical oval table (matching reference layout)
 // Position 0 = bottom center (current user), positions arranged clockwise
-// Cards are now inside panels, so positions can be closer
+// Layout: 2 players on left (top-left, bottom-left), 2 players on right (top-right, bottom-right), current user at bottom center
 const seatPositionStyles: Record<number, string> = {
-  0: 'bottom-[-8%] left-1/2 -translate-x-1/2',    // Bottom center - current user
-  1: 'bottom-[25%] left-[-16%]',                   // Bottom left
-  2: 'top-[22%] left-[-16%]',                      // Top left
-  3: 'top-[22%] right-[-16%]',                     // Top right
-  4: 'bottom-[25%] right-[-16%]',                  // Bottom right
+  0: 'bottom-[-5%] left-1/2 -translate-x-1/2',     // Bottom center - current user
+  1: 'bottom-[22%] left-[-8%]',                    // Bottom left side
+  2: 'top-[28%] left-[-8%]',                       // Top left side
+  3: 'top-[28%] right-[-8%]',                      // Top right side
+  4: 'bottom-[22%] right-[-8%]',                   // Bottom right side
 };
 
 // Get display position based on user's actual position (rotate so user is always at bottom)
