@@ -249,14 +249,27 @@ export function Lucky9PlayerSeat({
           </motion.div>
         )}
 
-        {/* Bet display during betting */}
+        {/* Bet status indicator (simplified - actual bet shown on table) */}
         {player.currentBet > 0 && gameStatus === 'betting' && (
           <div className="mt-0.5 flex items-center justify-center gap-0.5">
-            <div className="w-2 h-2 rounded-full bg-gradient-to-br from-green-400 to-green-600 border border-green-300" />
-            <span className="text-green-300 font-bold text-[8px]">₱{player.currentBet}</span>
-            {player.betAccepted === true && <Check className="h-2 w-2 text-green-400" />}
-            {player.betAccepted === false && <X className="h-2 w-2 text-red-400" />}
-            {player.betAccepted === null && <Clock className="h-2 w-2 text-yellow-400 animate-pulse" />}
+            {player.betAccepted === true && (
+              <div className="flex items-center gap-0.5 text-green-400">
+                <Check className="h-2 w-2" />
+                <span className="text-[7px] font-medium">Accepted</span>
+              </div>
+            )}
+            {player.betAccepted === false && (
+              <div className="flex items-center gap-0.5 text-red-400">
+                <X className="h-2 w-2" />
+                <span className="text-[7px] font-medium">Rejected</span>
+              </div>
+            )}
+            {player.betAccepted === null && (
+              <div className="flex items-center gap-0.5 text-yellow-400">
+                <Clock className="h-2 w-2 animate-pulse" />
+                <span className="text-[7px] font-medium">Pending</span>
+              </div>
+            )}
           </div>
         )}
 
