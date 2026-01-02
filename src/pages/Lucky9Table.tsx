@@ -419,6 +419,18 @@ export default function Lucky9TablePage() {
 
   const handleAcceptBet = async (playerId: string) => {
     if (!myPlayer?.isBanker || !user) return;
+    
+    // Find the player and check if banker can cover the bet
+    const player = players.find(p => p.id === playerId);
+    if (player && myPlayer.stack < player.currentBet) {
+      toast({
+        title: "Cannot cover bet",
+        description: `You need ₱${player.currentBet.toLocaleString()} but only have ₱${myPlayer.stack.toLocaleString()}`,
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setIsProcessing(true);
     playSound('betAccepted');
     // Play chip landing sound with delay for when chip appears on table

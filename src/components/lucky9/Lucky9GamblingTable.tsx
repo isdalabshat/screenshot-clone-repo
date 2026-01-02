@@ -271,23 +271,9 @@ export function Lucky9GamblingTable({
         </div>
 
 
-        {/* Card Deck at center - even smaller size */}
-        <div className="absolute top-[45%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-5 scale-50">
-          <motion.div
-            animate={{ 
-              boxShadow: isDealing 
-                ? '0 0 15px rgba(255, 215, 0, 0.4)' 
-                : '0 0 8px rgba(0, 0, 0, 0.4)'
-            }}
-            className="rounded-lg"
-          >
-            <Lucky9CardDeck isDealing={isDealing} />
-          </motion.div>
-        </div>
-
-        {/* Banker Controls - Start Betting & Deal Cards buttons below deck */}
+        {/* Banker Controls - Start Betting & Deal Cards buttons above deck */}
         {(canStartBetting || canDealCards) && (
-          <div className="absolute top-[62%] left-1/2 -translate-x-1/2 z-10 flex gap-1">
+          <div className="absolute top-[38%] left-1/2 -translate-x-1/2 z-10 flex gap-1">
             {canStartBetting && (
               <Button 
                 onClick={onStartBetting} 
@@ -312,6 +298,20 @@ export function Lucky9GamblingTable({
             )}
           </div>
         )}
+
+        {/* Card Deck at center - even smaller size */}
+        <div className="absolute top-[48%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-5 scale-50">
+          <motion.div
+            animate={{ 
+              boxShadow: isDealing 
+                ? '0 0 15px rgba(255, 215, 0, 0.4)' 
+                : '0 0 8px rgba(0, 0, 0, 0.4)'
+            }}
+            className="rounded-lg"
+          >
+            <Lucky9CardDeck isDealing={isDealing} />
+          </motion.div>
+        </div>
 
         {/* Status message inside the table - positioned at bottom center of table */}
         {statusMessage && (
