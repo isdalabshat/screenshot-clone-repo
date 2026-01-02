@@ -4,6 +4,7 @@ import { Lucky9PlayerSeat } from './Lucky9PlayerSeat';
 import { Lucky9RevealableCard } from './Lucky9RevealableCard';
 import { Lucky9PlayerAvatar } from './Lucky9PlayerAvatar';
 import { Lucky9CardDeck } from './Lucky9CardDeck';
+import { Lucky9TableBetChip } from './Lucky9TableBetChip';
 import { calculateLucky9Value, isNatural9 } from '@/lib/lucky9/deck';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
@@ -229,6 +230,45 @@ export function Lucky9GamblingTable({
           <div className="absolute inset-0 rounded-[45%/50%] bg-gradient-to-t from-transparent via-white/5 to-white/10 pointer-events-none" />
         </motion.div>
 
+        {/* Bet Chips Layer - Rendered on table surface */}
+        <div className="absolute inset-0 pointer-events-none z-15">
+          <AnimatePresence>
+            {seats.map((player, displayPosition) => {
+              if (!player) return null;
+              
+              const showBetChip = player.currentBet > 0 && player.betAccepted === true;
+              const isAnimatingLoss = isGameFinished && player.result === 'lose';
+              const isAnimatingWin = isGameFinished && (player.result === 'win' || player.result === 'natural_win');
+              
+              if (!showBetChip || isAnimatingLoss) return null;
+              
+              // Positions are relative to the table container (300px wide, ~400px tall aspect ratio)
+              const getTableBetPosition = (pos: number): { x: number; y: number } => {
+                switch (pos) {
+                  case 0: return { x: 150, y: 310 }; // Bottom center
+                  case 1: return { x: 70, y: 255 }; // Bottom left
+                  case 2: return { x: 70, y: 155 }; // Top left
+                  case 3: return { x: 230, y: 155 }; // Top right
+                  case 4: return { x: 230, y: 255 }; // Bottom right
+                  default: return { x: 150, y: 240 };
+                }
+              };
+              
+              const betPosition = getTableBetPosition(displayPosition);
+              
+              return (
+                <Lucky9TableBetChip
+                  key={`bet-${player.id}`}
+                  amount={player.currentBet}
+                  position={betPosition}
+                  isAnimatingWin={isAnimatingWin}
+                  isAnimatingLoss={isAnimatingLoss}
+                />
+              );
+            })}
+          </AnimatePresence>
+        </div>
+
 
         {/* Card Deck at center - even smaller size */}
         <div className="absolute top-[45%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-5 scale-50">
@@ -327,38 +367,6 @@ export function Lucky9GamblingTable({
               className="relative"
               data-banker-seat="true"
             >
-              {/* Floating Win/Loss Amount - Above avatar */}
-              <AnimatePresence>
-                {banker.winnings !== 0 && isGameFinished && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10, scale: 0.5 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -10, scale: 0.5 }}
-                    className="absolute -top-6 left-0 z-50 pointer-events-none"
-                  >
-                    <motion.div
-                      animate={{ y: [0, -2, 0] }}
-                      transition={{ repeat: Infinity, duration: 1.5 }}
-                      className={cn(
-                        "font-black text-sm whitespace-nowrap px-1 py-0.5 rounded",
-                        banker.winnings > 0 
-                          ? 'text-green-400 bg-green-950/80' 
-                          : 'text-red-400 bg-red-950/80'
-                      )}
-                      style={{ 
-                        textShadow: banker.winnings > 0 
-                          ? '0 0 8px rgba(34, 197, 94, 0.8)' 
-                          : '0 0 8px rgba(239, 68, 68, 0.8)'
-                      }}
-                    >
-                      {Math.abs(banker.winnings) >= 1000 
-                        ? `${banker.winnings > 0 ? '+' : ''}${(banker.winnings / 1000).toFixed(1)}K`
-                        : `${banker.winnings > 0 ? '+' : ''}${banker.winnings}`}
-                    </motion.div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
               {/* Banker decision indicator */}
               <AnimatePresence>
                 {showBankerDecision && bankerDecision && !isGameFinished && (
@@ -509,26 +517,9 @@ export function Lucky9GamblingTable({
 
           const isCurrentTurn = game?.status === 'player_turns' && game.currentPlayerPosition === player.position;
           const isMe = player.userId === currentUserId;
-          // Show cards if: it's me, game is finished/showdown, OR player has natural nine (VISIBLE TO EVERYONE)
           const shouldShowCards = isMe || showAllCards || player.isNatural;
           const playerIsWinner = isGameFinished && (player.result === 'win' || player.result === 'natural_win');
-          
-          // Calculate bet chip position on the table (towards center from player)
-          const getBetChipPosition = (pos: number) => {
-            switch (pos) {
-              case 0: return { x: 0, y: -35 }; // Bottom center - chip moves up towards table
-              case 1: return { x: 40, y: -20 }; // Bottom left - chip moves right-up
-              case 2: return { x: 40, y: 20 }; // Top left - chip moves right-down
-              case 3: return { x: -40, y: 20 }; // Top right - chip moves left-down
-              case 4: return { x: -40, y: -20 }; // Bottom right - chip moves left-up
-              default: return { x: 0, y: -35 };
-            }
-          };
-          
-          const chipPosition = getBetChipPosition(displayPosition);
-          const showBetChip = player.currentBet > 0 && player.betAccepted === true && 
-            (game?.status === 'betting' || game?.status === 'dealing' || game?.status === 'player_turns' || game?.status === 'banker_turn');
-          
+
           return (
             <div 
               key={player.id}
@@ -536,69 +527,6 @@ export function Lucky9GamblingTable({
               data-player-seat={player.id}
               data-player-user-id={player.userId}
             >
-              {/* Bet Chips on Table - only visible when bet is accepted */}
-              <AnimatePresence>
-                {showBetChip && (
-                  <motion.div
-                    initial={{ 
-                      opacity: 0, 
-                      scale: 0.3, 
-                      x: 0, 
-                      y: 0 
-                    }}
-                    animate={{ 
-                      opacity: 1, 
-                      scale: 1, 
-                      x: chipPosition.x, 
-                      y: chipPosition.y 
-                    }}
-                    exit={{ 
-                      opacity: 0, 
-                      scale: 0.3, 
-                      x: 0, 
-                      y: 0 
-                    }}
-                    transition={{ 
-                      type: "spring", 
-                      stiffness: 300, 
-                      damping: 20,
-                      duration: 0.5 
-                    }}
-                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none"
-                  >
-                    <div className="relative">
-                      {/* Chip stack visual */}
-                      <div className="relative">
-                        {/* Bottom chip (shadow) */}
-                        <div className="absolute top-1 left-0.5 w-6 h-6 rounded-full bg-amber-900/80 border-2 border-amber-700" />
-                        {/* Middle chip */}
-                        <div className="absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-gradient-to-br from-amber-500 to-amber-700 border-2 border-amber-400" />
-                        {/* Top chip with amount */}
-                        <motion.div 
-                          initial={{ rotateY: 0 }}
-                          animate={{ rotateY: [0, 360] }}
-                          transition={{ duration: 0.5, delay: 0.3 }}
-                          className="relative w-6 h-6 rounded-full bg-gradient-to-br from-amber-400 via-yellow-400 to-amber-500 border-2 border-amber-300 flex items-center justify-center shadow-lg"
-                        >
-                          <span className="text-[5px] font-black text-amber-900">
-                            {player.currentBet >= 1000 ? `${(player.currentBet / 1000).toFixed(0)}K` : player.currentBet}
-                          </span>
-                        </motion.div>
-                      </div>
-                      {/* Bet amount label */}
-                      <motion.div 
-                        initial={{ opacity: 0, y: 5 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.4 }}
-                        className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-black/90 px-1 py-0.5 rounded text-[6px] font-bold text-yellow-400 whitespace-nowrap shadow-md"
-                      >
-                        ₱{player.currentBet.toLocaleString()}
-                      </motion.div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
               <Lucky9PlayerSeat
                 player={player}
                 isCurrentTurn={isCurrentTurn}
@@ -617,7 +545,7 @@ export function Lucky9GamblingTable({
                 currentDecision={playerDecisions[player.userId] || null}
                 showNaturalBadge={player.isNatural}
                 isWinner={playerIsWinner}
-                isCompact={!isMe} // Make other players' seats compact
+                isCompact={!isMe}
               />
             </div>
           );

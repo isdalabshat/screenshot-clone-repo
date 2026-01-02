@@ -129,36 +129,6 @@ export function Lucky9PlayerSeat({
       animate={isCurrentTurn ? { scale: [1, 1.02, 1] } : {}}
       transition={{ repeat: isCurrentTurn ? Infinity : 0, duration: 1.5 }}
     >
-      {/* Floating Win/Loss Amount - Above avatar like reference */}
-      <AnimatePresence>
-        {player.winnings !== 0 && player.result && (
-          <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.5 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.5 }}
-            className="absolute -top-6 left-0 z-50 pointer-events-none"
-          >
-            <motion.div
-              animate={{ y: [0, -2, 0] }}
-              transition={{ repeat: Infinity, duration: 1.5 }}
-              className={cn(
-                "font-black text-sm whitespace-nowrap px-1 py-0.5 rounded",
-                player.winnings > 0 
-                  ? 'text-green-400 bg-green-950/80' 
-                  : 'text-red-400 bg-red-950/80'
-              )}
-              style={{ 
-                textShadow: player.winnings > 0 
-                  ? '0 0 8px rgba(34, 197, 94, 0.8)' 
-                  : '0 0 8px rgba(239, 68, 68, 0.8)'
-              }}
-            >
-              {formatWinnings(player.winnings)}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* Decision indicator (Hirit/Good) */}
       <AnimatePresence>
         {showDecision && currentDecision && !player.result && (

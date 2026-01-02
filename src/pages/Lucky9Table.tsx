@@ -15,7 +15,8 @@ import { Lucky9GamblingTable } from '@/components/lucky9/Lucky9GamblingTable';
 import Lucky9Chat from '@/components/lucky9/Lucky9Chat';
 import Lucky9EmojiReactions from '@/components/lucky9/Lucky9EmojiReactions';
 import { Lucky9HiritCard, Lucky9DealSequence, getPlayerSeatPosition } from '@/components/lucky9/Lucky9FloatingCard';
-import { Lucky9ChipAnimation, useLucky9ChipAnimations, getChipAnimationPosition } from '@/components/lucky9/Lucky9ChipAnimation';
+import { Lucky9PayoutAnimation, useLucky9PayoutAnimations, PayoutAnimationData } from '@/components/lucky9/Lucky9PayoutAnimation';
+import { getChipAnimationPosition } from '@/components/lucky9/Lucky9ChipAnimation';
 import { useLucky9Sounds } from '@/hooks/useLucky9Sounds';
 import { useToast } from '@/hooks/use-toast';
 
@@ -39,7 +40,7 @@ export default function Lucky9TablePage() {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const { playSound, playDealSequence } = useLucky9Sounds();
-  const { animations: chipAnimations, triggerAnimations, clearAnimations } = useLucky9ChipAnimations();
+  const { payouts, triggerPayouts, clearPayouts } = useLucky9PayoutAnimations();
   const { toast } = useToast();
 
   const [table, setTable] = useState<Lucky9Table | null>(null);
@@ -745,43 +746,38 @@ export default function Lucky9TablePage() {
       if (banker) {
         setTimeout(() => {
           const bankerPos = getChipAnimationPosition(banker.id, true);
-          const chipAnims: any[] = [];
+          const payoutAnims: PayoutAnimationData[] = [];
           
-          players.filter(p => !p.isBanker && p.result).forEach((player, index) => {
+          players.filter(p => !p.isBanker && p.result).forEach((player) => {
             const playerPos = getChipAnimationPosition(player.id, false);
             if (!playerPos || !bankerPos) return;
             
             if (player.result === 'win' || player.result === 'natural_win') {
               // Chips move from banker to player (player wins)
-              chipAnims.push({
-                id: `chip-${player.id}-${Date.now()}`,
-                fromPlayerId: banker.id,
-                toPlayerId: player.id,
-                amount: Math.abs(player.winnings - player.currentBet), // Profit amount
+              const grossWinnings = player.currentBet * 2; // Original bet + winnings
+              const fee = Math.floor(grossWinnings * 0.05); // 5% fee
+              payoutAnims.push({
+                id: `payout-${player.id}-${Date.now()}`,
+                fromPosition: bankerPos,
+                toPosition: playerPos,
+                amount: player.currentBet, // The winnings amount
                 isWin: true,
-                startX: bankerPos.x,
-                startY: bankerPos.y,
-                endX: playerPos.x,
-                endY: playerPos.y
+                feeDeducted: fee
               });
             } else if (player.result === 'lose') {
-              // Chips move from player to banker (player loses)
-              chipAnims.push({
-                id: `chip-${player.id}-${Date.now()}`,
-                fromPlayerId: player.id,
-                toPlayerId: banker.id,
+              // Chips move from player bet to banker (player loses)
+              payoutAnims.push({
+                id: `payout-${player.id}-${Date.now()}`,
+                fromPosition: playerPos,
+                toPosition: bankerPos,
                 amount: player.currentBet,
-                isWin: false,
-                startX: playerPos.x,
-                startY: playerPos.y,
-                endX: bankerPos.x,
-                endY: bankerPos.y
+                isWin: false
               });
             }
           });
           
-          if (chipAnims.length > 0) {
-            triggerAnimations(chipAnims);
+          if (payoutAnims.length > 0) {
+            triggerPayouts(payoutAnims);
           }
         }, 500);
       }
@@ -1076,10 +1072,10 @@ export default function Lucky9TablePage() {
           onComplete={() => setShowHiritAnimation(false)}
         />
 
-        {/* Chip animations for win/lose */}
-        <Lucky9ChipAnimation
-          animations={chipAnimations}
-          onComplete={clearAnimations}
+        {/* Payout animations for win/lose */}
+        <Lucky9PayoutAnimation
+          payouts={payouts}
+          onComplete={clearPayouts}
         />
       </main>
 
