@@ -14,7 +14,7 @@ interface Lucky9ActionButtonsProps {
 
 export function Lucky9ActionButtons({ onDraw, onStand, canDraw, disabled, onTimeout }: Lucky9ActionButtonsProps) {
   const [timeLeft, setTimeLeft] = useState(30);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasTimedOut = useRef(false);
   const lastSecond = useRef<number | null>(null);
   const { playSound } = useLucky9Sounds();

@@ -229,7 +229,7 @@ export function usePokerGame(tableId: string) {
 
   // Server-side turn timeout check - triggered by ANY player when timer expires
   // This ensures disconnected players get auto-folded
-  const serverTimeoutCheckRef = useRef<NodeJS.Timeout | null>(null);
+  const serverTimeoutCheckRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   useEffect(() => {
     if (serverTimeoutCheckRef.current) {

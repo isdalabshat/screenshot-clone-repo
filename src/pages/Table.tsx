@@ -68,8 +68,8 @@ export default function Table() {
   // Auto-start countdown state
   const [autoStartCountdown, setAutoStartCountdown] = useState<number | null>(null);
   const [isWaitingForPlayers, setIsWaitingForPlayers] = useState(false);
-  const autoStartTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const autoStartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countdownIntervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isStartingHand = useRef(false);
   
   const prevGameStatus = useRef<string | null>(null);
@@ -515,7 +515,7 @@ export default function Table() {
 
   // Auto leave when balance is 0 - only after game is settled and confirmed 0 chips
   const hasLeftForZeroChips = useRef(false);
-  const zeroChipCheckTimeout = useRef<NodeJS.Timeout | null>(null);
+  const zeroChipCheckTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   useEffect(() => {
     // Clear any pending timeout
