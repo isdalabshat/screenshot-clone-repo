@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Plus, Edit, Coins, Users, Shield, Trash2, DollarSign, Check, X, Image, History, Eye, EyeOff, Mail, Lock, UserX } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { ProofImage } from '@/components/ProofImage';
 
 interface UserProfile { id: string; oduserId: string; username: string; chips: number; email?: string; }
 interface PokerTableData { id: string; name: string; smallBlind: number; bigBlind: number; handsPlayed: number; maxHands: number; isActive: boolean; }
