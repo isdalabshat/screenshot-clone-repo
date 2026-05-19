@@ -735,7 +735,7 @@ export default function Lucky9TablePage() {
   }, [table?.callTimeStartedAt, table?.callTimeMinutes, fetchTable, toast]);
 
   // Handle calculating state - immediate check and transition to revealing
-  const calculatingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const calculatingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastProcessedCalcGameId = useRef<string | null>(null);
   const lastProcessedRevealGameId = useRef<string | null>(null);
   
@@ -779,7 +779,7 @@ export default function Lucky9TablePage() {
   }, [game?.status, game?.id]);
 
   // Handle revealing state - show all cards for 5 seconds, then finish
-  const revealingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const revealingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const payoutTriggeredRef = useRef<string | null>(null);
   
   useEffect(() => {
@@ -914,7 +914,7 @@ export default function Lucky9TablePage() {
   }, []);
 
   // Failsafe: Reset stuck games after 15 seconds of inactivity in calculating/revealing/finished state
-  const stuckGameTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const stuckGameTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   useEffect(() => {
     if (game?.status === 'calculating' || game?.status === 'revealing' || game?.status === 'finished') {
@@ -972,7 +972,7 @@ export default function Lucky9TablePage() {
   }, [game?.status, game?.id, tableId, resetRound]);
 
   // Additional failsafe: Check for stuck games in any phase (betting, player_turns, banker_turn)
-  const stuckPhaseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const stuckPhaseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   useEffect(() => {
     if (game?.status === 'betting' || game?.status === 'player_turns' || game?.status === 'banker_turn') {

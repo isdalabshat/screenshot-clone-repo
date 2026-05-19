@@ -56,7 +56,7 @@ export function Lucky9PlayerSeat({
   const { playSound } = useLucky9Sounds();
   const [showDecision, setShowDecision] = useState(false);
   const [turnTimeLeft, setTurnTimeLeft] = useState(turnTimeLimit);
-  const turnTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const turnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTickSecond = useRef<number | null>(null);
 
   useEffect(() => {

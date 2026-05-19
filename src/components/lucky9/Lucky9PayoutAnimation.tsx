@@ -29,8 +29,8 @@ export function Lucky9PayoutAnimation({ payouts, onComplete }: Lucky9PayoutAnima
   const [bankerNetAmount, setBankerNetAmount] = useState<number>(0);
   const [bankerPosition, setBankerPosition] = useState<{ x: number; y: number } | null>(null);
   const processedPayoutKey = useRef<string>('');
-  const clearTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const netTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const netTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Force clear all state - used when payouts array is emptied
   const forceCleanup = () => {

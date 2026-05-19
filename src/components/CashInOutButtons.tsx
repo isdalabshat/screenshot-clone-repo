@@ -51,11 +51,8 @@ export function CashInOutButtons({ userId, userChips }: CashInOutButtonsProps) {
       return null;
     }
     
-    const { data: { publicUrl } } = supabase.storage
-      .from('cash-proofs')
-      .getPublicUrl(fileName);
-    
-    return publicUrl;
+    // Store the storage path; consumers generate signed URLs on demand.
+    return fileName;
   };
 
   const handleCashRequest = async (type: 'cash_in' | 'cash_out') => {
